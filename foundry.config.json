@@ -1,0 +1,12 @@
+{
+  "foundryUrl": "https://integrity.palantirfoundry.com",
+  "site": {
+    "application": "ri.third-party-applications.main.application.95399229-983f-48c7-b4ff-35c1b3eadb9e",
+    "directory": "./dist",
+    "autoVersion": {
+      "type": "git-describe",
+      "tagPrefix": ""
+    },
+    "uploadOnly": false
+  }
+}
