@@ -1,0 +1,158 @@
+.container {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #5f6b7c;
+  margin-bottom: 20px;
+}
+
+.tableWrapper {
+  border: 1px solid #dce0e5;
+  border-radius: 6px;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  background: #f6f7f9;
+  border-bottom: 1px solid #dce0e5;
+  color: #5f6b7c;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  padding: 10px 14px;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  border-bottom: 1px solid #edeff2;
+  padding: 10px 14px;
+  vertical-align: top;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background: #f6f7f9;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #5f6b7c;
+  font-size: 14px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #cd4246;
+  font-size: 14px;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #5f6b7c;
+  font-size: 14px;
+}
+
+.tag {
+  display: inline-block;
+  background: #e1e8ed;
+  border-radius: 3px;
+  color: #1c2127;
+  font-size: 11px;
+  margin: 2px 4px 2px 0;
+  padding: 2px 6px;
+}
+
+.statusBadge {
+  display: inline-block;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+}
+
+.statusPending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.statusComplete {
+  background: #d4edda;
+  color: #155724;
+}
+
+.statusSkipped {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.statusDefault {
+  background: #e1e8ed;
+  color: #1c2127;
+}
+
+.truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paginationBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid #dce0e5;
+  background: #f6f7f9;
+  font-size: 13px;
+  color: #5f6b7c;
+}
+
+.paginationButton {
+  background: white;
+  border: 1px solid #dce0e5;
+  border-radius: 4px;
+  color: #1c2127;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+.paginationButton:hover {
+  background: #f6f7f9;
+}
+
+.paginationButton:disabled {
+  color: #abb3bf;
+  cursor: not-allowed;
+}
