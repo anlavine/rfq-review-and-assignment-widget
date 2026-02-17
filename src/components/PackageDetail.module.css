@@ -1,0 +1,200 @@
+.container {
+  width: 100%;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.headerLeft {
+  flex: 1;
+  min-width: 0;
+}
+
+.headerRight {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1c2127;
+  margin: 0 0 4px;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #5f6b7c;
+}
+
+.dateCompact {
+  font-size: 12px;
+  color: #5f6b7c;
+  white-space: nowrap;
+}
+
+.dateCompact strong {
+  color: #1c2127;
+}
+
+/* Email fields — single column */
+.emailFields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6b7c;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.fieldValue {
+  font-size: 14px;
+  color: #1c2127;
+  line-height: 20px;
+  word-break: break-word;
+}
+
+.fieldValueMuted {
+  font-size: 14px;
+  color: #abb3bf;
+  line-height: 20px;
+}
+
+.contactList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.contactRow {
+  font-size: 14px;
+  color: #1c2127;
+  line-height: 20px;
+}
+
+.contactName {
+  color: #5f6b7c;
+  font-size: 13px;
+}
+
+/* Bottom boxes — Linked Tools + Attachments */
+.bottomGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.box {
+  border: 1px solid #dce0e5;
+  border-radius: 6px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.boxLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6b7c;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.toolCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #1c2127;
+}
+
+.toolCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2d72d2;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+}
+
+.attachmentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachmentChip {
+  background: #e1e8ed;
+  border-radius: 3px;
+  color: #1c2127;
+  font-size: 12px;
+  padding: 3px 8px;
+}
+
+/* Body content — full width */
+.bodySection {
+  margin-bottom: 20px;
+}
+
+.bodyContent {
+  font-size: 13px;
+  color: #1c2127;
+  line-height: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #f6f7f9;
+  border: 1px solid #edeff2;
+  border-radius: 4px;
+  padding: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Loading / error */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #5f6b7c;
+  font-size: 14px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #cd4246;
+  font-size: 14px;
+}

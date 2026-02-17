@@ -1,7 +1,32 @@
 .home {
   display: flex;
-  flex-direction: column;
-  gap: 24px;
+  flex-direction: row;
+  gap: 20px;
   width: 100%;
-  max-width: 1200px;
+  height: calc(100vh - 4rem);
+}
+
+.listPanel {
+  flex: 0 0 30%;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.detailPanel {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+.emptyDetail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #5f6b7c;
+  font-size: 14px;
+  text-align: center;
+  padding: 40px;
+  border: 1px dashed #dce0e5;
+  border-radius: 6px;
 }

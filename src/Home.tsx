@@ -1,15 +1,36 @@
-import React from "react";
+import React, { useState, useCallback } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
+import PackageDetail from "./components/PackageDetail";
+
 function Home(): React.ReactElement {
-  // See Ontology and Platform SDK docs in Developer Console on how to
-  // use the client object to access Ontology resources and platform APIs
+  const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
+    null,
+  );
+
+  const handleSelectPackage = useCallback((packageId: string) => {
+    setSelectedPackageId((prev) => (prev === packageId ? null : packageId));
+  }, []);
+
   return (
     <div className={css.home}>
-      <PendingRfqPackageList />
+      <div className={css.listPanel}>
+        <PendingRfqPackageList
+          onSelectPackage={handleSelectPackage}
+          selectedPackageId={selectedPackageId}
+        />
+      </div>
+      <div className={css.detailPanel}>
+        {selectedPackageId ? (
+          <PackageDetail packageId={selectedPackageId} />
+        ) : (
+          <div className={css.emptyDetail}>
+            Select a package from the list to view its details.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 export default Home;
-
