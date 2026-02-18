@@ -17,7 +17,7 @@
     "@osdk/foundry": "^2.47.0",
     "@osdk/oauth": "^1.6.0",
     "@osdk/react": "^0.7.0",
-    "@rfq-review-hub-widget-application/sdk": "^0.4.0",
+    "@rfq-review-hub-widget-application/sdk": "^0.7.0",
     "react": "^18",
     "react-dom": "^18",
     "react-router-dom": "^6.30.1"

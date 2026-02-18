@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from "react";
-import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
+import React, { useEffect, useState, useRef } from "react";
+import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
 
 interface PackageDetailProps {
   packageId: string;
+  refreshToken?: number;
+  onDueDateChanged?: () => void;
 }
 
 function formatDate(date: string | undefined): string {
@@ -99,6 +101,8 @@ function ContactList({ contacts }: { contacts: Contact[] }): React.ReactElement 
 
 function PackageDetail({
   packageId,
+  refreshToken,
+  onDueDateChanged,
 }: PackageDetailProps): React.ReactElement {
   const [pkg, setPkg] = useState<Osdk.Instance<PendingRfqPackage> | null>(
     null,
@@ -107,6 +111,9 @@ function PackageDetail({
   const [toolCount, setToolCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editingDueDate, setEditingDueDate] = useState(false);
+  const [savingDueDate, setSavingDueDate] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,7 +178,7 @@ function PackageDetail({
     return () => {
       cancelled = true;
     };
-  }, [packageId]);
+  }, [packageId, refreshToken]);
 
   if (loading) {
     return (
@@ -189,6 +196,30 @@ function PackageDetail({
     );
   }
 
+  const handleDueDateSave = async (dateStr: string) => {
+    if (!dateStr || savingDueDate) return;
+    setSavingDueDate(true);
+    try {
+      const freshPkg = await client(PendingRfqPackage).fetchOne(packageId);
+      await client(editDueDate).applyAction(
+        {
+          pending_rfq_package: freshPkg,
+          dueDate: dateStr,
+        },
+        { $returnEdits: true },
+      );
+      // Re-fetch the package to get the updated due date
+      const updated = await client(PendingRfqPackage).fetchOne(packageId);
+      setPkg(updated);
+      setEditingDueDate(false);
+      onDueDateChanged?.();
+    } catch (e) {
+      console.error("Failed to update due date:", e);
+    } finally {
+      setSavingDueDate(false);
+    }
+  };
+
   const attachments = pkg.attachmentFileNames ?? [];
   const toContacts = parseToContacts(pkg.to);
   const fromContacts = parseFromContact(pkg.from);
@@ -201,7 +232,6 @@ function PackageDetail({
           <h2 className={css.title}>
             {pkg.packageName || pkg.subject || "Untitled Package"}
           </h2>
-          <span className={css.subtitle}>Package ID: {pkg.$primaryKey}</span>
         </div>
         <div className={css.headerRight}>
           <span className={css.dateCompact}>
@@ -209,7 +239,47 @@ function PackageDetail({
           </span>
           <span className={css.dateCompact}>
             Due: <strong>{formatDate(pkg.dueDate)}</strong>
+            {!editingDueDate && (
+              <button
+                className={css.editIcon}
+                onClick={() => {
+                  setEditingDueDate(true);
+                  setTimeout(() => dateInputRef.current?.showPicker?.(), 50);
+                }}
+                title="Edit due date"
+              >
+                ✏️
+              </button>
+            )}
           </span>
+          {editingDueDate && (
+            <div className={css.dateEditRow}>
+              <input
+                ref={dateInputRef}
+                type="date"
+                className={css.dateInput}
+                defaultValue={pkg.dueDate ? new Date(pkg.dueDate).toISOString().split("T")[0] : ""}
+                disabled={savingDueDate}
+              />
+              <button
+                className={css.dateConfirm}
+                disabled={savingDueDate}
+                onClick={() => {
+                  const val = dateInputRef.current?.value;
+                  if (val) handleDueDateSave(val);
+                }}
+              >
+                {savingDueDate ? "…" : "Save"}
+              </button>
+              <button
+                className={css.dateCancel}
+                disabled={savingDueDate}
+                onClick={() => setEditingDueDate(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

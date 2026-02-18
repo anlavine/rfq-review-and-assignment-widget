@@ -1,6 +1,5 @@
 .container {
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
 }
 
 .title {
@@ -12,7 +11,46 @@
 .subtitle {
   font-size: 13px;
   color: #5f6b7c;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+/* Tabs */
+.tabBar {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid #dce0e5;
+  margin-bottom: 14px;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabBar::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #5f6b7c;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: #1c2127;
+}
+
+.tabActive {
+  color: #2d72d2;
+  border-bottom-color: #2d72d2;
+  font-weight: 600;
 }
 
 /* Card grid — single column within list panel */
@@ -32,6 +70,8 @@
   gap: 6px;
   background: #fff;
   transition: box-shadow 0.15s, border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .card:hover {
@@ -98,13 +138,39 @@
 
 .tag {
   display: inline-block;
-  background: #e1e8ed;
   border-radius: 3px;
-  color: #1c2127;
   font-size: 11px;
   padding: 1px 6px;
   white-space: nowrap;
   flex-shrink: 0;
+  background: #e1e8ed;
+  color: #1c2127;
+}
+
+/* Tag colors */
+.tagTargets {
+  background: #fce4ec;
+  color: #b71c1c;
+}
+
+.tagWaitingForData {
+  background: #fff3e0;
+  color: #e65100;
+}
+
+.tagRepeatRequest {
+  background: #e8eaf6;
+  color: #283593;
+}
+
+.tagDuplicate {
+  background: #fce4ec;
+  color: #880e4f;
+}
+
+.tagUpdateQuote {
+  background: #e0f2f1;
+  color: #004d40;
 }
 
 /* "+N more" hover trigger */
@@ -123,35 +189,20 @@
   background: #f0f2f5;
 }
 
+/* Popover — fixed position, rendered via JS */
 .moreTagsPopover {
-  display: none;
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
   background: #1c2127;
   color: #fff;
   border-radius: 4px;
-  padding: 6px 10px;
-  z-index: 10;
+  padding: 8px 12px;
+  z-index: 9999;
   white-space: nowrap;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-}
-
-.moreTagsPopover::after {
-  content: "";
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #1c2127;
-}
-
-.moreTagsWrapper:hover .moreTagsPopover {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  pointer-events: none;
 }
 
 .popoverTag {
@@ -159,27 +210,61 @@
   padding: 2px 0;
 }
 
-/* Loading / error / empty */
-.loading,
-.error,
-.empty {
+/* Auto-generated due date icon */
+.autoIcon {
+  margin-left: 4px;
+  font-size: 12px;
+}
+
+/* Status badges */
+.statusBadge {
+  display: inline-block;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.statusActive {
+  background: #d4edda;
+  color: #155724;
+}
+
+.statusSkipped {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.statusReviewed {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.statusDefault {
+  background: #e1e8ed;
+  color: #1c2127;
+}
+
+/* Empty / loading / error placeholder card */
+.emptyCard {
+  border: 2px dashed #dce0e5;
+  border-radius: 6px;
+  padding: 12px 14px;
   display: flex;
+  flex-direction: column;
+  gap: 6px;
   align-items: center;
   justify-content: center;
-  padding: 60px 0;
-  font-size: 14px;
-}
-
-.loading {
   color: #5f6b7c;
+  font-size: 13px;
+  min-height: 90px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-.error {
+.emptyCardError {
   color: #cd4246;
-}
-
-.empty {
-  color: #5f6b7c;
 }
 
 /* Pagination */

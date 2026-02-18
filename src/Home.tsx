@@ -1,34 +1,133 @@
 import React, { useState, useCallback } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
+import type { TabKey } from "./components/PendingRfqPackageList";
 import PackageDetail from "./components/PackageDetail";
+import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
+import client from "./client";
+import EditTagsModal from "./components/EditTagsModal";
 
 function Home(): React.ReactElement {
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
     null,
   );
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [selectedPackageStatus, setSelectedPackageStatus] = useState<string | null>(null);
+  const [showEditTags, setShowEditTags] = useState(false);
 
-  const handleSelectPackage = useCallback((packageId: string) => {
-    setSelectedPackageId((prev) => (prev === packageId ? null : packageId));
+  const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
+    setSelectedPackageId((prev) => {
+      if (prev === packageId) {
+        setSelectedPackageStatus(null);
+        return null;
+      }
+      setSelectedPackageStatus(completionStatus ?? null);
+      return packageId;
+    });
   }, []);
+
+  const handleSkip = useCallback(async () => {
+    if (!selectedPackageId || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const pkg = await client(PendingRfqPackage).fetchOne(selectedPackageId);
+      await client(skipPackageReview).applyAction(
+        { pending_rfq_package: pkg },
+        { $returnEdits: true },
+      );
+      setSelectedPackageId(null);
+      setRefreshToken((t) => t + 1);
+    } catch (e) {
+      console.error("Failed to skip package:", e);
+    } finally {
+      setActionLoading(false);
+    }
+  }, [selectedPackageId, actionLoading]);
+
+  const handleUnskip = useCallback(async () => {
+    if (!selectedPackageId || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const pkg = await client(PendingRfqPackage).fetchOne(selectedPackageId);
+      await client(unskipPackageReview).applyAction(
+        { pending_rfq_package: pkg },
+        { $returnEdits: true },
+      );
+      setSelectedPackageId(null);
+      setRefreshToken((t) => t + 1);
+    } catch (e) {
+      console.error("Failed to unskip package:", e);
+    } finally {
+      setActionLoading(false);
+    }
+  }, [selectedPackageId, actionLoading]);
 
   return (
     <div className={css.home}>
-      <div className={css.listPanel}>
-        <PendingRfqPackageList
-          onSelectPackage={handleSelectPackage}
-          selectedPackageId={selectedPackageId}
-        />
-      </div>
-      <div className={css.detailPanel}>
-        {selectedPackageId ? (
-          <PackageDetail packageId={selectedPackageId} />
+      <div className={css.headerBar}>
+        {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+          <button
+            className={css.headerButton}
+            disabled={!selectedPackageId || actionLoading}
+            onClick={handleUnskip}
+          >
+            {actionLoading ? "Unskipping…" : "Unskip"}
+          </button>
         ) : (
-          <div className={css.emptyDetail}>
-            Select a package from the list to view its details.
-          </div>
+          <button
+            className={css.headerButton}
+            disabled={!selectedPackageId || actionLoading}
+            onClick={handleSkip}
+          >
+            {actionLoading ? "Skipping…" : "Skip"}
+          </button>
         )}
+        <button className={css.headerButton} disabled={!selectedPackageId}>Review Package</button>
+        <button
+          className={css.headerButton}
+          disabled={!selectedPackageId}
+          onClick={() => setShowEditTags(true)}
+        >
+          Edit Tags
+        </button>
       </div>
+
+      <div className={css.panels}>
+        <div className={css.listPanel}>
+          <PendingRfqPackageList
+            onSelectPackage={handleSelectPackage}
+            onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
+            selectedPackageId={selectedPackageId}
+            onTabChange={setActiveTab}
+            refreshToken={refreshToken}
+          />
+        </div>
+        <div className={css.detailPanel}>
+          {selectedPackageId ? (
+            <PackageDetail
+              packageId={selectedPackageId}
+              refreshToken={refreshToken}
+              onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+            />
+          ) : (
+            <div className={css.emptyDetail}>
+              Select a package from the list to view its details.
+            </div>
+          )}
+        </div>
+      </div>
+      {showEditTags && selectedPackageId && (
+        <EditTagsModal
+          packageId={selectedPackageId}
+          onClose={() => setShowEditTags(false)}
+          onSaved={() => {
+            setShowEditTags(false);
+            setRefreshToken((t) => t + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
