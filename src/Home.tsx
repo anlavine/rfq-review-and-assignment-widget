@@ -6,6 +6,7 @@ import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
 import client from "./client";
 import EditTagsModal from "./components/EditTagsModal";
+import ReviewPanel from "./components/ReviewPanel";
 
 function Home(): React.ReactElement {
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
@@ -16,6 +17,7 @@ function Home(): React.ReactElement {
   const [refreshToken, setRefreshToken] = useState(0);
   const [selectedPackageStatus, setSelectedPackageStatus] = useState<string | null>(null);
   const [showEditTags, setShowEditTags] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
 
   const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
     setSelectedPackageId((prev) => {
@@ -66,36 +68,63 @@ function Home(): React.ReactElement {
 
   return (
     <div className={css.home}>
-      <div className={css.headerBar}>
-        {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+      {/* Header — switches between normal and review mode */}
+      {reviewMode ? (
+        <div className={css.headerBarReview}>
+          <div className={css.headerLeft}>
+            <button className={css.backButton} onClick={() => setReviewMode(false)}>
+              &larr; Back to list
+            </button>
+          </div>
+          <div className={css.headerRight}>
+            <button
+              className={css.headerButton}
+              disabled={!selectedPackageId}
+              onClick={() => setShowEditTags(true)}
+            >
+              Edit Tags
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={css.headerBar}>
+          {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+            <button
+              className={css.headerButton}
+              disabled={!selectedPackageId || actionLoading}
+              onClick={handleUnskip}
+            >
+              {actionLoading ? "Unskipping…" : "Unskip"}
+            </button>
+          ) : (
+            <button
+              className={css.headerButton}
+              disabled={!selectedPackageId || actionLoading}
+              onClick={handleSkip}
+            >
+              {actionLoading ? "Skipping…" : "Skip"}
+            </button>
+          )}
           <button
             className={css.headerButton}
-            disabled={!selectedPackageId || actionLoading}
-            onClick={handleUnskip}
+            disabled={!selectedPackageId}
+            onClick={() => setReviewMode(true)}
           >
-            {actionLoading ? "Unskipping…" : "Unskip"}
+            Review Package
           </button>
-        ) : (
           <button
             className={css.headerButton}
-            disabled={!selectedPackageId || actionLoading}
-            onClick={handleSkip}
+            disabled={!selectedPackageId}
+            onClick={() => setShowEditTags(true)}
           >
-            {actionLoading ? "Skipping…" : "Skip"}
+            Edit Tags
           </button>
-        )}
-        <button className={css.headerButton} disabled={!selectedPackageId}>Review Package</button>
-        <button
-          className={css.headerButton}
-          disabled={!selectedPackageId}
-          onClick={() => setShowEditTags(true)}
-        >
-          Edit Tags
-        </button>
       </div>
+      )}
 
       <div className={css.panels}>
-        <div className={css.listPanel}>
+        {/* List panel — slides out when in review mode */}
+        <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
           <PendingRfqPackageList
             onSelectPackage={handleSelectPackage}
             onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
@@ -104,6 +133,8 @@ function Home(): React.ReactElement {
             refreshToken={refreshToken}
           />
         </div>
+
+        {/* Detail panel — always visible */}
         <div className={css.detailPanel}>
           {selectedPackageId ? (
             <PackageDetail
@@ -117,7 +148,22 @@ function Home(): React.ReactElement {
             </div>
           )}
         </div>
+
+        {/* Review panel — slides in from right */}
+        <div className={`${css.reviewPanel} ${reviewMode ? css.reviewPanelVisible : ""}`}>
+          {reviewMode && selectedPackageId ? (
+            <ReviewPanel
+              packageId={selectedPackageId}
+              refreshToken={refreshToken}
+            />
+          ) : (
+            <div className={css.reviewPanelContent}>
+              Review panel
+            </div>
+          )}
+        </div>
       </div>
+
       {showEditTags && selectedPackageId && (
         <EditTagsModal
           packageId={selectedPackageId}

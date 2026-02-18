@@ -27,6 +27,8 @@ const ontologyRid = getMetaTagContent("osdk-ontologyRid");
 const scopes = [
   "api:use-ontologies-read",
   "api:use-ontologies-write",
+  "api:use-datasets-read",
+  "api:use-filesystem-read",
   "api:use-mediasets-read",
   "api:use-mediasets-write",
 ];

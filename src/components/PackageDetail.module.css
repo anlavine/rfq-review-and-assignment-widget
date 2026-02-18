@@ -107,6 +107,12 @@
   background: #f6f7f9;
 }
 
+.autoLabel {
+  font-size: 11px;
+  color: #5f6b7c;
+  white-space: nowrap;
+}
+
 /* Email fields — single column */
 .emailFields {
   display: flex;

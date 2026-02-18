@@ -1,0 +1,175 @@
+.container {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Sections ── */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c2127;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Attachments ── */
+.attachmentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.attachmentItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f6f7f9;
+  border: 1px solid #edeff2;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #1c2127;
+}
+
+.attachmentIcon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.attachmentName {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+}
+
+.downloadButton {
+  flex-shrink: 0;
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 500;
+  color: #2d72d2;
+  background: transparent;
+  padding: 2px 10px;
+  border: 1px solid #2d72d2;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.downloadButton:hover {
+  background: #2d72d2;
+  color: #fff;
+}
+
+/* ── Tools grid — wraps into columns ── */
+.toolGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.toolCard {
+  flex: 1 1 280px;
+  max-width: 100%;
+  border: 1px solid #dce0e5;
+  border-radius: 6px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+}
+
+.toolCardHeader {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c2127;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edeff2;
+}
+
+.toolProps {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toolPropRow {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 4px;
+  line-height: 20px;
+}
+
+.toolPropLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #5f6b7c;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.toolPropValue {
+  font-size: 13px;
+  color: #1c2127;
+  margin: 0;
+  word-break: break-word;
+}
+
+/* ── Badge ── */
+.toolCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2d72d2;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+}
+
+/* ── Empty / loading / error ── */
+.emptyMessage {
+  margin: 0;
+  font-size: 13px;
+  color: #abb3bf;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #5f6b7c;
+  font-size: 14px;
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #cd4246;
+  font-size: 14px;
+}

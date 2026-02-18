@@ -252,6 +252,11 @@ function PackageDetail({
               </button>
             )}
           </span>
+          {pkg.automatedDueDate === "true" && (
+            <span className={css.autoLabel} title="This due date was auto-generated">
+              🤖 Auto-generated
+            </span>
+          )}
           {editingDueDate && (
             <div className={css.dateEditRow}>
               <input
