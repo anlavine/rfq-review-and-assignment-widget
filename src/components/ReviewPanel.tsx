@@ -25,7 +25,6 @@ const TOOL_DISPLAY_PROPERTIES: {
   label: string;
 }[] = [
   { apiName: "toolNumber", label: "Tool Number" },
-  { apiName: "partName", label: "Part Name" },
   { apiName: "partNumber", label: "Part Number" },
   { apiName: "commodityCategory", label: "Commodity Category" },
   { apiName: "commodityType", label: "Commodity Type" },
@@ -216,9 +215,7 @@ function ReviewPanel({
             {tools.map((tool) => (
               <div key={tool.$primaryKey} className={css.toolCard}>
                 <div className={css.toolCardHeader}>
-                  {tool.toolNumber
-                    ? `Tool #${tool.toolNumber}`
-                    : tool.partName ?? "Unnamed Tool"}
+                  {tool.partName ?? "Unnamed Tool"}
                 </div>
                 <dl className={css.toolProps}>
                   {TOOL_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
