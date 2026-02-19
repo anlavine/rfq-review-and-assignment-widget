@@ -77,6 +77,28 @@
   background: #f6f7f9;
 }
 
+.createPackageButton {
+  background: #2d72d2;
+  border: 1px solid #2d72d2;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.createPackageButton:hover:not(:disabled) {
+  background: #215db0;
+  border-color: #215db0;
+}
+
+.createPackageButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .panels {
   display: flex;
   flex-direction: row;

@@ -72,9 +72,24 @@
   transition: background 0.15s, color 0.15s;
 }
 
-.downloadButton:hover {
+.downloadButton:hover:not(:disabled) {
   background: #2d72d2;
   color: #fff;
+}
+
+.downloadButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.downloadError {
+  margin: 0;
+  font-size: 12px;
+  color: #cd4246;
+  padding: 6px 10px;
+  background: #fef2f2;
+  border: 1px solid #f5c6c6;
+  border-radius: 4px;
 }
 
 /* ── Tools grid — wraps into columns ── */

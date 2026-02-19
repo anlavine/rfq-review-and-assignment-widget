@@ -4,7 +4,6 @@ import {
   PendingRfqAttachments,
   PendingRFQPackageTool,
 } from "@rfq-review-hub-widget-application/sdk";
-import { Files } from "@osdk/foundry.datasets";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
@@ -68,6 +67,8 @@ function ReviewPanel({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,29 +181,17 @@ function ReviewPanel({
                 {att.filepath && (
                   <button
                     className={css.downloadButton}
-                    onClick={async () => {
-                      try {
-                        const response = await Files.content(
-                          client,
-                          ATTACHMENT_DATASET_RID,
-                          att.filepath!,
-                          { branchName: "master" },
-                        );
-                        const blob = await response.blob();
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = att.fileName ?? "download";
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                        URL.revokeObjectURL(url);
-                      } catch (e) {
-                        console.error("Failed to download attachment:", e);
-                      }
+                    disabled={downloadingId === att.$primaryKey}
+                    onClick={() => {
+                      setDownloadError(null);
+                      setDownloadingId(String(att.$primaryKey));
+                      const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
+                      window.location.href = url;
+                      // Reset button after a short delay since navigation may not leave the page
+                      setTimeout(() => setDownloadingId(null), 2000);
                     }}
                   >
-                    Download
+                    {downloadingId === att.$primaryKey ? "Downloading…" : "Download"}
                   </button>
                 )}
               </li>
@@ -210,6 +199,9 @@ function ReviewPanel({
           </ul>
         ) : (
           <p className={css.emptyMessage}>No attachments found.</p>
+        )}
+        {downloadError && (
+          <p className={css.downloadError}>{downloadError}</p>
         )}
       </section>
 

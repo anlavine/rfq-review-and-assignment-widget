@@ -7,6 +7,9 @@ import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-
 import client from "./client";
 import EditTagsModal from "./components/EditTagsModal";
 import ReviewPanel from "./components/ReviewPanel";
+import { useWorkshop, type WorkshopContext } from "./useWorkshop";
+
+import { isAsyncValue_Loaded } from "@osdk/workshop-iframe-custom-widget";
 
 function Home(): React.ReactElement {
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
@@ -18,6 +21,15 @@ function Home(): React.ReactElement {
   const [selectedPackageStatus, setSelectedPackageStatus] = useState<string | null>(null);
   const [showEditTags, setShowEditTags] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
+  const [createPackageLoading, setCreatePackageLoading] = useState(false);
+
+  // Workshop integration — hook is always called, but context is only
+  // meaningful when the app is embedded as a Bidirectional Iframe widget.
+  const workshopContextAsync = useWorkshop();
+  const workshopContext: WorkshopContext | null =
+    isAsyncValue_Loaded(workshopContextAsync)
+      ? workshopContextAsync.value
+      : null;
 
   const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
     setSelectedPackageId((prev) => {
@@ -66,6 +78,45 @@ function Home(): React.ReactElement {
     }
   }, [selectedPackageId, actionLoading]);
 
+  /**
+   * "Create Package" handler:
+   * 1. Fetches the linked tool IDs for the selected package.
+   * 2. Sets two Workshop variables (selectedPackageId, selectedToolIds).
+   * 3. Fires the createPackageEvent so Workshop can react (e.g., switch tabs).
+   */
+  const handleCreatePackage = useCallback(async () => {
+    if (!selectedPackageId) return;
+    setCreatePackageLoading(true);
+    try {
+      // Fetch tool IDs for this package
+      const toolPage = await client(PendingRfqPackage)
+        .where({ packageId: { $eq: selectedPackageId } })
+        .pivotTo("pendingRfqPackageTools")
+        .fetchPage({ $pageSize: 200, $orderBy: { toolNumber: "asc" } });
+      const toolIds = toolPage.data
+        .map((t) => t.toolId)
+        .filter((id): id is string => id != null);
+
+      if (workshopContext) {
+        // Set Workshop variables
+        workshopContext.selectedPackageId.setLoadedValue(selectedPackageId);
+        workshopContext.selectedToolIds.setLoadedValue(toolIds);
+        // Fire the Workshop event
+        workshopContext.createPackageEvent.executeEvent(undefined);
+      } else {
+        // Not inside Workshop — log for debugging
+        console.log("Create Package (standalone mode):", {
+          packageId: selectedPackageId,
+          toolIds,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to create package:", e);
+    } finally {
+      setCreatePackageLoading(false);
+    }
+  }, [selectedPackageId, workshopContext]);
+
   return (
     <div className={css.home}>
       {/* Header — switches between normal and review mode */}
@@ -83,6 +134,13 @@ function Home(): React.ReactElement {
               onClick={() => setShowEditTags(true)}
             >
               Edit Tags
+            </button>
+            <button
+              className={css.createPackageButton}
+              disabled={!selectedPackageId || createPackageLoading}
+              onClick={handleCreatePackage}
+            >
+              {createPackageLoading ? "Creating…" : "Create Package"}
             </button>
           </div>
         </div>
