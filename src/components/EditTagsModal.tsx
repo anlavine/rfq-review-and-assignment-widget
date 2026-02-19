@@ -88,6 +88,7 @@ function EditTagsModal({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div className={css.overlay} onClick={handleOverlayClick}>
       <div className={css.modal}>
         <h3 className={css.title}>Edit Tags</h3>
