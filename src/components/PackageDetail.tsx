@@ -318,15 +318,10 @@ function PackageDetail({
       {/* Bottom boxes: Linked Tools + Attachments */}
       <div className={css.bottomGrid}>
         <div className={css.box}>
-          <span className={css.boxLabel}>Linked Tools</span>
+          <span className={css.boxLabel}>Number of Parsed Tools</span>
           <div className={css.toolCount}>
             {toolCount != null ? (
-              <>
-                <span className={css.toolCountBadge}>{toolCount}</span>
-                <span>
-                  Pending RFQ Tool{toolCount !== 1 ? "s" : ""}
-                </span>
-              </>
+              <span className={css.toolCountBadge}>{toolCount}</span>
             ) : (
               <span className={css.fieldValueMuted}>Loading…</span>
             )}
@@ -334,18 +329,10 @@ function PackageDetail({
         </div>
 
         <div className={css.box}>
-          <span className={css.boxLabel}>Attachments</span>
-          {attachments.length > 0 ? (
-            <ul className={css.attachmentList}>
-              {attachments.map((name, i) => (
-                <li key={i} className={css.attachmentChip}>
-                  {name}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className={css.fieldValueMuted}>None</span>
-          )}
+          <span className={css.boxLabel}>Number of Parsed Attachments</span>
+          <div className={css.toolCount}>
+            <span className={css.toolCountBadge}>{attachments.length}</span>
+          </div>
         </div>
       </div>
 
