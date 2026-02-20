@@ -119,67 +119,6 @@ function Home(): React.ReactElement {
 
   return (
     <div className={css.home}>
-      {/* Header — switches between normal and review mode */}
-      {reviewMode ? (
-        <div className={css.headerBarReview}>
-          <div className={css.headerLeft}>
-            <button className={css.backButton} onClick={() => setReviewMode(false)}>
-              &larr; Back to list
-            </button>
-          </div>
-          <div className={css.headerRight}>
-            <button
-              className={css.headerButton}
-              disabled={!selectedPackageId}
-              onClick={() => setShowEditTags(true)}
-            >
-              Edit Tags
-            </button>
-            <button
-              className={css.createPackageButton}
-              disabled={!selectedPackageId || createPackageLoading}
-              onClick={handleCreatePackage}
-            >
-              {createPackageLoading ? "Creating…" : "Create Package"}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className={css.headerBar}>
-          {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
-            <button
-              className={css.headerButton}
-              disabled={!selectedPackageId || actionLoading}
-              onClick={handleUnskip}
-            >
-              {actionLoading ? "Unskipping…" : "Unskip"}
-            </button>
-          ) : (
-            <button
-              className={css.headerButton}
-              disabled={!selectedPackageId || actionLoading}
-              onClick={handleSkip}
-            >
-              {actionLoading ? "Skipping…" : "Skip"}
-            </button>
-          )}
-          <button
-            className={css.headerButton}
-            disabled={!selectedPackageId}
-            onClick={() => setReviewMode(true)}
-          >
-            Review Package
-          </button>
-          <button
-            className={css.headerButton}
-            disabled={!selectedPackageId}
-            onClick={() => setShowEditTags(true)}
-          >
-            Edit Tags
-          </button>
-      </div>
-      )}
-
       <div className={css.panels}>
         {/* List panel — slides out when in review mode */}
         <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
@@ -192,33 +131,92 @@ function Home(): React.ReactElement {
           />
         </div>
 
-        {/* Detail panel — always visible */}
-        <div className={css.detailPanel}>
-          {selectedPackageId ? (
-            <PackageDetail
-              packageId={selectedPackageId}
-              refreshToken={refreshToken}
-              onDueDateChanged={() => setRefreshToken((t) => t + 1)}
-            />
+        {/* Detail + review column */}
+        <div className={css.detailColumn}>
+          {/* Header — switches between normal and review mode */}
+          {reviewMode ? (
+            <div className={css.headerBarReview}>
+              <div className={css.headerLeft}>
+                <button className={css.backButton} onClick={() => setReviewMode(false)}>
+                  &larr; Back to list
+                </button>
+              </div>
+              <div className={css.headerRight}>
+                <button
+                  className={css.createPackageButton}
+                  disabled={!selectedPackageId || createPackageLoading}
+                  onClick={handleCreatePackage}
+                >
+                  {createPackageLoading ? "Creating…" : "Create Package"}
+                </button>
+              </div>
+            </div>
           ) : (
-            <div className={css.emptyDetail}>
-              Select a package from the list to view its details.
+            <div className={css.headerBar}>
+              {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+                <button
+                  className={css.headerButton}
+                  disabled={!selectedPackageId || actionLoading}
+                  onClick={handleUnskip}
+                >
+                  {actionLoading ? "Unskipping…" : "Unskip"}
+                </button>
+              ) : (
+                <button
+                  className={css.headerButton}
+                  disabled={!selectedPackageId || actionLoading}
+                  onClick={handleSkip}
+                >
+                  {actionLoading ? "Skipping…" : "Skip"}
+                </button>
+              )}
+              <button
+                className={css.headerButton}
+                disabled={!selectedPackageId}
+                onClick={() => setShowEditTags(true)}
+              >
+                Edit Tags
+              </button>
+              <button
+                className={css.headerButton}
+                disabled={!selectedPackageId}
+                onClick={() => setReviewMode(true)}
+              >
+                Review Package
+              </button>
             </div>
           )}
-        </div>
 
-        {/* Review panel — slides in from right */}
-        <div className={`${css.reviewPanel} ${reviewMode ? css.reviewPanelVisible : ""}`}>
-          {reviewMode && selectedPackageId ? (
-            <ReviewPanel
-              packageId={selectedPackageId}
-              refreshToken={refreshToken}
-            />
-          ) : (
-            <div className={css.reviewPanelContent}>
-              Review panel
+          {/* Detail + Review panels side by side */}
+          <div className={css.detailAndReview}>
+            <div className={css.detailPanel}>
+              {selectedPackageId ? (
+                <PackageDetail
+                  packageId={selectedPackageId}
+                  refreshToken={refreshToken}
+                  onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                />
+              ) : (
+                <div className={css.emptyDetail}>
+                  Select a package from the list to view its details.
+                </div>
+              )}
             </div>
-          )}
+
+            {/* Review panel — slides in from right */}
+            <div className={`${css.reviewPanel} ${reviewMode ? css.reviewPanelVisible : ""}`}>
+              {reviewMode && selectedPackageId ? (
+                <ReviewPanel
+                  packageId={selectedPackageId}
+                  refreshToken={refreshToken}
+                />
+              ) : (
+                <div className={css.reviewPanelContent}>
+                  Review panel
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

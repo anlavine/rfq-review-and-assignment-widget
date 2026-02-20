@@ -326,38 +326,24 @@ function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps)
         )}
       </div>
 
-      <div className={css.cardRow}>
-        <span className={css.cardLabel}>Customer:</span>
-        <span className={customerLoading ? css.cardValueMuted : css.cardValue}>
-          {customerLoading ? "Loading…" : customerName ?? "—"}
-        </span>
+      <div className={css.cardMeta}>
+        {customerLoading ? "…" : customerName ?? "—"}
+        <span className={css.cardMetaSep}>·</span>
+        {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
+        <span className={css.cardMetaSep}>·</span>
+        Due: {formatDate(pkg.dueDate)}
+        {pkg.automatedDueDate === "true" && (
+          <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
+        )}
+        {showStatus && pkg.completionStatus && (
+          <>
+            <span className={css.cardMetaSep}>·</span>
+            <span className={`${css.statusBadge} ${getStatusClass(pkg.completionStatus)}`}>
+              {pkg.completionStatus}
+            </span>
+          </>
+        )}
       </div>
-
-      <div className={css.cardRow}>
-        <span className={css.cardLabel}>Program:</span>
-        <span className={css.cardValue}>
-          {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
-        </span>
-      </div>
-
-      <div className={css.cardRow}>
-        <span className={css.cardLabel}>Due Date:</span>
-        <span className={css.cardValue}>
-          {formatDate(pkg.dueDate)}
-          {pkg.automatedDueDate === "true" && (
-            <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
-          )}
-        </span>
-      </div>
-
-      {showStatus && pkg.completionStatus && (
-        <div className={css.cardRow}>
-          <span className={css.cardLabel}>Status:</span>
-          <span className={`${css.statusBadge} ${getStatusClass(pkg.completionStatus)}`}>
-            {pkg.completionStatus}
-          </span>
-        </div>
-      )}
     </div>
   );
 }

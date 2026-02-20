@@ -127,6 +127,25 @@
   min-width: 260px;
 }
 
+/* Detail column — contains header + detail/review panels */
+.detailColumn {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Detail + review side by side */
+.detailAndReview {
+  display: flex;
+  flex-direction: row;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* Detail panel */
 .detailPanel {
   flex: 1;
