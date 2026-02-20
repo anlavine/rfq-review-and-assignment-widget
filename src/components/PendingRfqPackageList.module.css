@@ -261,6 +261,23 @@
   color: #1c2127;
 }
 
+/* Due date urgency — card border */
+.cardOverdue {
+  border-color: #f98d90;
+}
+
+.cardOverdue:hover {
+  border-color: #cd4246;
+}
+
+.cardDueSoon {
+  border-color: #fad881;
+}
+
+.cardDueSoon:hover {
+  border-color: #d4a017;
+}
+
 /* Empty / loading / error placeholder card */
 .emptyCard {
   border: 2px dashed #dce0e5;

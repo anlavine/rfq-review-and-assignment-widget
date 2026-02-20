@@ -114,6 +114,23 @@
   white-space: nowrap;
 }
 
+/* Due date urgency colors */
+.dateOverdue {
+  color: #cd4246;
+}
+
+.dateOverdue strong {
+  color: #cd4246;
+}
+
+.dateDueSoon {
+  color: #d4a017;
+}
+
+.dateDueSoon strong {
+  color: #d4a017;
+}
+
 /* Email fields — single column */
 .emailFields {
   display: flex;

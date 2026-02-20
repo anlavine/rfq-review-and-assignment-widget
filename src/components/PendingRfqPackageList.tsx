@@ -4,6 +4,7 @@ import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk, PageResult } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
+import { getDueDateUrgency } from "../utils/dueDateUrgency";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -167,7 +168,10 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 function formatDate(date: string | undefined): string {
   if (!date) return "—";
   try {
-    return new Date(date).toLocaleDateString("en-US", {
+    // Parse as local date to avoid UTC timezone shift (YYYY-MM-DD → local midnight)
+    const parts = date.split("T")[0].split("-");
+    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return local.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -294,6 +298,8 @@ function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps)
     };
   }, [pkg]);
 
+  const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
+
   const tags = pkg.tags ?? [];
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
   const overflowTags = tags.slice(MAX_VISIBLE_TAGS);
@@ -301,7 +307,7 @@ function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps)
   const moreRef = useRef<HTMLSpanElement | null>(null);
 
   return (
-    <div className={`${css.card} ${isSelected ? css.cardSelected : ""}`} onClick={onClick} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }}>
+    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${urgency === "overdue" ? css.cardOverdue : urgency === "dueSoon" ? css.cardDueSoon : ""}`} onClick={onClick} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }}>
       <div className={css.cardHeader}>
         <div className={css.cardTitle}>{pkg.packageName || pkg.subject || "[Unnamed Package]"}</div>
         {tags.length > 0 && (

@@ -3,6 +3,7 @@ import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-applicati
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
+import { getDueDateUrgency } from "../utils/dueDateUrgency";
 
 interface PackageDetailProps {
   packageId: string;
@@ -13,7 +14,10 @@ interface PackageDetailProps {
 function formatDate(date: string | undefined): string {
   if (!date) return "—";
   try {
-    return new Date(date).toLocaleDateString("en-US", {
+    // Parse as local date to avoid UTC timezone shift (YYYY-MM-DD → local midnight)
+    const parts = date.split("T")[0].split("-");
+    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return local.toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
@@ -223,6 +227,7 @@ function PackageDetail({
   const attachments = pkg.attachmentFileNames ?? [];
   const toContacts = parseToContacts(pkg.to);
   const fromContacts = parseFromContact(pkg.from);
+  const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
   return (
     <div className={css.container}>
@@ -237,7 +242,7 @@ function PackageDetail({
           <span className={css.dateCompact}>
             Received: <strong>{formatDate(pkg.receivedDate)}</strong>
           </span>
-          <span className={css.dateCompact}>
+          <span className={`${css.dateCompact} ${urgency === "overdue" ? css.dateOverdue : urgency === "dueSoon" ? css.dateDueSoon : ""}`}>
             Due: <strong>{formatDate(pkg.dueDate)}</strong>
             {!editingDueDate && (
               <button
@@ -263,7 +268,7 @@ function PackageDetail({
                 ref={dateInputRef}
                 type="date"
                 className={css.dateInput}
-                defaultValue={pkg.dueDate ? new Date(pkg.dueDate).toISOString().split("T")[0] : ""}
+                defaultValue={pkg.dueDate ? pkg.dueDate.split("T")[0] : ""}
                 disabled={savingDueDate}
               />
               <button
