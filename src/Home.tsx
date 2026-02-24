@@ -1,7 +1,8 @@
 import React, { useState, useCallback } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
-import type { TabKey } from "./components/PendingRfqPackageList";
+import type { TabKey, Filters } from "./components/PendingRfqPackageList";
+import FilterDropdown from "./components/FilterDropdown";
 import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
 import client from "./client";
@@ -22,6 +23,7 @@ function Home(): React.ReactElement {
   const [showEditTags, setShowEditTags] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [createPackageLoading, setCreatePackageLoading] = useState(false);
+  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", customerSearch: "" });
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -128,6 +130,7 @@ function Home(): React.ReactElement {
             selectedPackageId={selectedPackageId}
             onTabChange={setActiveTab}
             refreshToken={refreshToken}
+            filters={filters}
           />
         </div>
 
@@ -153,6 +156,7 @@ function Home(): React.ReactElement {
             </div>
           ) : (
             <div className={css.headerBar}>
+              <FilterDropdown filters={filters} onFiltersChange={setFilters} />
               {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
                 <button
                   className={css.headerButton}

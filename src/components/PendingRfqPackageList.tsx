@@ -18,15 +18,22 @@ const TABS: { key: TabKey; label: string; status: string | null }[] = [
   { key: "reviewed", label: "Reviewed", status: "Reviewed" },
 ];
 
+export interface Filters {
+  dueDateStart: string;
+  dueDateEnd: string;
+  customerSearch: string;
+}
+
 interface PendingRfqPackageListProps {
   onSelectPackage: (packageId: string, completionStatus?: string) => void;
   onDeselectPackage: () => void;
   selectedPackageId: string | null;
   onTabChange?: (tab: TabKey) => void;
   refreshToken?: number;
+  filters: Filters;
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken }: PendingRfqPackageListProps): React.ReactElement {
+function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters }: PendingRfqPackageListProps): React.ReactElement {
   const [packages, setPackages] = useState<
     Osdk.Instance<PendingRfqPackage>[]
   >([]);
@@ -35,15 +42,34 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   const [nextPageToken, setNextPageToken] = useState<string | undefined>();
   const [currentPage, setCurrentPage] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
+  // Map of packageId → customerName for client-side customer filtering
+  const [customerMap, setCustomerMap] = useState<Record<string, string | null>>({});
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
-  const loadPage = useCallback(async (pageToken?: string, status?: string | null) => {
+  const loadPage = useCallback(async (pageToken?: string, status?: string | null, activeFilters?: Filters) => {
     setLoading(true);
     setError(null);
     try {
-      const objectSet = status
-        ? client(PendingRfqPackage).where({ completionStatus: { $eq: status } })
+      // Build where clauses
+      const conditions: Record<string, unknown>[] = [];
+      if (status) {
+        conditions.push({ completionStatus: { $eq: status } });
+      }
+      if (activeFilters?.dueDateStart) {
+        conditions.push({ dueDate: { $gte: activeFilters.dueDateStart } });
+      }
+      if (activeFilters?.dueDateEnd) {
+        // Make end date inclusive by adding one day
+        const endParts = activeFilters.dueDateEnd.split("-");
+        const endDate = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2]) + 1);
+        const endStr = endDate.toISOString().split("T")[0];
+        conditions.push({ dueDate: { $lt: endStr } });
+      }
+
+      const objectSet = conditions.length > 0
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? client(PendingRfqPackage).where({ $and: conditions } as any)
         : client(PendingRfqPackage);
 
       const page: PageResult<Osdk.Instance<PendingRfqPackage>> =
@@ -62,21 +88,26 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     }
   }, []);
 
+  // Only re-fetch from server when server-side filters change (date filters, tab, refresh).
+  // Customer search is client-side only — no need to reload or clear customer data.
+  const serverFilters = `${filters.dueDateStart}|${filters.dueDateEnd}`;
   useEffect(() => {
     setCurrentPage(0);
-    loadPage(undefined, activeStatus);
-  }, [loadPage, activeStatus, refreshToken]);
+    setCustomerMap({});
+    loadPage(undefined, activeStatus, filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadPage, activeStatus, refreshToken, serverFilters]);
 
   const handleNextPage = () => {
     if (nextPageToken) {
       setCurrentPage((p) => p + 1);
-      loadPage(nextPageToken, activeStatus);
+      loadPage(nextPageToken, activeStatus, filters);
     }
   };
 
   const handleFirstPage = () => {
     setCurrentPage(0);
-    loadPage(undefined, activeStatus);
+    loadPage(undefined, activeStatus, filters);
   };
 
   const handleTabChange = (tab: TabKey) => {
@@ -123,23 +154,45 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
           <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>
         ) : packages.length === 0 ? (
           <div className={css.emptyCard}>No packages found.</div>
-        ) : (
-          packages.map((pkg) => (
-            <PackageCard
-              key={pkg.$primaryKey}
-              pkg={pkg}
-              isSelected={String(pkg.$primaryKey) === selectedPackageId}
-              showStatus={activeTab === "all"}
-              onClick={() => onSelectPackage(String(pkg.$primaryKey), pkg.completionStatus ?? undefined)}
-            />
-          ))
-        )}
+        ) : (() => {
+          const filtered = packages.filter((pkg) => {
+            if (!filters.customerSearch) return true;
+            const name = customerMap[String(pkg.$primaryKey)];
+            if (name === undefined) return true;
+            if (name === null) return false;
+            return name.toLowerCase().includes(filters.customerSearch.toLowerCase());
+          });
+          return filtered.length === 0
+            ? <div className={css.emptyCard}>No packages match the customer filter.</div>
+            : filtered.map((pkg) => (
+              <PackageCard
+                key={pkg.$primaryKey}
+                pkg={pkg}
+                isSelected={String(pkg.$primaryKey) === selectedPackageId}
+                showStatus={activeTab === "all"}
+                onClick={() => onSelectPackage(String(pkg.$primaryKey), pkg.completionStatus ?? undefined)}
+                onCustomerLoaded={(id, name) => setCustomerMap((prev) => ({ ...prev, [id]: name }))}
+              />
+            ));
+        })()}
       </div>
 
-      {!loading && !error && packages.length > 0 && (
+      {!loading && !error && packages.length > 0 && (() => {
+        const visibleCount = filters.customerSearch
+          ? packages.filter((pkg) => {
+              const name = customerMap[String(pkg.$primaryKey)];
+              if (name === undefined) return true;
+              if (name === null) return false;
+              return name.toLowerCase().includes(filters.customerSearch.toLowerCase());
+            }).length
+          : packages.length;
+        return (
         <div className={css.paginationBar}>
           <span>
-            Page {currentPage + 1} &middot; {packages.length} results
+            Page {currentPage + 1} &middot; {visibleCount} result{visibleCount !== 1 ? "s" : ""}
+            {filters.customerSearch && visibleCount !== packages.length && (
+              <span className={css.cardMetaSep}> (of {packages.length} fetched)</span>
+            )}
           </span>
           <div>
             {currentPage > 0 && (
@@ -160,7 +213,8 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
@@ -260,9 +314,10 @@ interface PackageCardProps {
   isSelected: boolean;
   showStatus: boolean;
   onClick: () => void;
+  onCustomerLoaded?: (packageId: string, customerName: string | null) => void;
 }
 
-function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps): React.ReactElement {
+function PackageCard({ pkg, isSelected, showStatus, onClick, onCustomerLoaded }: PackageCardProps): React.ReactElement {
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [customerLoading, setCustomerLoading] = useState(true);
   const fetchedRef = useRef(false);
@@ -280,7 +335,9 @@ function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps)
           .pivotTo("betaAdécustomer")
           .fetchPage({ $pageSize: 1 });
         if (!cancelled) {
-          setCustomerName(customerPage.data[0]?.customerName ?? null);
+          const name = customerPage.data[0]?.customerName ?? null;
+          setCustomerName(name);
+          onCustomerLoaded?.(String(pkg.$primaryKey), name);
         }
       } catch {
         // linked customer may not exist
@@ -296,7 +353,7 @@ function PackageCard({ pkg, isSelected, showStatus, onClick }: PackageCardProps)
     return () => {
       cancelled = true;
     };
-  }, [pkg]);
+  }, [pkg, onCustomerLoaded]);
 
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
