@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
-import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, editDueDate, changeCustomer } from "@rfq-review-hub-widget-application/sdk";
+import CustomerPicker from "./CustomerPicker";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
@@ -118,6 +119,8 @@ function PackageDetail({
   const [editingDueDate, setEditingDueDate] = useState(false);
   const [savingDueDate, setSavingDueDate] = useState(false);
   const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const [editingCustomer, setEditingCustomer] = useState(false);
+  const [savingCustomer, setSavingCustomer] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -224,6 +227,28 @@ function PackageDetail({
     }
   };
 
+  const handleCustomerSave = async (customerPrimaryKey: string, newCustomerName: string) => {
+    if (savingCustomer) return;
+    setSavingCustomer(true);
+    try {
+      const freshPkg = await client(PendingRfqPackage).fetchOne(packageId);
+      await client(changeCustomer).applyAction(
+        {
+          pending_rfq_package: freshPkg,
+          customerPrimaryKey: customerPrimaryKey,
+        },
+        { $returnEdits: true },
+      );
+      setCustomerName(newCustomerName);
+      setEditingCustomer(false);
+      onDueDateChanged?.(); // re-use callback to trigger list refresh
+    } catch (e) {
+      console.error("Failed to change customer:", e);
+    } finally {
+      setSavingCustomer(false);
+    }
+  };
+
   const attachments = pkg.attachmentFileNames ?? [];
   const toContacts = parseToContacts(pkg.to);
   const fromContacts = parseFromContact(pkg.from);
@@ -314,9 +339,25 @@ function PackageDetail({
 
         <div className={css.field}>
           <span className={css.fieldLabel}>Customer</span>
-          <span className={customerName ? css.fieldValue : css.fieldValueMuted}>
-            {customerName ?? "—"}
-          </span>
+          {editingCustomer ? (
+            <CustomerPicker
+              onSelect={(c) => handleCustomerSave(c.primaryKey, c.name)}
+              onCancel={() => setEditingCustomer(false)}
+            />
+          ) : (
+            <span className={customerName ? css.fieldValue : css.fieldValueMuted}>
+              {savingCustomer ? "Saving…" : customerName ?? "—"}
+              {!savingCustomer && (
+                <button
+                  className={css.editIcon}
+                  onClick={() => setEditingCustomer(true)}
+                  title="Change customer"
+                >
+                  ✏️
+                </button>
+              )}
+            </span>
+          )}
         </div>
       </div>
 

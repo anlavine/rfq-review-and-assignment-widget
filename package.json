@@ -13,12 +13,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@osdk/client": "^2.6.3",
-    "@osdk/foundry": "^2.47.0",
-    "@osdk/oauth": "^1.6.0",
+    "@osdk/client": "^2.7.1",
+    "@osdk/foundry": "^2.48.0",
+    "@osdk/oauth": "^1.7.0",
     "@osdk/react": "^0.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
-    "@rfq-review-hub-widget-application/sdk": "^0.8.0",
+    "@rfq-review-hub-widget-application/sdk": "^0.10.0",
     "react": "^18",
     "react-dom": "^18",
     "react-router-dom": "^6.30.1"
