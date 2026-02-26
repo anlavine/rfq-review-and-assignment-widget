@@ -52,6 +52,7 @@ const TOOL_DISPLAY_PROPERTIES: {
   { apiName: "reflexSource", label: "Reflex Source" },
   { apiName: "estKickoffDate", label: "Est. Kickoff Date" },
   { apiName: "estV1Date", label: "Est. V1 Date" },
+  //TODO: Add new fields here
 ];
 
 function ReviewPanel({

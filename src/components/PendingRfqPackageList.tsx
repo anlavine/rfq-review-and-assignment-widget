@@ -321,6 +321,9 @@ function PackageCard({ pkg, isSelected, showStatus, onClick, onCustomerLoaded }:
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [customerLoading, setCustomerLoading] = useState(true);
   const fetchedRef = useRef(false);
+  // Keep callback ref stable so it doesn't trigger the effect
+  const onCustomerLoadedRef = useRef(onCustomerLoaded);
+  onCustomerLoadedRef.current = onCustomerLoaded;
 
   useEffect(() => {
     if (fetchedRef.current) return;
@@ -337,7 +340,7 @@ function PackageCard({ pkg, isSelected, showStatus, onClick, onCustomerLoaded }:
         if (!cancelled) {
           const name = customerPage.data[0]?.customerName ?? null;
           setCustomerName(name);
-          onCustomerLoaded?.(String(pkg.$primaryKey), name);
+          onCustomerLoadedRef.current?.(String(pkg.$primaryKey), name);
         }
       } catch {
         // linked customer may not exist
@@ -353,7 +356,7 @@ function PackageCard({ pkg, isSelected, showStatus, onClick, onCustomerLoaded }:
     return () => {
       cancelled = true;
     };
-  }, [pkg, onCustomerLoaded]);
+  }, [pkg]);
 
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
