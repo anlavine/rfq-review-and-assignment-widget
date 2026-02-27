@@ -92,16 +92,14 @@
   border-radius: 4px;
 }
 
-/* ── Tools grid — wraps into columns ── */
+/* ── Tools grid — two columns ── */
 .toolGrid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
 .toolCard {
-  flex: 1 1 280px;
-  max-width: 100%;
   border: 1px solid #dce0e5;
   border-radius: 6px;
   padding: 14px;
