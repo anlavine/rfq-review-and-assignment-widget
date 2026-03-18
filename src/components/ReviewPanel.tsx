@@ -3,6 +3,8 @@ import {
   PendingRfqPackage,
   PendingRfqAttachments,
   PendingRFQPackageTool,
+  PendingRfqPackagePart,
+  PendingRfqPackageManifold,
 } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -17,43 +19,68 @@ interface ReviewPanelProps {
 }
 
 /**
- * All displayable tool property API names (excluding the hidden ones),
- * in a stable order for consistent rendering.
+ * Tool properties to display (excluding emailId, packageId, subject, from, to, toolId,
+ * and fields that moved to Part/Manifold).
  */
 const TOOL_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRFQPackageTool>;
   label: string;
 }[] = [
   { apiName: "toolNumber", label: "Tool Number" },
-  { apiName: "partNumber", label: "Part Number" },
   { apiName: "commodityCategory", label: "Commodity Category" },
   { apiName: "commodityType", label: "Commodity Type" },
+  { apiName: "cavitations", label: "Cavitations" },
+  { apiName: "cavitySurfaceFinish", label: "Cavity Surface Finish" },
+  { apiName: "cavityMaterial1", label: "Cavity Material" },
+  { apiName: "coreSurfaceFinish", label: "Core Surface Finish" },
+  { apiName: "coreSurfaceMaterial", label: "Core Surface Material" },
+  { apiName: "surfaceTreatmentType", label: "Surface Treatment Type" },
+  { apiName: "textureType", label: "Texture Type" },
+  { apiName: "textureSource", label: "Texture Source" },
+  { apiName: "ejectionType", label: "Ejection Type" },
+  { apiName: "pressSize", label: "Press Size" },
+  { apiName: "numberOfTryouts", label: "Number of Tryouts" },
+  { apiName: "shotsPerTryout", label: "Shots per Tryout" },
+  { apiName: "cycleTime", label: "Cycle Time" },
+  { apiName: "delivery", label: "Delivery" },
+  { apiName: "fob", label: "FOB" },
+  { apiName: "fobDdpDap", label: "FOB/DDP/DAP" },
+  { apiName: "reflexSource", label: "Reflex Source" },
+  { apiName: "moldflowSupplier", label: "Moldflow Supplier" },
+  { apiName: "toolAttachment", label: "Tool Attachment" },
+  { apiName: "estKickoffDate", label: "Est. Kickoff Date" },
+  { apiName: "estV1Date", label: "Est. V1 Date" },
+];
+
+/** Part properties to display (excluding IDs) */
+const PART_DISPLAY_PROPERTIES: {
+  apiName: keyof Osdk.Instance<PendingRfqPackagePart>;
+  label: string;
+}[] = [
+  { apiName: "partName", label: "Part Name" },
+  { apiName: "partNumber", label: "Part Number" },
   { apiName: "cadfilename", label: "CAD Filename" },
   { apiName: "lengthX", label: "Length (X)" },
   { apiName: "widthY", label: "Width (Y)" },
   { apiName: "heightZ", label: "Height (Z)" },
-  { apiName: "cavitations", label: "Cavitations" },
-  { apiName: "cavitySurfaceFinish", label: "Cavity Surface Finish" },
-  { apiName: "coreSurfaceFinish", label: "Core Surface Finish" },
-  { apiName: "surfaceTreatmentType", label: "Surface Treatment Type" },
-  { apiName: "textureType", label: "Texture Type" },
-  { apiName: "textureSource", label: "Texture Source" },
-  { apiName: "gateType", label: "Gate Type" },
-  { apiName: "numberOfGates", label: "Number of Gates" },
-  { apiName: "ejectionType", label: "Ejection Type" },
+];
+
+/** Manifold properties to display (excluding IDs) */
+const MANIFOLD_DISPLAY_PROPERTIES: {
+  apiName: keyof Osdk.Instance<PendingRfqPackageManifold>;
+  label: string;
+}[] = [
   { apiName: "manifoldType", label: "Manifold Type" },
   { apiName: "manifoldSupplier", label: "Manifold Supplier" },
+  { apiName: "gateType", label: "Gate Type" },
   { apiName: "numberOfDrops", label: "Number of Drops" },
-  { apiName: "pressSize", label: "Press Size" },
-  { apiName: "numberOfTryouts", label: "Number of Tryouts" },
-  { apiName: "shotsPerTryout", label: "Shots per Tryout" },
-  { apiName: "delivery", label: "Delivery" },
-  { apiName: "fob", label: "FOB" },
-  { apiName: "reflexSource", label: "Reflex Source" },
-  { apiName: "estKickoffDate", label: "Est. Kickoff Date" },
-  { apiName: "estV1Date", label: "Est. V1 Date" },
-  //TODO: Add new fields here
 ];
+
+/** Linked parts and manifolds for each tool */
+interface ToolLinkedData {
+  parts: Osdk.Instance<PendingRfqPackagePart>[];
+  manifolds: Osdk.Instance<PendingRfqPackageManifold>[];
+}
 
 function ReviewPanel({
   packageId,
@@ -65,6 +92,9 @@ function ReviewPanel({
   const [tools, setTools] = useState<Osdk.Instance<PendingRFQPackageTool>[]>(
     [],
   );
+  const [toolLinkedMap, setToolLinkedMap] = useState<
+    Record<string, ToolLinkedData>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -77,6 +107,7 @@ function ReviewPanel({
     setError(null);
     setAttachments([]);
     setTools([]);
+    setToolLinkedMap({});
 
     (async () => {
       try {
@@ -131,6 +162,40 @@ function ReviewPanel({
         if (cancelled) return;
         setAttachments(resolvedAttachments);
         setTools(resolvedTools);
+
+        // Fetch parts and manifolds for each tool in parallel
+        const linkedEntries = await Promise.all(
+          resolvedTools.map(async (tool) => {
+            const toolId = String(tool.$primaryKey);
+            const [parts, manifolds] = await Promise.all([
+              (async () => {
+                try {
+                  const page = await tool.$link.pendingRfqPackageParts.fetchPage({ $pageSize: 200 });
+                  return page.data;
+                } catch {
+                  return [];
+                }
+              })(),
+              (async () => {
+                try {
+                  const page = await tool.$link.pendingRfqPackageManifolds.fetchPage({ $pageSize: 200 });
+                  return page.data;
+                } catch {
+                  return [];
+                }
+              })(),
+            ]);
+            return { toolId, parts, manifolds };
+          }),
+        );
+
+        if (cancelled) return;
+
+        const linked: Record<string, ToolLinkedData> = {};
+        for (const entry of linkedEntries) {
+          linked[entry.toolId] = { parts: entry.parts, manifolds: entry.manifolds };
+        }
+        setToolLinkedMap(linked);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -187,7 +252,6 @@ function ReviewPanel({
                       setDownloadingId(String(att.$primaryKey));
                       const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
                       window.location.href = url;
-                      // Reset button after a short delay since navigation may not leave the page
                       setTimeout(() => setDownloadingId(null), 2000);
                     }}
                   >
@@ -213,33 +277,90 @@ function ReviewPanel({
         </h3>
         {tools.length > 0 ? (
           <div className={css.toolGrid}>
-            {tools.map((tool) => (
-              <div key={tool.$primaryKey} className={css.toolCard}>
-                <div className={css.toolCardHeader}>
-                  {tool.partName ?? "Unnamed Tool"}
-                </div>
-                <dl className={css.toolProps}>
-                  {TOOL_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
-                    const value = tool[apiName];
-                    if (value == null || value === "") return null;
-                    const display =
-                      value instanceof Date
-                        ? value.toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })
-                        : String(value);
-                    return (
-                      <div key={apiName} className={css.toolPropRow}>
-                        <dt className={css.toolPropLabel}>{label}:</dt>
-                        <dd className={css.toolPropValue}>{display}</dd>
+            {tools.map((tool) => {
+              const toolId = String(tool.$primaryKey);
+              const linked = toolLinkedMap[toolId];
+              const parts = linked?.parts ?? [];
+              const manifolds = linked?.manifolds ?? [];
+
+              return (
+                <div key={tool.$primaryKey} className={css.toolCard}>
+                  <div className={css.toolCardHeader}>
+                    {tool.toolNumber
+                      ? `Tool #${tool.toolNumber}`
+                      : "Unnamed Tool"}
+                  </div>
+
+                  {/* Tool properties */}
+                  <dl className={css.toolProps}>
+                    {TOOL_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                      const value = tool[apiName];
+                      if (value == null || value === "") return null;
+                      const display =
+                        value instanceof Date
+                          ? value.toLocaleDateString("en-US", {
+                              year: "numeric",
+                              month: "short",
+                              day: "numeric",
+                            })
+                          : String(value);
+                      return (
+                        <div key={apiName} className={css.toolPropRow}>
+                          <dt className={css.toolPropLabel}>{label}:</dt>
+                          <dd className={css.toolPropValue}>{display}</dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+
+                  {/* Parts sub-section */}
+                  {parts.length > 0 && (
+                    <div className={css.subSection}>
+                      <div className={css.subSectionTitle}>
+                        Parts ({parts.length})
                       </div>
-                    );
-                  })}
-                </dl>
-              </div>
-            ))}
+                      {parts.map((part) => (
+                        <dl key={part.$primaryKey} className={css.toolProps}>
+                          {PART_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                            const value = part[apiName];
+                            if (value == null || value === "") return null;
+                            return (
+                              <div key={apiName} className={css.toolPropRow}>
+                                <dt className={css.toolPropLabel}>{label}:</dt>
+                                <dd className={css.toolPropValue}>{String(value)}</dd>
+                              </div>
+                            );
+                          })}
+                        </dl>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Manifolds sub-section */}
+                  {manifolds.length > 0 && (
+                    <div className={css.subSection}>
+                      <div className={css.subSectionTitle}>
+                        Manifolds ({manifolds.length})
+                      </div>
+                      {manifolds.map((manifold) => (
+                        <dl key={manifold.$primaryKey} className={css.toolProps}>
+                          {MANIFOLD_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                            const value = manifold[apiName];
+                            if (value == null || value === "") return null;
+                            return (
+                              <div key={apiName} className={css.toolPropRow}>
+                                <dt className={css.toolPropLabel}>{label}:</dt>
+                                <dd className={css.toolPropValue}>{String(value)}</dd>
+                              </div>
+                            );
+                          })}
+                        </dl>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className={css.emptyMessage}>No tools found.</p>

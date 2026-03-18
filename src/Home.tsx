@@ -23,7 +23,7 @@ function Home(): React.ReactElement {
   const [showEditTags, setShowEditTags] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [createPackageLoading, setCreatePackageLoading] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", customerSearch: "" });
+  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", customerSearch: "", hasParsedTools: false });
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.

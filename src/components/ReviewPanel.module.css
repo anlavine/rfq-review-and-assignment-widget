@@ -147,6 +147,24 @@
   word-break: break-word;
 }
 
+/* ── Sub-sections (Parts / Manifolds within a tool card) ── */
+.subSection {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed #dce0e5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.subSectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2d72d2;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 /* ── Badge ── */
 .toolCountBadge {
   display: inline-flex;

@@ -1,13 +1,17 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import ReactDOM from "react-dom";
 import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
-import type { Osdk, PageResult } from "@osdk/client";
+import type { Osdk } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
+/** Concurrency limit for metadata resolution to avoid flooding the server */
+const META_BATCH_SIZE = 10;
+/** Only fetch packages received within this many months */
+const RECEIVED_MONTHS = 4;
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
@@ -22,6 +26,13 @@ export interface Filters {
   dueDateStart: string;
   dueDateEnd: string;
   customerSearch: string;
+  hasParsedTools: boolean;
+}
+
+/** Resolved metadata for a package */
+interface PackageMeta {
+  customerName: string | null;
+  toolCount: number;
 }
 
 interface PendingRfqPackageListProps {
@@ -33,92 +44,215 @@ interface PendingRfqPackageListProps {
   filters: Filters;
 }
 
+/** Resolve customer name and tool count for a single package */
+async function resolvePackageMeta(pkId: string): Promise<PackageMeta> {
+  const [customerName, toolCount] = await Promise.all([
+    (async () => {
+      try {
+        const page = await client(PendingRfqPackage)
+          .where({ packageId: { $eq: pkId } })
+          .pivotTo("betaAdécustomer")
+          .fetchPage({ $pageSize: 1 });
+        return page.data[0]?.customerName ?? null;
+      } catch {
+        return null;
+      }
+    })(),
+    (async () => {
+      try {
+        const page = await client(PendingRfqPackage)
+          .where({ packageId: { $eq: pkId } })
+          .pivotTo("pendingRfqPackageTools")
+          .fetchPage({ $pageSize: 1 });
+        return page.data.length;
+      } catch {
+        return 0;
+      }
+    })(),
+  ]);
+  return { customerName, toolCount };
+}
+
+/** Resolve metadata for a batch with concurrency control */
+async function resolveMetaBatched(
+  pkgs: Osdk.Instance<PendingRfqPackage>[],
+  onProgress: (resolved: number) => void,
+): Promise<Record<string, PackageMeta>> {
+  const result: Record<string, PackageMeta> = {};
+  let resolved = 0;
+
+  for (let i = 0; i < pkgs.length; i += META_BATCH_SIZE) {
+    const batch = pkgs.slice(i, i + META_BATCH_SIZE);
+    const metas = await Promise.all(
+      batch.map(async (pkg) => {
+        const pkId = String(pkg.$primaryKey);
+        const meta = await resolvePackageMeta(pkId);
+        return { pkId, meta };
+      }),
+    );
+    for (const { pkId, meta } of metas) {
+      result[pkId] = meta;
+    }
+    resolved += batch.length;
+    onProgress(resolved);
+  }
+
+  return result;
+}
+
 function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters }: PendingRfqPackageListProps): React.ReactElement {
-  const [packages, setPackages] = useState<
-    Osdk.Instance<PendingRfqPackage>[]
-  >([]);
-  const [loading, setLoading] = useState(true);
+  // All packages fetched from server (last 4 months)
+  const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
+  const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadProgress, setLoadProgress] = useState({ fetched: 0, resolved: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
-  const [nextPageToken, setNextPageToken] = useState<string | undefined>();
   const [currentPage, setCurrentPage] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
-  // Map of packageId → customerName for client-side customer filtering
-  const [customerMap, setCustomerMap] = useState<Record<string, string | null>>({});
+  const loadIdRef = useRef(0);
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
-  const loadPage = useCallback(async (pageToken?: string, status?: string | null, activeFilters?: Filters) => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Build where clauses
-      const conditions: Record<string, unknown>[] = [];
-      if (status) {
-        conditions.push({ completionStatus: { $eq: status } });
-      }
-      if (activeFilters?.dueDateStart) {
-        conditions.push({ dueDate: { $gte: activeFilters.dueDateStart } });
-      }
-      if (activeFilters?.dueDateEnd) {
-        // Make end date inclusive by adding one day
-        const endParts = activeFilters.dueDateEnd.split("-");
-        const endDate = new Date(Number(endParts[0]), Number(endParts[1]) - 1, Number(endParts[2]) + 1);
-        const endStr = endDate.toISOString().split("T")[0];
-        conditions.push({ dueDate: { $lt: endStr } });
-      }
+  // ── Initial load: fetch ALL packages from last 4 months + resolve metadata ──
+  useEffect(() => {
+    const loadId = ++loadIdRef.current;
+    let cancelled = false;
 
-      const objectSet = conditions.length > 0
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? client(PendingRfqPackage).where({ $and: conditions } as any)
-        : client(PendingRfqPackage);
+    (async () => {
+      setInitialLoading(true);
+      setError(null);
+      setAllPackages([]);
+      setMetaMap({});
+      setLoadProgress({ fetched: 0, resolved: 0, total: 0 });
 
-      const page: PageResult<Osdk.Instance<PendingRfqPackage>> =
-        await objectSet.fetchPage({
-          $pageSize: PAGE_SIZE,
-          ...(pageToken ? { $nextPageToken: pageToken } : {}),
-          $orderBy: { dueDate: "asc" },
+      try {
+        // Build date cutoff: 4 months ago
+        const cutoff = new Date();
+        cutoff.setMonth(cutoff.getMonth() - RECEIVED_MONTHS);
+        const cutoffStr = cutoff.toISOString().split("T")[0];
+
+        // Fetch all pages
+        const all: Osdk.Instance<PendingRfqPackage>[] = [];
+        let token: string | undefined;
+        let hasMore = true;
+
+        while (hasMore && !cancelled) {
+          const page = await client(PendingRfqPackage)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .where({ receivedDate: { $gte: cutoffStr } } as any)
+            .fetchPage({
+              $pageSize: 200,
+              ...(token ? { $nextPageToken: token } : {}),
+              $orderBy: { dueDate: "asc" },
+            });
+
+          all.push(...page.data);
+          if (loadId === loadIdRef.current) {
+            setLoadProgress((p) => ({ ...p, fetched: all.length }));
+          }
+
+          token = page.nextPageToken;
+          hasMore = !!token;
+        }
+
+        if (cancelled) return;
+
+        if (loadId === loadIdRef.current) {
+          setLoadProgress((p) => ({ ...p, total: all.length }));
+          setAllPackages(all);
+        }
+
+        // Resolve metadata with progress
+        const meta = await resolveMetaBatched(all, (resolved) => {
+          if (loadId === loadIdRef.current && !cancelled) {
+            setLoadProgress((p) => ({ ...p, resolved }));
+          }
         });
 
-      setPackages(page.data);
-      setNextPageToken(page.nextPageToken);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load packages");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+        if (cancelled || loadId !== loadIdRef.current) return;
 
-  // Only re-fetch from server when server-side filters change (date filters, tab, refresh).
-  // Customer search is client-side only — no need to reload or clear customer data.
-  const serverFilters = `${filters.dueDateStart}|${filters.dueDateEnd}`;
+        setMetaMap(meta);
+      } catch (e) {
+        if (!cancelled && loadId === loadIdRef.current) {
+          setError(e instanceof Error ? e.message : "Failed to load packages");
+        }
+      } finally {
+        if (!cancelled && loadId === loadIdRef.current) {
+          setInitialLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshToken]);
+
+  // ── Client-side filtering ──
+  const filteredPackages = useMemo(() => {
+    return allPackages.filter((pkg) => {
+      const pkId = String(pkg.$primaryKey);
+      const meta = metaMap[pkId];
+
+      // Tab / status filter
+      if (activeStatus && pkg.completionStatus !== activeStatus) return false;
+
+      // Due date range
+      if (filters.dueDateStart && pkg.dueDate) {
+        const due = pkg.dueDate.split("T")[0];
+        if (due < filters.dueDateStart) return false;
+      }
+      if (filters.dueDateEnd && pkg.dueDate) {
+        const due = pkg.dueDate.split("T")[0];
+        if (due > filters.dueDateEnd) return false;
+      }
+
+      // Customer search (only if metadata resolved)
+      if (filters.customerSearch && meta) {
+        if (meta.customerName === null) return false;
+        if (!meta.customerName.toLowerCase().includes(filters.customerSearch.toLowerCase())) return false;
+      }
+
+      // Has parsed tools (only if metadata resolved)
+      if (filters.hasParsedTools && meta) {
+        if (meta.toolCount === 0) return false;
+      }
+
+      return true;
+    });
+  }, [allPackages, metaMap, activeStatus, filters]);
+
+  // ── Client-side pagination ──
+  const totalPages = Math.max(1, Math.ceil(filteredPackages.length / PAGE_SIZE));
+  const pagePackages = useMemo(() => {
+    const start = currentPage * PAGE_SIZE;
+    return filteredPackages.slice(start, start + PAGE_SIZE);
+  }, [filteredPackages, currentPage]);
+
+  // Reset to page 0 when filters change
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.customerSearch}|${filters.hasParsedTools}`;
   useEffect(() => {
     setCurrentPage(0);
-    setCustomerMap({});
-    loadPage(undefined, activeStatus, filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadPage, activeStatus, refreshToken, serverFilters]);
+  }, [filterKey]);
 
   const handleNextPage = () => {
-    if (nextPageToken) {
+    if (currentPage < totalPages - 1) {
       setCurrentPage((p) => p + 1);
-      loadPage(nextPageToken, activeStatus, filters);
     }
   };
 
   const handleFirstPage = () => {
     setCurrentPage(0);
-    loadPage(undefined, activeStatus, filters);
   };
 
   const handleTabChange = (tab: TabKey) => {
     if (tab === activeTab) return;
     setActiveTab(tab);
     onTabChange?.(tab);
-    // Deselect if the selected package won't be in the new tab
     if (selectedPackageId) {
       const newStatus = TABS.find((t) => t.key === tab)?.status ?? null;
       if (newStatus !== null) {
-        const selectedPkg = packages.find(
+        const selectedPkg = allPackages.find(
           (p) => String(p.$primaryKey) === selectedPackageId,
         );
         if (!selectedPkg || selectedPkg.completionStatus !== newStatus) {
@@ -142,57 +276,45 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     </div>
   );
 
+  // Loading progress message
+  const progressMessage = (() => {
+    const { fetched, resolved, total } = loadProgress;
+    if (total === 0) {
+      return `Fetching packages… (${fetched} found)`;
+    }
+    return `Resolving details… (${resolved} of ${total})`;
+  })();
+
   return (
     <div className={css.container}>
       <h2 className={css.title}>Pending RFQ Packages</h2>
       {tabBar}
 
       <div className={css.cardGrid}>
-        {loading ? (
-          <div className={css.emptyCard}>Loading packages...</div>
+        {initialLoading ? (
+          <div className={css.emptyCard}>{progressMessage}</div>
         ) : error ? (
           <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>
-        ) : packages.length === 0 ? (
+        ) : pagePackages.length === 0 ? (
           <div className={css.emptyCard}>No packages found.</div>
-        ) : (() => {
-          const filtered = packages.filter((pkg) => {
-            if (!filters.customerSearch) return true;
-            const name = customerMap[String(pkg.$primaryKey)];
-            if (name === undefined) return true;
-            if (name === null) return false;
-            return name.toLowerCase().includes(filters.customerSearch.toLowerCase());
-          });
-          return filtered.length === 0
-            ? <div className={css.emptyCard}>No packages match the customer filter.</div>
-            : filtered.map((pkg) => (
-              <PackageCard
-                key={pkg.$primaryKey}
-                pkg={pkg}
-                isSelected={String(pkg.$primaryKey) === selectedPackageId}
-                showStatus={activeTab === "all"}
-                onClick={() => onSelectPackage(String(pkg.$primaryKey), pkg.completionStatus ?? undefined)}
-                onCustomerLoaded={(id, name) => setCustomerMap((prev) => ({ ...prev, [id]: name }))}
-              />
-            ));
-        })()}
+        ) : (
+          pagePackages.map((pkg) => (
+            <PackageCard
+              key={pkg.$primaryKey}
+              pkg={pkg}
+              meta={metaMap[String(pkg.$primaryKey)]}
+              isSelected={String(pkg.$primaryKey) === selectedPackageId}
+              showStatus={activeTab === "all"}
+              onClick={() => onSelectPackage(String(pkg.$primaryKey), pkg.completionStatus ?? undefined)}
+            />
+          ))
+        )}
       </div>
 
-      {!loading && !error && packages.length > 0 && (() => {
-        const visibleCount = filters.customerSearch
-          ? packages.filter((pkg) => {
-              const name = customerMap[String(pkg.$primaryKey)];
-              if (name === undefined) return true;
-              if (name === null) return false;
-              return name.toLowerCase().includes(filters.customerSearch.toLowerCase());
-            }).length
-          : packages.length;
-        return (
+      {!initialLoading && !error && filteredPackages.length > 0 && (
         <div className={css.paginationBar}>
           <span>
-            Page {currentPage + 1} &middot; {visibleCount} result{visibleCount !== 1 ? "s" : ""}
-            {filters.customerSearch && visibleCount !== packages.length && (
-              <span className={css.cardMetaSep}> (of {packages.length} fetched)</span>
-            )}
+            Page {currentPage + 1} of {totalPages} &middot; {filteredPackages.length} result{filteredPackages.length !== 1 ? "s" : ""}
           </span>
           <div>
             {currentPage > 0 && (
@@ -207,14 +329,13 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
             <button
               className={css.paginationButton}
               onClick={handleNextPage}
-              disabled={!nextPageToken}
+              disabled={currentPage >= totalPages - 1}
             >
               Next Page
             </button>
           </div>
         </div>
-        );
-      })()}
+      )}
     </div>
   );
 }
@@ -222,7 +343,6 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 function formatDate(date: string | undefined): string {
   if (!date) return "—";
   try {
-    // Parse as local date to avoid UTC timezone shift (YYYY-MM-DD → local midnight)
     const parts = date.split("T")[0].split("-");
     const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     return local.toLocaleDateString("en-US", {
@@ -311,52 +431,15 @@ function buildVehicleLine(
 
 interface PackageCardProps {
   pkg: Osdk.Instance<PendingRfqPackage>;
+  meta?: PackageMeta;
   isSelected: boolean;
   showStatus: boolean;
   onClick: () => void;
-  onCustomerLoaded?: (packageId: string, customerName: string | null) => void;
 }
 
-function PackageCard({ pkg, isSelected, showStatus, onClick, onCustomerLoaded }: PackageCardProps): React.ReactElement {
-  const [customerName, setCustomerName] = useState<string | null>(null);
-  const [customerLoading, setCustomerLoading] = useState(true);
-  const fetchedRef = useRef(false);
-  // Keep callback ref stable so it doesn't trigger the effect
-  const onCustomerLoadedRef = useRef(onCustomerLoaded);
-  onCustomerLoadedRef.current = onCustomerLoaded;
-
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const pkId = String(pkg.$primaryKey);
-        const customerPage = await client(PendingRfqPackage)
-          .where({ packageId: { $eq: pkId } })
-          .pivotTo("betaAdécustomer")
-          .fetchPage({ $pageSize: 1 });
-        if (!cancelled) {
-          const name = customerPage.data[0]?.customerName ?? null;
-          setCustomerName(name);
-          onCustomerLoadedRef.current?.(String(pkg.$primaryKey), name);
-        }
-      } catch {
-        // linked customer may not exist
-        if (!cancelled) {
-          setCustomerName(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setCustomerLoading(false);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [pkg]);
+function PackageCard({ pkg, meta, isSelected, showStatus, onClick }: PackageCardProps): React.ReactElement {
+  const customerName = meta?.customerName ?? null;
+  const customerLoading = meta === undefined;
 
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 

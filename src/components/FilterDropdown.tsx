@@ -32,7 +32,8 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
   const hasActiveFilters =
     filters.dueDateStart !== "" ||
     filters.dueDateEnd !== "" ||
-    filters.customerSearch !== "";
+    filters.customerSearch !== "" ||
+    filters.hasParsedTools;
 
   const handleApply = () => {
     onFiltersChange(localFilters);
@@ -40,7 +41,8 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
   };
 
   const handleClear = () => {
-    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", customerSearch: "" };
+
+    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", customerSearch: "", hasParsedTools: false };
     setLocalFilters(cleared);
     onFiltersChange(cleared);
     setOpen(false);
@@ -89,6 +91,17 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
               value={localFilters.customerSearch}
               onChange={(e) => setLocalFilters((f) => ({ ...f, customerSearch: e.target.value }))}
             />
+          </div>
+
+          <div className={css.section}>
+            <label className={css.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={localFilters.hasParsedTools}
+                onChange={(e) => setLocalFilters((f) => ({ ...f, hasParsedTools: e.target.checked }))}
+              />
+              Has Parsed Tools
+            </label>
           </div>
 
           <div className={css.actions}>
