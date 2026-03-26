@@ -1,7 +1,9 @@
 import React, { useState, useCallback } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
-import type { TabKey, Filters } from "./components/PendingRfqPackageList";
+import type { TabKey, Filters, MergeStep, SplitStep } from "./components/PendingRfqPackageList";
+import MergeConfirmModal from "./components/MergeConfirmModal";
+import SplitPackageModal from "./components/SplitPackageModal";
 import FilterDropdown from "./components/FilterDropdown";
 import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
@@ -24,6 +26,14 @@ function Home(): React.ReactElement {
   const [reviewMode, setReviewMode] = useState(false);
   const [createPackageLoading, setCreatePackageLoading] = useState(false);
   const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", customerSearch: "", hasParsedTools: false });
+  const [mergeStep, setMergeStep] = useState<MergeStep>(null);
+  const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
+  const [mergeSourceName, setMergeSourceName] = useState<string>("");
+  const [mergeTargetId, setMergeTargetId] = useState<string | null>(null);
+  const [mergeTargetName, setMergeTargetName] = useState<string>("");
+  const [splitStep, setSplitStep] = useState<SplitStep>(null);
+  const [splitPackageId, setSplitPackageId] = useState<string | null>(null);
+  const [splitPackageName, setSplitPackageName] = useState<string>("");
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -119,6 +129,68 @@ function Home(): React.ReactElement {
     }
   }, [selectedPackageId, workshopContext]);
 
+  const handleStartMerge = useCallback(() => {
+    setMergeStep("selectSource");
+    setMergeSourceId(null);
+    setMergeSourceName("");
+    setMergeTargetId(null);
+    setMergeTargetName("");
+  }, []);
+
+  const handleCancelMerge = useCallback(() => {
+    setMergeStep(null);
+    setMergeSourceId(null);
+    setMergeSourceName("");
+    setMergeTargetId(null);
+    setMergeTargetName("");
+  }, []);
+
+  const handleMergeSelect = useCallback((packageId: string, packageName: string) => {
+    if (mergeStep === "selectSource") {
+      setMergeSourceId(packageId);
+      setMergeSourceName(packageName);
+      setMergeStep("selectTarget");
+    } else if (mergeStep === "selectTarget") {
+      setMergeTargetId(packageId);
+      setMergeTargetName(packageName);
+      // Both selected — modal will show via state
+    }
+  }, [mergeStep]);
+
+  const handleMergeComplete = useCallback(() => {
+    handleCancelMerge();
+    setSelectedPackageId(null);
+    setSelectedPackageStatus(null);
+    setRefreshToken((t) => t + 1);
+  }, [handleCancelMerge]);
+
+  const handleStartSplit = useCallback(() => {
+    setSplitStep("selectPackage");
+    setSplitPackageId(null);
+    setSplitPackageName("");
+  }, []);
+
+  const handleCancelSplit = useCallback(() => {
+    setSplitStep(null);
+    setSplitPackageId(null);
+    setSplitPackageName("");
+  }, []);
+
+  const handleSplitSelect = useCallback((packageId: string, packageName: string) => {
+    setSplitPackageId(packageId);
+    setSplitPackageName(packageName);
+    // Modal will show via splitPackageId being set
+  }, []);
+
+  const handleSplitComplete = useCallback(() => {
+    handleCancelSplit();
+    setSelectedPackageId(null);
+    setSelectedPackageStatus(null);
+    setRefreshToken((t) => t + 1);
+  }, [handleCancelSplit]);
+
+  const showMergeConfirm = mergeSourceId !== null && mergeTargetId !== null;
+
   return (
     <div className={css.home}>
       <div className={css.panels}>
@@ -131,6 +203,11 @@ function Home(): React.ReactElement {
             onTabChange={setActiveTab}
             refreshToken={refreshToken}
             filters={filters}
+            mergeStep={mergeStep}
+            mergeSourceId={mergeSourceId}
+            onMergeSelect={handleMergeSelect}
+            splitStep={splitStep}
+            onSplitSelect={handleSplitSelect}
           />
         </div>
 
@@ -157,37 +234,67 @@ function Home(): React.ReactElement {
           ) : (
             <div className={css.headerBar}>
               <FilterDropdown filters={filters} onFiltersChange={setFilters} />
-              {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+              {mergeStep ? (
                 <button
                   className={css.headerButton}
-                  disabled={!selectedPackageId || actionLoading}
-                  onClick={handleUnskip}
+                  onClick={handleCancelMerge}
                 >
-                  {actionLoading ? "Unskipping…" : "Unskip"}
+                  Cancel Merge
+                </button>
+              ) : splitStep ? (
+                <button
+                  className={css.headerButton}
+                  onClick={handleCancelSplit}
+                >
+                  Cancel Split
                 </button>
               ) : (
-                <button
-                  className={css.headerButton}
-                  disabled={!selectedPackageId || actionLoading}
-                  onClick={handleSkip}
-                >
-                  {actionLoading ? "Skipping…" : "Skip"}
-                </button>
+                <>
+                  {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+                    <button
+                      className={css.headerButton}
+                      disabled={!selectedPackageId || actionLoading}
+                      onClick={handleUnskip}
+                    >
+                      {actionLoading ? "Unskipping…" : "Unskip"}
+                    </button>
+                  ) : (
+                    <button
+                      className={css.headerButton}
+                      disabled={!selectedPackageId || actionLoading}
+                      onClick={handleSkip}
+                    >
+                      {actionLoading ? "Skipping…" : "Skip"}
+                    </button>
+                  )}
+                  <button
+                    className={css.headerButton}
+                    disabled={!selectedPackageId}
+                    onClick={() => setShowEditTags(true)}
+                  >
+                    Edit Tags
+                  </button>
+                  <button
+                    className={css.headerButton}
+                    onClick={handleStartMerge}
+                  >
+                    Merge
+                  </button>
+                  <button
+                    className={css.headerButton}
+                    onClick={handleStartSplit}
+                  >
+                    Split
+                  </button>
+                  <button
+                    className={css.headerButton}
+                    disabled={!selectedPackageId}
+                    onClick={() => setReviewMode(true)}
+                  >
+                    Review Package
+                  </button>
+                </>
               )}
-              <button
-                className={css.headerButton}
-                disabled={!selectedPackageId}
-                onClick={() => setShowEditTags(true)}
-              >
-                Edit Tags
-              </button>
-              <button
-                className={css.headerButton}
-                disabled={!selectedPackageId}
-                onClick={() => setReviewMode(true)}
-              >
-                Review Package
-              </button>
             </div>
           )}
 
@@ -232,6 +339,26 @@ function Home(): React.ReactElement {
             setShowEditTags(false);
             setRefreshToken((t) => t + 1);
           }}
+        />
+      )}
+
+      {showMergeConfirm && mergeSourceId && mergeTargetId && (
+        <MergeConfirmModal
+          sourceId={mergeSourceId}
+          sourceName={mergeSourceName}
+          targetId={mergeTargetId}
+          targetName={mergeTargetName}
+          onClose={handleCancelMerge}
+          onMerged={handleMergeComplete}
+        />
+      )}
+
+      {splitPackageId && (
+        <SplitPackageModal
+          packageId={splitPackageId}
+          packageName={splitPackageName}
+          onClose={handleCancelSplit}
+          onSplit={handleSplitComplete}
         />
       )}
     </div>

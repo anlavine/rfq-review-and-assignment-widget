@@ -1,0 +1,163 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  padding: 24px;
+  width: 440px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1c2127;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 13px;
+  color: #5f6b7c;
+  margin: 0;
+  line-height: 18px;
+}
+
+.loadingMsg {
+  font-size: 13px;
+  color: #5f6b7c;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.selectAllRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #edeff2;
+}
+
+.selectAllLabel {
+  font-weight: 600;
+  font-size: 13px;
+  color: #1c2127;
+}
+
+.selectedCount {
+  font-size: 12px;
+  color: #5f6b7c;
+}
+
+.toolList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.toolOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #1c2127;
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.toolOption:hover {
+  background: #f6f7f9;
+}
+
+.toolOption input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.toolInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.toolName {
+  font-weight: 500;
+  color: #1c2127;
+}
+
+.toolDetail {
+  font-size: 12px;
+  color: #5f6b7c;
+}
+
+.error {
+  color: #cd4246;
+  font-size: 13px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid #edeff2;
+}
+
+.cancelButton {
+  background: #fff;
+  border: 1px solid #dce0e5;
+  border-radius: 4px;
+  color: #1c2127;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+}
+
+.cancelButton:hover:not(:disabled) {
+  background: #f6f7f9;
+}
+
+.cancelButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.splitButton {
+  background: #2d72d2;
+  border: 1px solid #2d72d2;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+}
+
+.splitButton:hover:not(:disabled) {
+  background: #215db0;
+}
+
+.splitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

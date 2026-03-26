@@ -26,55 +26,54 @@ const TOOL_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRFQPackageTool>;
   label: string;
 }[] = [
-  { apiName: "toolNumber", label: "Tool Number" },
-  { apiName: "commodityCategory", label: "Commodity Category" },
-  { apiName: "commodityType", label: "Commodity Type" },
-  { apiName: "cavitations", label: "Cavitations" },
-  { apiName: "cavitySurfaceFinish", label: "Cavity Surface Finish" },
-  { apiName: "cavityMaterial1", label: "Cavity Material" },
-  { apiName: "coreSurfaceFinish", label: "Core Surface Finish" },
-  { apiName: "coreSurfaceMaterial", label: "Core Surface Material" },
-  { apiName: "surfaceTreatmentType", label: "Surface Treatment Type" },
-  { apiName: "textureType", label: "Texture Type" },
-  { apiName: "textureSource", label: "Texture Source" },
-  { apiName: "ejectionType", label: "Ejection Type" },
-  { apiName: "pressSize", label: "Press Size" },
-  { apiName: "numberOfTryouts", label: "Number of Tryouts" },
-  { apiName: "shotsPerTryout", label: "Shots per Tryout" },
-  { apiName: "cycleTime", label: "Cycle Time" },
-  { apiName: "delivery", label: "Delivery" },
-  { apiName: "fob", label: "FOB" },
-  { apiName: "fobDdpDap", label: "FOB/DDP/DAP" },
-  { apiName: "reflexSource", label: "Reflex Source" },
-  { apiName: "moldflowSupplier", label: "Moldflow Supplier" },
-  { apiName: "toolAttachment", label: "Tool Attachment" },
-  { apiName: "estKickoffDate", label: "Est. Kickoff Date" },
-  { apiName: "estV1Date", label: "Est. V1 Date" },
-];
+    { apiName: "commodityCategory", label: "Commodity Category" },
+    { apiName: "commodityType", label: "Commodity Type" },
+    { apiName: "cavitations", label: "Cavitations" },
+    { apiName: "cavitySurfaceFinish", label: "Cavity Surface Finish" },
+    { apiName: "cavityMaterial", label: "Cavity Material" },
+    { apiName: "coreSurfaceFinish", label: "Core Surface Finish" },
+    { apiName: "coreMaterial", label: "Core Material" },
+    { apiName: "surfaceTreatmentType", label: "Surface Treatment Type" },
+    { apiName: "textureType", label: "Texture Type" },
+    { apiName: "textureSource", label: "Texture Source" },
+    { apiName: "ejectionType", label: "Ejection Type" },
+    { apiName: "pressSize", label: "Press Size" },
+    { apiName: "numberOfTryouts", label: "Number of Tryouts" },
+    { apiName: "shotsPerTryout", label: "Shots per Tryout" },
+    { apiName: "cycleTime", label: "Cycle Time" },
+    { apiName: "delivery", label: "Delivery" },
+    { apiName: "fob", label: "FOB" },
+    { apiName: "fobDdpDap", label: "FOB/DDP/DAP" },
+    { apiName: "reflexSource", label: "Reflex Source" },
+    { apiName: "moldflowSupplier", label: "Moldflow Supplier" },
+    { apiName: "toolAttachment", label: "Tool Attachment" },
+    { apiName: "estKickoffDate", label: "Est. Kickoff Date" },
+    { apiName: "estV1Date", label: "Est. V1 Date" },
+  ];
 
 /** Part properties to display (excluding IDs) */
 const PART_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRfqPackagePart>;
   label: string;
 }[] = [
-  { apiName: "partName", label: "Part Name" },
-  { apiName: "partNumber", label: "Part Number" },
-  { apiName: "cadfilename", label: "CAD Filename" },
-  { apiName: "lengthX", label: "Length (X)" },
-  { apiName: "widthY", label: "Width (Y)" },
-  { apiName: "heightZ", label: "Height (Z)" },
-];
+    { apiName: "partName", label: "Part Name" },
+    { apiName: "partNumber", label: "Part Number" },
+    { apiName: "cadfilename", label: "CAD Filename" },
+    { apiName: "lengthX", label: "Length (X)" },
+    { apiName: "widthY", label: "Width (Y)" },
+    { apiName: "heightZ", label: "Height (Z)" },
+  ];
 
 /** Manifold properties to display (excluding IDs) */
 const MANIFOLD_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRfqPackageManifold>;
   label: string;
 }[] = [
-  { apiName: "manifoldType", label: "Manifold Type" },
-  { apiName: "manifoldSupplier", label: "Manifold Supplier" },
-  { apiName: "gateType", label: "Gate Type" },
-  { apiName: "numberOfDrops", label: "Number of Drops" },
-];
+    { apiName: "manifoldType", label: "Manifold Type" },
+    { apiName: "manifoldSupplier", label: "Manifold Supplier" },
+    { apiName: "gateType", label: "Gate Type" },
+    { apiName: "numberOfDrops", label: "Number of Drops" },
+  ];
 
 /** Linked parts and manifolds for each tool */
 interface ToolLinkedData {
@@ -299,10 +298,10 @@ function ReviewPanel({
                       const display =
                         value instanceof Date
                           ? value.toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            })
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
                           : String(value);
                       return (
                         <div key={apiName} className={css.toolPropRow}>

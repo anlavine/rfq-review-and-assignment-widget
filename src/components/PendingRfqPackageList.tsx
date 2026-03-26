@@ -35,6 +35,9 @@ interface PackageMeta {
   toolCount: number;
 }
 
+export type MergeStep = "selectSource" | "selectTarget" | null;
+export type SplitStep = "selectPackage" | null;
+
 interface PendingRfqPackageListProps {
   onSelectPackage: (packageId: string, completionStatus?: string) => void;
   onDeselectPackage: () => void;
@@ -42,6 +45,11 @@ interface PendingRfqPackageListProps {
   onTabChange?: (tab: TabKey) => void;
   refreshToken?: number;
   filters: Filters;
+  mergeStep: MergeStep;
+  mergeSourceId: string | null;
+  onMergeSelect: (packageId: string, packageName: string) => void;
+  splitStep: SplitStep;
+  onSplitSelect: (packageId: string, packageName: string) => void;
 }
 
 /** Resolve customer name and tool count for a single package */
@@ -100,7 +108,7 @@ async function resolveMetaBatched(
   return result;
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters }: PendingRfqPackageListProps): React.ReactElement {
+function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect }: PendingRfqPackageListProps): React.ReactElement {
   // All packages fetched from server (last 4 months)
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -290,6 +298,19 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       <h2 className={css.title}>Pending RFQ Packages</h2>
       {tabBar}
 
+      {mergeStep && (
+        <div className={css.mergeBanner}>
+          {mergeStep === "selectSource"
+            ? "Select the SOURCE package (will be deleted)"
+            : "Select the TARGET package (will receive tools)"}
+        </div>
+      )}
+      {splitStep && (
+        <div className={css.mergeBanner}>
+          Select a package to split
+        </div>
+      )}
+
       <div className={css.cardGrid}>
         {initialLoading ? (
           <div className={css.emptyCard}>{progressMessage}</div>
@@ -298,16 +319,32 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         ) : pagePackages.length === 0 ? (
           <div className={css.emptyCard}>No packages found.</div>
         ) : (
-          pagePackages.map((pkg) => (
-            <PackageCard
-              key={pkg.$primaryKey}
-              pkg={pkg}
-              meta={metaMap[String(pkg.$primaryKey)]}
-              isSelected={String(pkg.$primaryKey) === selectedPackageId}
-              showStatus={activeTab === "all"}
-              onClick={() => onSelectPackage(String(pkg.$primaryKey), pkg.completionStatus ?? undefined)}
-            />
-          ))
+          pagePackages.map((pkg) => {
+            const pkId = String(pkg.$primaryKey);
+            const isMergeSource = mergeStep === "selectTarget" && pkId === mergeSourceId;
+            const inSpecialMode = !!mergeStep || !!splitStep;
+            return (
+              <PackageCard
+                key={pkg.$primaryKey}
+                pkg={pkg}
+                meta={metaMap[pkId]}
+                isSelected={inSpecialMode ? isMergeSource : pkId === selectedPackageId}
+                showStatus={activeTab === "all"}
+                disabled={isMergeSource}
+                onClick={() => {
+                  if (mergeStep) {
+                    if (!isMergeSource) {
+                      onMergeSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
+                    }
+                  } else if (splitStep) {
+                    onSplitSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
+                  } else {
+                    onSelectPackage(pkId, pkg.completionStatus ?? undefined);
+                  }
+                }}
+              />
+            );
+          })
         )}
       </div>
 
@@ -434,10 +471,11 @@ interface PackageCardProps {
   meta?: PackageMeta;
   isSelected: boolean;
   showStatus: boolean;
+  disabled?: boolean;
   onClick: () => void;
 }
 
-function PackageCard({ pkg, meta, isSelected, showStatus, onClick }: PackageCardProps): React.ReactElement {
+function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: PackageCardProps): React.ReactElement {
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
 
@@ -450,7 +488,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, onClick }: PackageCard
   const moreRef = useRef<HTMLSpanElement | null>(null);
 
   return (
-    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${urgency === "overdue" ? css.cardOverdue : urgency === "dueSoon" ? css.cardDueSoon : ""}`} onClick={onClick} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") onClick(); }}>
+    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${urgency === "overdue" ? css.cardOverdue : urgency === "dueSoon" ? css.cardDueSoon : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
         <div className={css.cardTitle}>{pkg.packageName || pkg.subject || "[Unnamed Package]"}</div>
         {tags.length > 0 && (

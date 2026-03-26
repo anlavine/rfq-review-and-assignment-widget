@@ -261,6 +261,24 @@
   color: #1c2127;
 }
 
+/* Disabled card (e.g., merge source already selected) */
+.cardDisabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Merge mode banner */
+.mergeBanner {
+  background: #2d72d2;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
 /* Due date urgency — card border */
 .cardOverdue {
   border-color: #f98d90;
