@@ -233,6 +233,18 @@ function Home(): React.ReactElement {
             </div>
           ) : (
             <div className={css.headerBar}>
+              {mergeStep && (
+                <div className={css.modeBanner}>
+                  {mergeStep === "selectSource"
+                    ? "Select the SOURCE package (will be deleted)"
+                    : "Select the TARGET package (will receive tools)"}
+                </div>
+              )}
+              {splitStep && (
+                <div className={css.modeBanner}>
+                  Select a package to split
+                </div>
+              )}
               <FilterDropdown filters={filters} onFiltersChange={setFilters} />
               {mergeStep ? (
                 <button

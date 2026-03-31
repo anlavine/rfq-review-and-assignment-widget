@@ -144,6 +144,22 @@
   color: #abb3bf;
 }
 
+/* Merged package icon chip */
+.mergedIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  background: #ede9fe;
+  color: #7c3aed;
+  border: 1px solid #c4b5fd;
+}
+
 .tagsInline {
   display: flex;
   align-items: center;

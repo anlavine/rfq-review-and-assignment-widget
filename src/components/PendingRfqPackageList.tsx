@@ -5,6 +5,7 @@ import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
+import { isMergedPackage } from "../utils/mergedFields";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -294,19 +295,6 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       <h2 className={css.title}>Pending RFQ Packages</h2>
       {tabBar}
 
-      {mergeStep && (
-        <div className={css.mergeBanner}>
-          {mergeStep === "selectSource"
-            ? "Select the SOURCE package (will be deleted)"
-            : "Select the TARGET package (will receive tools)"}
-        </div>
-      )}
-      {splitStep && (
-        <div className={css.mergeBanner}>
-          Select a package to split
-        </div>
-      )}
-
       {backgroundLoading && (
         <div className={css.backgroundLoadingBar}>
           Loading more packages… ({allPackages.length} loaded so far)
@@ -494,6 +482,9 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
     <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${urgency === "overdue" ? css.cardOverdue : urgency === "dueSoon" ? css.cardDueSoon : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
         <div className={css.cardTitle}>{pkg.packageName || pkg.subject || "[Unnamed Package]"}</div>
+        {isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent) && (
+          <span className={css.mergedIcon} title="Merged Package">⛙</span>
+        )}
         {tags.length > 0 && (
           <div className={css.tagsInline}>
             {visibleTags.map((tag, i) => (

@@ -318,19 +318,22 @@ function ReviewPanel({
                       <div className={css.subSectionTitle}>
                         Parts ({parts.length})
                       </div>
-                      {parts.map((part) => (
-                        <dl key={part.$primaryKey} className={css.toolProps}>
-                          {PART_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
-                            const value = part[apiName];
-                            if (value == null || value === "") return null;
-                            return (
-                              <div key={apiName} className={css.toolPropRow}>
-                                <dt className={css.toolPropLabel}>{label}:</dt>
-                                <dd className={css.toolPropValue}>{String(value)}</dd>
-                              </div>
-                            );
-                          })}
-                        </dl>
+                      {parts.map((part, partIdx) => (
+                        <React.Fragment key={part.$primaryKey}>
+                          {partIdx > 0 && <hr className={css.subItemDivider} />}
+                          <dl className={css.toolProps}>
+                            {PART_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                              const value = part[apiName];
+                              if (value == null || value === "") return null;
+                              return (
+                                <div key={apiName} className={css.toolPropRow}>
+                                  <dt className={css.toolPropLabel}>{label}:</dt>
+                                  <dd className={css.toolPropValue}>{String(value)}</dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
+                        </React.Fragment>
                       ))}
                     </div>
                   )}
@@ -341,19 +344,22 @@ function ReviewPanel({
                       <div className={css.subSectionTitle}>
                         Manifolds ({manifolds.length})
                       </div>
-                      {manifolds.map((manifold) => (
-                        <dl key={manifold.$primaryKey} className={css.toolProps}>
-                          {MANIFOLD_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
-                            const value = manifold[apiName];
-                            if (value == null || value === "") return null;
-                            return (
-                              <div key={apiName} className={css.toolPropRow}>
-                                <dt className={css.toolPropLabel}>{label}:</dt>
-                                <dd className={css.toolPropValue}>{String(value)}</dd>
-                              </div>
-                            );
-                          })}
-                        </dl>
+                      {manifolds.map((manifold, manIdx) => (
+                        <React.Fragment key={manifold.$primaryKey}>
+                          {manIdx > 0 && <hr className={css.subItemDivider} />}
+                          <dl className={css.toolProps}>
+                            {MANIFOLD_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                              const value = manifold[apiName];
+                              if (value == null || value === "") return null;
+                              return (
+                                <div key={apiName} className={css.toolPropRow}>
+                                  <dt className={css.toolPropLabel}>{label}:</dt>
+                                  <dd className={css.toolPropValue}>{String(value)}</dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
+                        </React.Fragment>
                       ))}
                     </div>
                   )}
