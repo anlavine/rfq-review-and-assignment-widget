@@ -266,6 +266,83 @@
   
 }
 
+/* ── Merged Package Badge ── */
+.mergedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #7c3aed;
+  background: #ede9fe;
+  border: 1px solid #c4b5fd;
+}
+
+.mergedBadgeIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* ── Merged Email Cards (From / To / Subject per source email) ── */
+.mergedEmailStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mergedEmailCard {
+  border: 1px solid #c4b5fd;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.mergedEmailLabel {
+  background: #ede9fe;
+  color: #7c3aed;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #c4b5fd;
+}
+
+.mergedEmailBody {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ── Merged Body Content Cards ── */
+.mergedBodyStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mergedBodyCard {
+  border: 1px solid #c4b5fd;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.mergedBodyLabel {
+  background: #ede9fe;
+  color: #7c3aed;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-bottom: 1px solid #c4b5fd;
+}
+
 /* Loading / error */
 .loading {
   display: flex;

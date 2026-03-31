@@ -5,6 +5,7 @@ import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
+import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
 
 interface PackageDetailProps {
   packageId: string;
@@ -98,6 +99,68 @@ function ContactList({ contacts }: { contacts: Contact[] }): React.ReactElement 
         <div key={i} className={css.contactRow}>
           {c.address}
           {c.name && <span className={css.contactName}> — [{c.name}]</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Renders the email-origin fields (From, To, Subject) for a merged package.
+ * Each source email gets its own visually distinct card labelled "Email 1", "Email 2", etc.
+ */
+function MergedEmailFields({
+  fromSegments,
+  toSegments,
+  subjectSegments,
+}: {
+  fromSegments: string[];
+  toSegments: string[];
+  subjectSegments: string[];
+}): React.ReactElement {
+  const count = Math.max(fromSegments.length, toSegments.length, subjectSegments.length);
+
+  return (
+    <div className={css.mergedEmailStack}>
+      {Array.from({ length: count }, (_, i) => (
+        <div key={i} className={css.mergedEmailCard}>
+          <div className={css.mergedEmailLabel}>Email {i + 1}</div>
+          <div className={css.mergedEmailBody}>
+            <div className={css.field}>
+              <span className={css.fieldLabel}>From</span>
+              <ContactList contacts={parseFromContact(fromSegments[i])} />
+            </div>
+            <div className={css.field}>
+              <span className={css.fieldLabel}>To</span>
+              <ContactList contacts={parseToContacts(toSegments[i])} />
+            </div>
+            <div className={css.field}>
+              <span className={css.fieldLabel}>Subject</span>
+              <span className={subjectSegments[i] ? css.fieldValue : css.fieldValueMuted}>
+                {subjectSegments[i] ?? "—"}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Renders body content for a merged package — one card per source email body.
+ */
+function MergedBodyContent({
+  segments,
+}: {
+  segments: string[];
+}): React.ReactElement {
+  return (
+    <div className={css.mergedBodyStack}>
+      {segments.map((segment, i) => (
+        <div key={i} className={css.mergedBodyCard}>
+          <div className={css.mergedBodyLabel}>Email {i + 1} — Body</div>
+          <div className={css.bodyContent}>{segment}</div>
         </div>
       ))}
     </div>
@@ -250,9 +313,20 @@ function PackageDetail({
   };
 
   const attachments = pkg.attachmentFileNames ?? [];
-  const toContacts = parseToContacts(pkg.to);
-  const fromContacts = parseFromContact(pkg.from);
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
+
+  // Detect merged packages
+  const merged = isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent);
+
+  // Pre-split fields (single-element arrays for non-merged packages)
+  const fromSegments = splitMergedField(pkg.from);
+  const toSegments = splitMergedField(pkg.to);
+  const subjectSegments = splitMergedField(pkg.subject);
+  const bodySegments = splitMergedField(pkg.bodyContent);
+
+  // For non-merged display, keep the existing parsed contact logic
+  const toContacts = merged ? [] : parseToContacts(pkg.to);
+  const fromContacts = merged ? [] : parseFromContact(pkg.from);
 
   return (
     <div className={css.container}>
@@ -262,6 +336,11 @@ function PackageDetail({
           <h2 className={css.title}>
             {pkg.packageName || pkg.subject || "Untitled Package"}
           </h2>
+          {merged && (
+            <span className={css.mergedBadge}>
+              <span className={css.mergedBadgeIcon}>⛙</span> Merged Package
+            </span>
+          )}
         </div>
         <div className={css.headerRight}>
           <span className={css.dateCompact}>
@@ -318,25 +397,36 @@ function PackageDetail({
         </div>
       </div>
 
-      {/* Email fields — single column */}
+      {/* Email fields — merged vs. normal layout */}
+      {merged ? (
+        <MergedEmailFields
+          fromSegments={fromSegments}
+          toSegments={toSegments}
+          subjectSegments={subjectSegments}
+        />
+      ) : (
+        <div className={css.emailFields}>
+          <div className={css.field}>
+            <span className={css.fieldLabel}>From</span>
+            <ContactList contacts={fromContacts} />
+          </div>
+
+          <div className={css.field}>
+            <span className={css.fieldLabel}>To</span>
+            <ContactList contacts={toContacts} />
+          </div>
+
+          <div className={css.field}>
+            <span className={css.fieldLabel}>Subject</span>
+            <span className={pkg.subject ? css.fieldValue : css.fieldValueMuted}>
+              {pkg.subject ?? "—"}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Customer field — always shown outside the merged cards */}
       <div className={css.emailFields}>
-        <div className={css.field}>
-          <span className={css.fieldLabel}>From</span>
-          <ContactList contacts={fromContacts} />
-        </div>
-
-        <div className={css.field}>
-          <span className={css.fieldLabel}>To</span>
-          <ContactList contacts={toContacts} />
-        </div>
-
-        <div className={css.field}>
-          <span className={css.fieldLabel}>Subject</span>
-          <span className={pkg.subject ? css.fieldValue : css.fieldValueMuted}>
-            {pkg.subject ?? "—"}
-          </span>
-        </div>
-
         <div className={css.field}>
           <span className={css.fieldLabel}>Customer</span>
           {editingCustomer ? (
@@ -382,11 +472,13 @@ function PackageDetail({
         </div>
       </div>
 
-      {/* Body content */}
+      {/* Body content — merged vs. normal */}
       <div className={css.bodySection}>
         <div className={css.field}>
           <span className={css.fieldLabel}>Body Content</span>
-          {pkg.bodyContent ? (
+          {merged && bodySegments.length > 1 ? (
+            <MergedBodyContent segments={bodySegments} />
+          ) : pkg.bodyContent ? (
             <div className={css.bodyContent}>{pkg.bodyContent}</div>
           ) : (
             <span className={css.fieldValueMuted}>No body content</span>

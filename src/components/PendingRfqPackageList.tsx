@@ -12,6 +12,8 @@ const MAX_VISIBLE_TAGS = 2;
 const META_BATCH_SIZE = 10;
 /** Only fetch packages received within this many months */
 const RECEIVED_MONTHS = 4;
+/** How many packages to fetch per OSDK page request */
+const FETCH_PAGE_SIZE = 50;
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
@@ -81,15 +83,14 @@ async function resolvePackageMeta(pkId: string): Promise<PackageMeta> {
   return { customerName, toolCount };
 }
 
-/** Resolve metadata for a batch with concurrency control */
-async function resolveMetaBatched(
+/** Resolve metadata for a batch with concurrency control, calling onBatch after each chunk */
+async function resolveMetaStreaming(
   pkgs: Osdk.Instance<PendingRfqPackage>[],
-  onProgress: (resolved: number) => void,
-): Promise<Record<string, PackageMeta>> {
-  const result: Record<string, PackageMeta> = {};
-  let resolved = 0;
-
+  onBatch: (batch: Record<string, PackageMeta>) => void,
+  isCancelled: () => boolean,
+): Promise<void> {
   for (let i = 0; i < pkgs.length; i += META_BATCH_SIZE) {
+    if (isCancelled()) return;
     const batch = pkgs.slice(i, i + META_BATCH_SIZE);
     const metas = await Promise.all(
       batch.map(async (pkg) => {
@@ -98,22 +99,22 @@ async function resolveMetaBatched(
         return { pkId, meta };
       }),
     );
+    const batchResult: Record<string, PackageMeta> = {};
     for (const { pkId, meta } of metas) {
-      result[pkId] = meta;
+      batchResult[pkId] = meta;
     }
-    resolved += batch.length;
-    onProgress(resolved);
+    if (!isCancelled()) {
+      onBatch(batchResult);
+    }
   }
-
-  return result;
 }
 
 function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect }: PendingRfqPackageListProps): React.ReactElement {
-  // All packages fetched from server (last 4 months)
+  // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
   const [initialLoading, setInitialLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState({ fetched: 0, resolved: 0, total: 0 });
+  const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
@@ -121,65 +122,68 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
-  // ── Initial load: fetch ALL packages from last 4 months + resolve metadata ──
+  // ── Incremental load: fetch packages in pages of 50, render after first page ──
   useEffect(() => {
     const loadId = ++loadIdRef.current;
     let cancelled = false;
 
     (async () => {
       setInitialLoading(true);
+      setBackgroundLoading(false);
       setError(null);
       setAllPackages([]);
       setMetaMap({});
-      setLoadProgress({ fetched: 0, resolved: 0, total: 0 });
-
       try {
         // Build date cutoff: 4 months ago
         const cutoff = new Date();
         cutoff.setMonth(cutoff.getMonth() - RECEIVED_MONTHS);
         const cutoffStr = cutoff.toISOString().split("T")[0];
 
-        // Fetch all pages
-        const all: Osdk.Instance<PendingRfqPackage>[] = [];
         let token: string | undefined;
         let hasMore = true;
+        let isFirstPage = true;
 
         while (hasMore && !cancelled) {
           const page = await client(PendingRfqPackage)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             .where({ receivedDate: { $gte: cutoffStr } } as any)
             .fetchPage({
-              $pageSize: 200,
+              $pageSize: FETCH_PAGE_SIZE,
               ...(token ? { $nextPageToken: token } : {}),
               $orderBy: { dueDate: "asc" },
             });
 
-          all.push(...page.data);
-          if (loadId === loadIdRef.current) {
-            setLoadProgress((p) => ({ ...p, fetched: all.length }));
+          if (cancelled || loadId !== loadIdRef.current) return;
+
+          const newPackages = page.data;
+
+          // Append new packages to state immediately so the UI can render them
+          setAllPackages((prev) => [...prev, ...newPackages]);
+
+          // After the first page arrives, stop showing the full-screen spinner
+          if (isFirstPage) {
+            isFirstPage = false;
+            setInitialLoading(false);
+            if (page.nextPageToken) {
+              setBackgroundLoading(true);
+            }
           }
+
+          // Start resolving metadata for this batch in the background
+          // (fire-and-forget — each resolved chunk merges into metaMap)
+          resolveMetaStreaming(
+            newPackages,
+            (batch) => {
+              if (loadId === loadIdRef.current) {
+                setMetaMap((prev) => ({ ...prev, ...batch }));
+              }
+            },
+            () => cancelled || loadId !== loadIdRef.current,
+          );
 
           token = page.nextPageToken;
           hasMore = !!token;
         }
-
-        if (cancelled) return;
-
-        if (loadId === loadIdRef.current) {
-          setLoadProgress((p) => ({ ...p, total: all.length }));
-          setAllPackages(all);
-        }
-
-        // Resolve metadata with progress
-        const meta = await resolveMetaBatched(all, (resolved) => {
-          if (loadId === loadIdRef.current && !cancelled) {
-            setLoadProgress((p) => ({ ...p, resolved }));
-          }
-        });
-
-        if (cancelled || loadId !== loadIdRef.current) return;
-
-        setMetaMap(meta);
       } catch (e) {
         if (!cancelled && loadId === loadIdRef.current) {
           setError(e instanceof Error ? e.message : "Failed to load packages");
@@ -187,6 +191,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       } finally {
         if (!cancelled && loadId === loadIdRef.current) {
           setInitialLoading(false);
+          setBackgroundLoading(false);
         }
       }
     })();
@@ -284,15 +289,6 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     </div>
   );
 
-  // Loading progress message
-  const progressMessage = (() => {
-    const { fetched, resolved, total } = loadProgress;
-    if (total === 0) {
-      return `Fetching packages… (${fetched} found)`;
-    }
-    return `Resolving details… (${resolved} of ${total})`;
-  })();
-
   return (
     <div className={css.container}>
       <h2 className={css.title}>Pending RFQ Packages</h2>
@@ -311,9 +307,15 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         </div>
       )}
 
+      {backgroundLoading && (
+        <div className={css.backgroundLoadingBar}>
+          Loading more packages… ({allPackages.length} loaded so far)
+        </div>
+      )}
+
       <div className={css.cardGrid}>
         {initialLoading ? (
-          <div className={css.emptyCard}>{progressMessage}</div>
+          <div className={css.emptyCard}>Fetching packages…</div>
         ) : error ? (
           <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>
         ) : pagePackages.length === 0 ? (
@@ -352,6 +354,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         <div className={css.paginationBar}>
           <span>
             Page {currentPage + 1} of {totalPages} &middot; {filteredPackages.length} result{filteredPackages.length !== 1 ? "s" : ""}
+            {backgroundLoading && " (still loading…)"}
           </span>
           <div>
             {currentPage > 0 && (
@@ -536,3 +539,4 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
 }
 
 export default PendingRfqPackageList;
+

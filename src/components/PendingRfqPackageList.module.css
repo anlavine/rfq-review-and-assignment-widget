@@ -296,6 +296,24 @@
   border-color: #d4a017;
 }
 
+/* Background loading indicator */
+.backgroundLoadingBar {
+  background: #e8f1fc;
+  color: #2d72d2;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  text-align: center;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 /* Empty / loading / error placeholder card */
 .emptyCard {
   border: 2px dashed #dce0e5;
