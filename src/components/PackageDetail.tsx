@@ -312,7 +312,11 @@ function PackageDetail({
     }
   };
 
-  const attachments = pkg.attachmentFileNames ?? [];
+  const PARSED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsb", ".xlsm"];
+  const attachments = (pkg.attachmentFileNames ?? []).filter((name) => {
+    const lower = name.toLowerCase();
+    return PARSED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  });
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
   // Detect merged packages
@@ -394,6 +398,27 @@ function PackageDetail({
               </button>
             </div>
           )}
+          {(() => {
+            const allFileNames = pkg.attachmentFileNames ?? [];
+            const totalCount = allFileNames.length;
+            const parsedCount = attachments.length;
+            let chipClass: string;
+            let chipLabel: string;
+            if (totalCount === 0) {
+              chipClass = css.attachmentChipBlue;
+              chipLabel = "No files in email";
+            } else if (parsedCount === 0) {
+              chipClass = css.attachmentChipRed;
+              chipLabel = "No parsable attachments";
+            } else if (parsedCount < totalCount) {
+              chipClass = css.attachmentChipOrange;
+              chipLabel = "Some attachments parsed";
+            } else {
+              chipClass = css.attachmentChipGreen;
+              chipLabel = "All attachments parsed";
+            }
+            return <span className={chipClass}>{chipLabel}</span>;
+          })()}
         </div>
       </div>
 
