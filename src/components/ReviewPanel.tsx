@@ -11,7 +11,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
 
 const ATTACHMENT_DATASET_RID =
-  "ri.foundry.main.dataset.d44b35c2-98c1-4b35-8e9b-e4290dde5577";
+  "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
 
 interface ReviewPanelProps {
   packageId: string;
