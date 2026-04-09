@@ -318,6 +318,7 @@ function Home(): React.ReactElement {
                   packageId={selectedPackageId}
                   refreshToken={refreshToken}
                   onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                  onSelectPackage={handleSelectPackage}
                 />
               ) : (
                 <div className={css.emptyDetail}>

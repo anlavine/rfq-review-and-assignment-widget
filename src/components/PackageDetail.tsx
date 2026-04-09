@@ -12,6 +12,14 @@ interface PackageDetailProps {
   packageId: string;
   refreshToken?: number;
   onDueDateChanged?: () => void;
+  onSelectPackage?: (packageId: string, completionStatus?: string) => void;
+}
+
+interface ConversationSibling {
+  packageId: string;
+  packageName: string | undefined;
+  completionStatus: string | undefined;
+  receivedDate: string | undefined;
 }
 
 function formatDate(date: string | undefined): string {
@@ -172,12 +180,14 @@ function PackageDetail({
   packageId,
   refreshToken,
   onDueDateChanged,
+  onSelectPackage,
 }: PackageDetailProps): React.ReactElement {
   const [pkg, setPkg] = useState<Osdk.Instance<PendingRfqPackage> | null>(
     null,
   );
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [toolCount, setToolCount] = useState<number | null>(null);
+  const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDueDate, setEditingDueDate] = useState(false);
@@ -192,6 +202,7 @@ function PackageDetail({
     setPkg(null);
     setCustomerName(null);
     setToolCount(null);
+    setConversationSiblings([]);
     setLoading(true);
     setError(null);
 
@@ -225,14 +236,37 @@ function PackageDetail({
           }
         })();
 
-        const [resolvedCustomer, resolvedToolCount] = await Promise.all([
+        // Fetch other packages sharing the same conversationId
+        const conversationPromise = (async (): Promise<ConversationSibling[]> => {
+          const convId = obj.conversationId;
+          if (!convId) return [];
+          try {
+            const page = await client(PendingRfqPackage)
+              .where({ conversationId: { $eq: convId } })
+              .fetchPage({ $pageSize: 50, $orderBy: { receivedDate: "asc" } });
+            return page.data
+              .filter((p) => String(p.$primaryKey) !== packageId)
+              .map((p) => ({
+                packageId: String(p.$primaryKey),
+                packageName: p.packageName ?? p.subject,
+                completionStatus: p.completionStatus,
+                receivedDate: p.receivedDate,
+              }));
+          } catch {
+            return [];
+          }
+        })();
+
+        const [resolvedCustomer, resolvedToolCount, resolvedSiblings] = await Promise.all([
           customerPromise,
           toolCountPromise,
+          conversationPromise,
         ]);
 
         if (cancelled) return;
         setCustomerName(resolvedCustomer);
         setToolCount(resolvedToolCount);
+        setConversationSiblings(resolvedSiblings);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -511,6 +545,49 @@ function PackageDetail({
           )}
         </div>
       </div>
+
+      {/* Conversation — other packages sharing the same conversationId */}
+      {conversationSiblings.length > 0 && (
+        <div className={css.conversationSection}>
+          <div className={css.conversationHeader}>
+            <span className={css.conversationIcon}>💬</span>
+            <span className={css.fieldLabel}>
+              Conversation ({conversationSiblings.length + 1} packages)
+            </span>
+          </div>
+          <div className={css.conversationList}>
+            {conversationSiblings.map((sibling) => (
+              <div
+                key={sibling.packageId}
+                className={css.conversationItem}
+                role="button"
+                tabIndex={0}
+                onClick={() => onSelectPackage?.(sibling.packageId, sibling.completionStatus)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSelectPackage?.(sibling.packageId, sibling.completionStatus);
+                }}
+              >
+                <div className={css.conversationItemName}>
+                  {sibling.packageName || "[Unnamed Package]"}
+                </div>
+                <div className={css.conversationItemMeta}>
+                  <span className={`${css.conversationStatus} ${
+                    sibling.completionStatus === "Active" ? css.statusActive
+                    : sibling.completionStatus === "Skipped" ? css.statusSkipped
+                    : sibling.completionStatus === "Reviewed" ? css.statusReviewed
+                    : ""
+                  }`}>
+                    {sibling.completionStatus ?? "—"}
+                  </span>
+                  <span className={css.conversationDate}>
+                    Received: {formatDate(sibling.receivedDate)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
