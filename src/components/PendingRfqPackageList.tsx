@@ -118,7 +118,8 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [activeTab, setActiveTab] = useState<TabKey>("all");
+
+  const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const loadIdRef = useRef(0);
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;

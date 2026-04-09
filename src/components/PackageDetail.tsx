@@ -406,7 +406,7 @@ function PackageDetail({
             let chipLabel: string;
             if (totalCount === 0) {
               chipClass = css.attachmentChipBlue;
-              chipLabel = "No files in email";
+              chipLabel = "No files attached to email";
             } else if (parsedCount === 0) {
               chipClass = css.attachmentChipRed;
               chipLabel = "No parsable attachments";

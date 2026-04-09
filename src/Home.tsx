@@ -18,7 +18,7 @@ function Home(): React.ReactElement {
   const [selectedPackageId, setSelectedPackageId] = useState<string | null>(
     null,
   );
-  const [activeTab, setActiveTab] = useState<TabKey>("all");
+  const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const [actionLoading, setActionLoading] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   const [selectedPackageStatus, setSelectedPackageStatus] = useState<string | null>(null);
