@@ -6,6 +6,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
+import LinkifiedText from "./LinkifiedText";
 
 interface PackageDetailProps {
   packageId: string;
@@ -160,7 +161,7 @@ function MergedBodyContent({
       {segments.map((segment, i) => (
         <div key={i} className={css.mergedBodyCard}>
           <div className={css.mergedBodyLabel}>Email {i + 1} — Body</div>
-          <div className={css.bodyContent}>{segment}</div>
+          <div className={css.bodyContent}><LinkifiedText text={segment} /></div>
         </div>
       ))}
     </div>
@@ -504,7 +505,7 @@ function PackageDetail({
           {merged && bodySegments.length > 1 ? (
             <MergedBodyContent segments={bodySegments} />
           ) : pkg.bodyContent ? (
-            <div className={css.bodyContent}>{pkg.bodyContent}</div>
+            <div className={css.bodyContent}><LinkifiedText text={pkg.bodyContent} /></div>
           ) : (
             <span className={css.fieldValueMuted}>No body content</span>
           )}

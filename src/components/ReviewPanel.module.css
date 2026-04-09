@@ -92,6 +92,18 @@
   border-radius: 4px;
 }
 
+/* ── Package Info card ── */
+.packageInfoCard {
+  border: 1px solid #dce0e5;
+  border-radius: 6px;
+  padding: 14px;
+  background: #fff;
+}
+
+.emptyValue {
+  color: #abb3bf;
+}
+
 /* ── Tools grid — two columns ── */
 .toolGrid {
   display: grid;

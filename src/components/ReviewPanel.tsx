@@ -81,10 +81,27 @@ interface ToolLinkedData {
   manifolds: Osdk.Instance<PendingRfqPackageManifold>[];
 }
 
+function formatDate(date: string | undefined): string {
+  if (!date) return "—";
+  try {
+    const parts = date.split("T")[0].split("-");
+    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return local.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return date;
+  }
+}
+
 function ReviewPanel({
   packageId,
   refreshToken,
 }: ReviewPanelProps): React.ReactElement {
+  const [pkg, setPkg] = useState<Osdk.Instance<PendingRfqPackage> | null>(null);
+  const [customerName, setCustomerName] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<
     Osdk.Instance<PendingRfqAttachments>[]
   >([]);
@@ -104,6 +121,8 @@ function ReviewPanel({
 
     setLoading(true);
     setError(null);
+    setPkg(null);
+    setCustomerName(null);
     setAttachments([]);
     setTools([]);
     setToolLinkedMap({});
@@ -111,11 +130,25 @@ function ReviewPanel({
     (async () => {
       try {
         // Fetch the package to get attachmentFileNames and emailId
-        const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+        const fetchedPkg = await client(PendingRfqPackage).fetchOne(packageId);
         if (cancelled) return;
+        setPkg(fetchedPkg);
 
-        const fileNames = pkg.attachmentFileNames ?? [];
-        const emailId = pkg.emailId;
+        const fileNames = fetchedPkg.attachmentFileNames ?? [];
+        const emailId = fetchedPkg.emailId;
+
+        // Resolve customer name via link
+        const customerPromise = (async () => {
+          try {
+            const page = await client(PendingRfqPackage)
+              .where({ packageId: { $eq: packageId } })
+              .pivotTo("betaAdécustomer")
+              .fetchPage({ $pageSize: 1 });
+            return page.data[0]?.customerName ?? null;
+          } catch {
+            return null;
+          }
+        })();
 
         // Fetch attachments: match on fileName ∈ attachmentFileNames AND emailId
         const attachmentPromise = (async () => {
@@ -153,14 +186,16 @@ function ReviewPanel({
           }
         })();
 
-        const [resolvedAttachments, resolvedTools] = await Promise.all([
+        const [resolvedAttachments, resolvedTools, resolvedCustomer] = await Promise.all([
           attachmentPromise,
           toolsPromise,
+          customerPromise,
         ]);
 
         if (cancelled) return;
         setAttachments(resolvedAttachments);
         setTools(resolvedTools);
+        setCustomerName(resolvedCustomer);
 
         // Fetch parts and manifolds for each tool in parallel
         const linkedEntries = await Promise.all(
@@ -267,6 +302,34 @@ function ReviewPanel({
           <p className={css.downloadError}>{downloadError}</p>
         )}
       </section>
+
+      {/* ── Package Info Section ── */}
+      {pkg && (
+        <section className={css.section}>
+          <h3 className={css.sectionTitle}>Package Information</h3>
+          <div className={css.packageInfoCard}>
+            <dl className={css.toolProps}>
+              {([
+                { label: "Package Name", value: pkg.packageName },
+                { label: "OEM", value: pkg.oem },
+                { label: "Model Year", value: pkg.modelYear },
+                { label: "Platform", value: pkg.platform },
+                { label: "Customer", value: customerName },
+                { label: "Terms", value: pkg.terms },
+                { label: "SOP Date", value: formatDate(pkg.sopDate) },
+                { label: "PPAP Date", value: pkg.ppapDate },
+              ] as { label: string; value: string | null | undefined }[]).map(({ label, value }) => (
+                <div key={label} className={css.toolPropRow}>
+                  <dt className={css.toolPropLabel}>{label}:</dt>
+                  <dd className={css.toolPropValue}>
+                    {value && value !== "—" ? value : <span className={css.emptyValue}>—</span>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </section>
+      )}
 
       {/* ── Tools Section ── */}
       <section className={css.section}>
