@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
 import type { TabKey, Filters, MergeStep, SplitStep } from "./components/PendingRfqPackageList";
@@ -42,6 +42,19 @@ function Home(): React.ReactElement {
     isAsyncValue_Loaded(workshopContextAsync)
       ? workshopContextAsync.value
       : null;
+
+  // On mount (or when Workshop context becomes available), restore the
+  // selectedPackageId from the Workshop variable so that navigating back
+  // to this iframe tab re-selects the previously chosen package.
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !workshopContext) return;
+    const fieldValue = workshopContext.selectedPackageId.fieldValue;
+    if (isAsyncValue_Loaded(fieldValue) && fieldValue.value) {
+      restoredRef.current = true;
+      setSelectedPackageId(fieldValue.value);
+    }
+  }, [workshopContext]);
 
   const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
     setSelectedPackageId((prev) => {
