@@ -480,7 +480,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
   const moreRef = useRef<HTMLSpanElement | null>(null);
 
   return (
-    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${urgency === "overdue" ? css.cardOverdue : urgency === "dueSoon" ? css.cardDueSoon : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
+    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
         <div className={css.cardTitle}>{pkg.packageName || pkg.subject || "[Unnamed Package]"}</div>
         {isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent) && (
@@ -513,7 +513,9 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
         <span className={css.cardMetaSep}>·</span>
         {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
         <span className={css.cardMetaSep}>·</span>
-        Due: {formatDate(pkg.dueDate)}
+        <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
+          Due: {formatDate(pkg.dueDate)}
+        </span>
         {pkg.automatedDueDate === "true" && (
           <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
         )}

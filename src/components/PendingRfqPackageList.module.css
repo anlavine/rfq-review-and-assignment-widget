@@ -295,21 +295,35 @@
   text-align: center;
 }
 
-/* Due date urgency — card border */
-.cardOverdue {
-  border-color: #f98d90;
+/* Due date urgency — chips */
+.dueDateNormal {
+  /* no special styling */
 }
 
-.cardOverdue:hover {
-  border-color: #cd4246;
+.dueDateOverdue {
+  display: inline-block;
+  background: #fee2e2;
+  color: #9b1c1c;
+  border: 1px solid #f5a3a3;
+  border-radius: 10px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
-.cardDueSoon {
-  border-color: #fad881;
-}
-
-.cardDueSoon:hover {
-  border-color: #d4a017;
+.dueDateDueSoon {
+  display: inline-block;
+  background: #fff3cd;
+  color: #8a5a00;
+  border: 1px solid #ffe083;
+  border-radius: 10px;
+  padding: 0 7px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
 /* Background loading indicator */

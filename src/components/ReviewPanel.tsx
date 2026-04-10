@@ -9,6 +9,7 @@ import {
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
+import { compareToolNumber } from "../utils/sortTools";
 
 const ATTACHMENT_DATASET_RID =
   "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
@@ -55,13 +56,17 @@ const TOOL_DISPLAY_PROPERTIES: {
 const PART_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRfqPackagePart>;
   label: string;
+  suffix?: string;
 }[] = [
     { apiName: "partName", label: "Part Name" },
     { apiName: "partNumber", label: "Part Number" },
     { apiName: "cadfilename", label: "CAD Filename" },
-    { apiName: "lengthX", label: "Length (X)" },
-    { apiName: "widthY", label: "Width (Y)" },
-    { apiName: "heightZ", label: "Height (Z)" },
+    { apiName: "lengthX", label: "Length (X)", suffix: " in" },
+    { apiName: "widthY", label: "Width (Y)", suffix: " in" },
+    { apiName: "heightZ", label: "Height (Z)", suffix: " in" },
+    { apiName: "expectedAnnualVolume", label: "Expected Annual Volume" },
+    { apiName: "firstVolumeYear", label: "First Volume Year" },
+    { apiName: "originalPartUnits", label: "Units Converted From" },
   ];
 
 /** Manifold properties to display (excluding IDs) */
@@ -134,8 +139,7 @@ function ReviewPanel({
         if (cancelled) return;
         setPkg(fetchedPkg);
 
-        const fileNames = fetchedPkg.attachmentFileNames ?? [];
-        const emailId = fetchedPkg.emailId;
+        const conversationId = fetchedPkg.conversationId;
 
         // Resolve customer name via link
         const customerPromise = (async () => {
@@ -150,16 +154,17 @@ function ReviewPanel({
           }
         })();
 
-        // Fetch attachments: match on fileName ∈ attachmentFileNames AND emailId
+        // Fetch attachments: match on fileName ∈ attachmentFileNames AND conversationId
+        const fileNames = fetchedPkg.attachmentFileNames ?? []
         const attachmentPromise = (async () => {
-          if (fileNames.length === 0 || !emailId) return [];
+          if (!conversationId) return [];
           try {
             const page = await client(PendingRfqAttachments)
               .where({
                 $and: [
                   { fileName: { $in: fileNames } },
-                  { emailId: { $eq: emailId } },
-                ],
+                  { conversationId: { $eq: conversationId } }
+                ]
               })
               .fetchPage({ $pageSize: 200 });
             return page.data;
@@ -194,7 +199,9 @@ function ReviewPanel({
 
         if (cancelled) return;
         setAttachments(resolvedAttachments);
-        setTools(resolvedTools);
+        setTools(
+          [...resolvedTools].sort((a, b) => compareToolNumber(a.toolNumber, b.toolNumber)),
+        );
         setCustomerName(resolvedCustomer);
 
         // Fetch parts and manifolds for each tool in parallel
@@ -280,16 +287,36 @@ function ReviewPanel({
                 {att.filepath && (
                   <button
                     className={css.downloadButton}
-                    disabled={downloadingId === att.$primaryKey}
-                    onClick={() => {
+                    disabled={downloadingId === String(att.$primaryKey)}
+                    onClick={async () => {
+                      const attId = String(att.$primaryKey);
+                      const displayName = att.fileName ?? att.filepath ?? "download";
                       setDownloadError(null);
-                      setDownloadingId(String(att.$primaryKey));
-                      const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
-                      window.location.href = url;
-                      setTimeout(() => setDownloadingId(null), 2000);
+                      setDownloadingId(attId);
+                      try {
+                        const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
+                        const response = await fetch(url, { credentials: "include" });
+                        if (!response.ok) throw new Error(`Download failed (${response.status})`);
+                        const blob = await response.blob();
+                        const objectUrl = URL.createObjectURL(blob);
+                        const anchor = document.createElement("a");
+                        anchor.href = objectUrl;
+                        anchor.download = displayName;
+                        document.body.appendChild(anchor);
+                        anchor.click();
+                        document.body.removeChild(anchor);
+                        URL.revokeObjectURL(objectUrl);
+                      } catch (e) {
+                        console.error("Download failed:", e);
+                        setDownloadError(
+                          e instanceof Error ? e.message : "Failed to download file",
+                        );
+                      } finally {
+                        setDownloadingId(null);
+                      }
                     }}
                   >
-                    {downloadingId === att.$primaryKey ? "Downloading…" : "Download"}
+                    {downloadingId === String(att.$primaryKey) ? "Downloading…" : "Download"}
                   </button>
                 )}
               </li>
@@ -385,13 +412,13 @@ function ReviewPanel({
                         <React.Fragment key={part.$primaryKey}>
                           {partIdx > 0 && <hr className={css.subItemDivider} />}
                           <dl className={css.toolProps}>
-                            {PART_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                            {PART_DISPLAY_PROPERTIES.map(({ apiName, label, suffix }) => {
                               const value = part[apiName];
                               if (value == null || value === "") return null;
                               return (
                                 <div key={apiName} className={css.toolPropRow}>
                                   <dt className={css.toolPropLabel}>{label}:</dt>
-                                  <dd className={css.toolPropValue}>{String(value)}</dd>
+                                  <dd className={css.toolPropValue}>{String(value)}{suffix ?? ""}</dd>
                                 </div>
                               );
                             })}

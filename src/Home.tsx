@@ -92,27 +92,64 @@ function Home(): React.ReactElement {
 
   /**
    * "Create Package" handler:
-   * 1. Fetches the linked tool IDs for the selected package.
-   * 2. Sets two Workshop variables (selectedPackageId, selectedToolIds).
+   * 1. Fetches the linked tool IDs, part IDs, and manifold IDs for the selected package.
+   * 2. Sets Workshop variables (selectedPackageId, selectedToolIds, selectedPartIds, selectedManifoldIds).
    * 3. Fires the createPackageEvent so Workshop can react (e.g., switch tabs).
    */
   const handleCreatePackage = useCallback(async () => {
     if (!selectedPackageId) return;
     setCreatePackageLoading(true);
     try {
-      // Fetch tool IDs for this package
+      // Fetch tools for this package
       const toolPage = await client(PendingRfqPackage)
         .where({ packageId: { $eq: selectedPackageId } })
         .pivotTo("pendingRfqPackageTools")
         .fetchPage({ $pageSize: 200, $orderBy: { toolNumber: "asc" } });
-      const toolIds = toolPage.data
+      const tools = toolPage.data;
+      const toolIds = tools
         .map((t) => t.toolId)
+        .filter((id): id is string => id != null);
+
+      // Fetch parts and manifolds for all tools in parallel
+      const linkedResults = await Promise.all(
+        tools.map(async (tool) => {
+          const [parts, manifolds] = await Promise.all([
+            (async () => {
+              try {
+                const page = await tool.$link.pendingRfqPackageParts.fetchPage({ $pageSize: 200 });
+                return page.data;
+              } catch {
+                return [];
+              }
+            })(),
+            (async () => {
+              try {
+                const page = await tool.$link.pendingRfqPackageManifolds.fetchPage({ $pageSize: 200 });
+                return page.data;
+              } catch {
+                return [];
+              }
+            })(),
+          ]);
+          return { parts, manifolds };
+        }),
+      );
+
+      const partIds = linkedResults
+        .flatMap((r) => r.parts)
+        .map((p) => p.partId)
+        .filter((id): id is string => id != null);
+      const manifoldIds = linkedResults
+        .flatMap((r) => r.manifolds)
+        .map((m) => m.manifoldId)
         .filter((id): id is string => id != null);
 
       if (workshopContext) {
         // Set Workshop variables
         workshopContext.selectedPackageId.setLoadedValue(selectedPackageId);
         workshopContext.selectedToolIds.setLoadedValue(toolIds);
+        workshopContext.selectedPartIds.setLoadedValue(partIds);
+        workshopContext.selectedManifoldIds.setLoadedValue(manifoldIds);
         // Fire the Workshop event
         workshopContext.createPackageEvent.executeEvent(undefined);
       } else {
@@ -120,6 +157,8 @@ function Home(): React.ReactElement {
         console.log("Create Package (standalone mode):", {
           packageId: selectedPackageId,
           toolIds,
+          partIds,
+          manifoldIds,
         });
       }
     } catch (e) {
@@ -289,17 +328,19 @@ function Home(): React.ReactElement {
                   <button
                     className={css.headerButton}
                     onClick={handleStartMerge}
+                    title="Combine two packages into one by moving all tools from a source package into a target package. The source package will be deleted."
                   >
                     Merge
                   </button>
                   <button
                     className={css.headerButton}
                     onClick={handleStartSplit}
+                    title="Split a package by selecting specific tools to move into a new package. The original package keeps the remaining tools."
                   >
                     Split
                   </button>
                   <button
-                    className={css.headerButton}
+                    className={css.createPackageButton}
                     disabled={!selectedPackageId}
                     onClick={() => setReviewMode(true)}
                   >

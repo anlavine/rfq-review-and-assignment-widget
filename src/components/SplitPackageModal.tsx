@@ -7,6 +7,7 @@ import {
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./SplitPackageModal.module.css";
+import { compareToolNumber } from "../utils/sortTools";
 
 interface SplitPackageModalProps {
   packageId: string;
@@ -37,7 +38,9 @@ function SplitPackageModal({
           .pivotTo("pendingRfqPackageTools")
           .fetchPage({ $pageSize: 200, $orderBy: { toolNumber: "asc" } });
         if (!cancelled) {
-          setTools(page.data);
+          setTools(
+            [...page.data].sort((a, b) => compareToolNumber(a.toolNumber, b.toolNumber)),
+          );
           setLoading(false);
         }
       } catch (e) {

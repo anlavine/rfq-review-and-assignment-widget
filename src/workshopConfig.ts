@@ -7,6 +7,8 @@
  * Variables:
  *   - selectedPackageId: The package ID of the currently selected Pending RFQ Package.
  *   - selectedToolIds: A list of tool IDs for the tools associated with the selected package.
+ *   - selectedPartIds: A list of part IDs for the parts linked to the selected package's tools.
+ *   - selectedManifoldIds: A list of manifold IDs for the manifolds linked to the selected package's tools.
  *
  * Events:
  *   - createPackageEvent: Fired when the user clicks "Create Package" in the review panel.
@@ -36,6 +38,38 @@ export const WORKSHOP_CONFIG = [
       label: "Selected Tool IDs",
       helperText:
         "A list of tool IDs for the tools linked to the selected package.",
+      fieldValue: {
+        type: "inputOutput",
+        variableType: {
+          type: "string-list",
+          defaultValue: undefined,
+        },
+      },
+    },
+  },
+  {
+    fieldId: "selectedPartIds",
+    field: {
+      type: "single",
+      label: "Selected Part IDs",
+      helperText:
+        "A list of part IDs for the parts linked to the selected package's tools.",
+      fieldValue: {
+        type: "inputOutput",
+        variableType: {
+          type: "string-list",
+          defaultValue: undefined,
+        },
+      },
+    },
+  },
+  {
+    fieldId: "selectedManifoldIds",
+    field: {
+      type: "single",
+      label: "Selected Manifold IDs",
+      helperText:
+        "A list of manifold IDs for the manifolds linked to the selected package's tools.",
       fieldValue: {
         type: "inputOutput",
         variableType: {
