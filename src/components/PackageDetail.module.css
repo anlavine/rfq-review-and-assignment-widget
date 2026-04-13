@@ -221,7 +221,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #2d72d2;
+  background: #445372;
   color: #fff;
   border-radius: 10px;
   font-size: 12px;
@@ -462,6 +462,27 @@
 .statusReviewed {
   color: #1a56db;
   background: #dbeafe;
+}
+
+.conversationToolChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #e1e8ed;
+  color: #4b4e52;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.conversationToolIcon {
+  width: 13px;
+  height: 13px;
+  color: #5f6b7c;
+  flex-shrink: 0;
 }
 
 .conversationDate {

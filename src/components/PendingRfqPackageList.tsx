@@ -9,6 +9,7 @@ import { isMergedPackage } from "../utils/mergedFields";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
+const PARSED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsb", ".xlsm"];
 /** Concurrency limit for metadata resolution to avoid flooding the server */
 const META_BATCH_SIZE = 10;
 /** Only fetch packages received within this many months */
@@ -74,7 +75,7 @@ async function resolvePackageMeta(pkId: string): Promise<PackageMeta> {
         const page = await client(PendingRfqPackage)
           .where({ packageId: { $eq: pkId } })
           .pivotTo("pendingRfqPackageTools")
-          .fetchPage({ $pageSize: 1 });
+          .fetchPage({ $pageSize: 200 });
         return page.data.length;
       } catch {
         return 0;
@@ -470,6 +471,13 @@ interface PackageCardProps {
 function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: PackageCardProps): React.ReactElement {
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
+  const metaLoaded = meta !== undefined;
+
+  const toolCount = meta?.toolCount ?? null;
+  const attachmentCount = (pkg.attachmentFileNames ?? []).filter((name) => {
+    const lower = name.toLowerCase();
+    return PARSED_EXTENSIONS.some((ext) => lower.endsWith(ext));
+  }).length;
 
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
@@ -506,6 +514,20 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
             )}
           </div>
         )}
+        <div className={css.countChips}>
+          <span className={css.countChip} title="Parsed tools">
+            <svg className={css.countChipIcon} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M11.92 1.08a3.5 3.5 0 0 0-4.56 4.03L2.04 10.4a1.5 1.5 0 0 0 0 2.12l1.42 1.42a1.5 1.5 0 0 0 2.12 0l5.3-5.32a3.5 3.5 0 0 0 4.03-4.56l-2.1 2.1-1.42-.01-.7-.7-.01-1.42 2.1-2.1Z" />
+            </svg>
+            {metaLoaded ? toolCount : "…"}
+          </span>
+          <span className={css.countChip} title="Parsed attachments">
+            <svg className={css.countChipIcon} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M12.5 6.5l-5.14 5.14a2.5 2.5 0 0 1-3.54-3.54l5.84-5.84a1.5 1.5 0 0 1 2.12 2.12L6.04 10.1a.5.5 0 0 1-.7-.7L10.46 4.3l-.7-.72-5.14 5.12a1.5 1.5 0 0 0 2.12 2.12l5.72-5.72a2.5 2.5 0 0 0-3.54-3.54L3.08 7.4a3.5 3.5 0 0 0 4.96 4.96l5.14-5.14-.7-.7Z" />
+            </svg>
+            {attachmentCount}
+          </span>
+        </div>
       </div>
 
       <div className={css.cardMeta}>

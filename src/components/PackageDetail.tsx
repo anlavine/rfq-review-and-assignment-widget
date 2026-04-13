@@ -20,6 +20,7 @@ interface ConversationSibling {
   packageName: string | undefined;
   completionStatus: string | undefined;
   receivedDate: string | undefined;
+  toolCount: number | null;
 }
 
 function formatDate(date: string | undefined): string {
@@ -244,14 +245,30 @@ function PackageDetail({
             const page = await client(PendingRfqPackage)
               .where({ conversationId: { $eq: convId } })
               .fetchPage({ $pageSize: 50, $orderBy: { receivedDate: "asc" } });
-            return page.data
-              .filter((p) => String(p.$primaryKey) !== packageId)
-              .map((p) => ({
-                packageId: String(p.$primaryKey),
-                packageName: p.packageName ?? p.subject,
-                completionStatus: p.completionStatus,
-                receivedDate: p.receivedDate,
-              }));
+            const siblings = page.data.filter((p) => String(p.$primaryKey) !== packageId);
+            // Resolve tool counts for each sibling in parallel
+            const siblingResults = await Promise.all(
+              siblings.map(async (p) => {
+                let sibToolCount: number | null = null;
+                try {
+                  const toolPage = await client(PendingRfqPackage)
+                    .where({ packageId: { $eq: String(p.$primaryKey) } })
+                    .pivotTo("pendingRfqPackageTools")
+                    .fetchPage({ $pageSize: 200 });
+                  sibToolCount = toolPage.data.length;
+                } catch {
+                  // leave as null
+                }
+                return {
+                  packageId: String(p.$primaryKey),
+                  packageName: p.packageName ?? p.subject,
+                  completionStatus: p.completionStatus,
+                  receivedDate: p.receivedDate,
+                  toolCount: sibToolCount,
+                };
+              }),
+            );
+            return siblingResults;
           } catch {
             return [];
           }
@@ -531,28 +548,13 @@ function PackageDetail({
           </div>
         </div>
       </div>
-
-      {/* Body content — merged vs. normal */}
-      <div className={css.bodySection}>
-        <div className={css.field}>
-          <span className={css.fieldLabel}>Body Content</span>
-          {merged && bodySegments.length > 1 ? (
-            <MergedBodyContent segments={bodySegments} />
-          ) : pkg.bodyContent ? (
-            <div className={css.bodyContent}><LinkifiedText text={pkg.bodyContent} /></div>
-          ) : (
-            <span className={css.fieldValueMuted}>No body content</span>
-          )}
-        </div>
-      </div>
-
       {/* Conversation — other packages sharing the same conversationId */}
       {conversationSiblings.length > 0 && (
         <div className={css.conversationSection}>
           <div className={css.conversationHeader}>
             <span className={css.conversationIcon}>💬</span>
             <span className={css.fieldLabel}>
-              Conversation ({conversationSiblings.length + 1} packages)
+              Other Pending Packages from Conversation ({conversationSiblings.length})
             </span>
           </div>
           <div className={css.conversationList}>
@@ -571,13 +573,18 @@ function PackageDetail({
                   {sibling.packageName || "[Unnamed Package]"}
                 </div>
                 <div className={css.conversationItemMeta}>
-                  <span className={`${css.conversationStatus} ${
-                    sibling.completionStatus === "Active" ? css.statusActive
+                  <span className={`${css.conversationStatus} ${sibling.completionStatus === "Active" ? css.statusActive
                     : sibling.completionStatus === "Skipped" ? css.statusSkipped
-                    : sibling.completionStatus === "Reviewed" ? css.statusReviewed
-                    : ""
-                  }`}>
+                      : sibling.completionStatus === "Reviewed" ? css.statusReviewed
+                        : ""
+                    }`}>
                     {sibling.completionStatus ?? "—"}
+                  </span>
+                  <span className={css.conversationToolChip}>
+                    <svg className={css.conversationToolIcon} viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M11.92 1.08a3.5 3.5 0 0 0-4.56 4.03L2.04 10.4a1.5 1.5 0 0 0 0 2.12l1.42 1.42a1.5 1.5 0 0 0 2.12 0l5.3-5.32a3.5 3.5 0 0 0 4.03-4.56l-2.1 2.1-1.42-.01-.7-.7-.01-1.42 2.1-2.1Z" />
+                    </svg>
+                    {sibling.toolCount != null ? sibling.toolCount : "…"}
                   </span>
                   <span className={css.conversationDate}>
                     Received: {formatDate(sibling.receivedDate)}
@@ -588,6 +595,19 @@ function PackageDetail({
           </div>
         </div>
       )}
+      {/* Body content — merged vs. normal */}
+      <div className={css.bodySection}>
+        <div className={css.field}>
+          <span className={css.fieldLabel}>Body Content</span>
+          {merged && bodySegments.length > 1 ? (
+            <MergedBodyContent segments={bodySegments} />
+          ) : pkg.bodyContent ? (
+            <div className={css.bodyContent}><LinkifiedText text={pkg.bodyContent} /></div>
+          ) : (
+            <span className={css.fieldValueMuted}>No body content</span>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
