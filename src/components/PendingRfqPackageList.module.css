@@ -104,13 +104,28 @@
 }
 
 .cardMeta {
+  display: flex;
+  align-items: center;
+  gap: 0;
   font-size: 12px;
   line-height: 16px;
   color: #5f6b7c;
+  min-width: 0;
+}
+
+.cardMetaLeft {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  flex: 1;
+}
+
+.cardMetaRight {
+  flex-shrink: 0;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
 }
 
 .cardMetaSep {

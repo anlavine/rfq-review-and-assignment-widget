@@ -339,18 +339,32 @@ function Home(): React.ReactElement {
                     Edit Tags
                   </button>
                   <button
-                    className={css.headerButton}
+                    className={css.headerButtonWithInfo}
                     onClick={handleStartMerge}
-                    title="Combine two packages into one by moving all tools from a source package into a target package. The source package will be deleted."
                   >
                     Merge
+                    <span className={css.infoIconWrap}>
+                      <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
+                      </svg>
+                      <span className={css.infoTooltip}>
+                        Combine two packages into one by moving all tools from a source package into a target package. The source package will be deleted.
+                      </span>
+                    </span>
                   </button>
                   <button
-                    className={css.headerButton}
+                    className={css.headerButtonWithInfo}
                     onClick={handleStartSplit}
-                    title="Split a package by selecting specific tools to move into a new package. The original package keeps the remaining tools."
                   >
                     Split
+                    <span className={css.infoIconWrap}>
+                      <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
+                      </svg>
+                      <span className={css.infoTooltip}>
+                        Split a package by selecting specific tools to move into a new package. The original package keeps the remaining tools.
+                      </span>
+                    </span>
                   </button>
                   <button
                     className={css.createPackageButton}

@@ -509,24 +509,27 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
       </div>
 
       <div className={css.cardMeta}>
-        {customerLoading ? "…" : customerName ?? "—"}
-        <span className={css.cardMetaSep}>·</span>
-        {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
-        <span className={css.cardMetaSep}>·</span>
-        <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
-          Due: {formatDate(pkg.dueDate)}
+        <span className={css.cardMetaLeft}>
+          {customerLoading ? "…" : customerName ?? "—"}
+          <span className={css.cardMetaSep}>·</span>
+          {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
+          {showStatus && pkg.completionStatus && (
+            <>
+              <span className={css.cardMetaSep}>·</span>
+              <span className={`${css.statusBadge} ${getStatusClass(pkg.completionStatus)}`}>
+                {pkg.completionStatus}
+              </span>
+            </>
+          )}
         </span>
-        {pkg.automatedDueDate === "true" && (
-          <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
-        )}
-        {showStatus && pkg.completionStatus && (
-          <>
-            <span className={css.cardMetaSep}>·</span>
-            <span className={`${css.statusBadge} ${getStatusClass(pkg.completionStatus)}`}>
-              {pkg.completionStatus}
-            </span>
-          </>
-        )}
+        <span className={css.cardMetaRight}>
+          <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
+            Due: {formatDate(pkg.dueDate)}
+          </span>
+          {pkg.automatedDueDate === "true" && (
+            <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
+          )}
+        </span>
       </div>
     </div>
   );
