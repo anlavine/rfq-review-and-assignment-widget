@@ -64,9 +64,9 @@ const PART_DISPLAY_PROPERTIES: {
     { apiName: "lengthX", label: "Length (X)", suffix: " in" },
     { apiName: "widthY", label: "Width (Y)", suffix: " in" },
     { apiName: "heightZ", label: "Height (Z)", suffix: " in" },
+    { apiName: "originalPartUnits", label: "Units Converted From" },
     { apiName: "expectedAnnualVolume", label: "Expected Annual Volume" },
     { apiName: "firstVolumeYear", label: "First Volume Year" },
-    { apiName: "originalPartUnits", label: "Units Converted From" },
   ];
 
 /** Manifold properties to display (excluding IDs) */
