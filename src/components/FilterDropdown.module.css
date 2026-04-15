@@ -84,6 +84,12 @@
   cursor: pointer;
 }
 
+.tagCheckboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

@@ -25,7 +25,7 @@ function Home(): React.ReactElement {
   const [showEditTags, setShowEditTags] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [createPackageLoading, setCreatePackageLoading] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", customerSearch: "", platformSearch: "", hasParsedTools: false });
+  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", selectedTags: [], hasParsedTools: false });
   const [mergeStep, setMergeStep] = useState<MergeStep>(null);
   const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const [mergeSourceName, setMergeSourceName] = useState<string>("");

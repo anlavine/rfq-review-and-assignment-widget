@@ -2,6 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import css from "./FilterDropdown.module.css";
 import type { Filters } from "./PendingRfqPackageList";
 
+const AVAILABLE_TAGS = [
+  "Targets",
+  "Waiting for Data",
+  "Repeat Request",
+  "Duplicate",
+  "Update Quote",
+];
+
 interface FilterDropdownProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
@@ -32,8 +40,10 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
   const hasActiveFilters =
     filters.dueDateStart !== "" ||
     filters.dueDateEnd !== "" ||
+    filters.subjectSearch !== "" ||
     filters.customerSearch !== "" ||
     filters.platformSearch !== "" ||
+    filters.selectedTags.length > 0 ||
     filters.hasParsedTools;
 
   const handleApply = () => {
@@ -43,7 +53,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
 
   const handleClear = () => {
 
-    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", customerSearch: "", platformSearch: "", hasParsedTools: false };
+    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", selectedTags: [], hasParsedTools: false };
     setLocalFilters(cleared);
     onFiltersChange(cleared);
     setOpen(false);
@@ -83,6 +93,18 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
           </div>
 
           <div className={css.section}>
+            <label className={css.label} htmlFor="filter-subject">Subject Keyword</label>
+            <input
+              id="filter-subject"
+              type="text"
+              className={css.input}
+              placeholder="Search subject…"
+              value={localFilters.subjectSearch}
+              onChange={(e) => setLocalFilters((f) => ({ ...f, subjectSearch: e.target.value }))}
+            />
+          </div>
+
+          <div className={css.section}>
             <label className={css.label} htmlFor="filter-customer">Customer</label>
             <input
               id="filter-customer"
@@ -106,6 +128,8 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
             />
           </div>
 
+
+
           <div className={css.section}>
             <label className={css.checkboxLabel}>
               <input
@@ -115,6 +139,29 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
               />
               Has Parsed Tools
             </label>
+          </div>
+
+          <div className={css.section}>
+            <span className={css.label}>Tags</span>
+            <div className={css.tagCheckboxes}>
+              {AVAILABLE_TAGS.map((tag) => (
+                <label key={tag} className={css.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={localFilters.selectedTags.includes(tag)}
+                    onChange={(e) => {
+                      setLocalFilters((f) => ({
+                        ...f,
+                        selectedTags: e.target.checked
+                          ? [...f.selectedTags, tag]
+                          : f.selectedTags.filter((t) => t !== tag),
+                      }));
+                    }}
+                  />
+                  {tag}
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className={css.actions}>

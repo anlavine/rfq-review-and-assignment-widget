@@ -29,8 +29,10 @@ const TABS: { key: TabKey; label: string; status: string | null }[] = [
 export interface Filters {
   dueDateStart: string;
   dueDateEnd: string;
+  subjectSearch: string;
   customerSearch: string;
   platformSearch: string;
+  selectedTags: string[];
   hasParsedTools: boolean;
 }
 
@@ -205,6 +207,23 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     };
   }, [refreshToken]);
 
+  // ── Build conversation lookup for sibling-based filtering ──
+  // Groups packages by conversationId for efficient sibling checks.
+  const conversationMap = useMemo(() => {
+    const map = new Map<string, Osdk.Instance<PendingRfqPackage>[]>();
+    for (const pkg of allPackages) {
+      const convId = pkg.conversationId;
+      if (!convId) continue;
+      const list = map.get(convId);
+      if (list) {
+        list.push(pkg);
+      } else {
+        map.set(convId, [pkg]);
+      }
+    }
+    return map;
+  }, [allPackages]);
+
   // ── Client-side filtering ──
   const filteredPackages = useMemo(() => {
     return allPackages.filter((pkg) => {
@@ -214,6 +233,24 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       // Tab / status filter
       if (activeStatus && pkg.completionStatus !== activeStatus) return false;
 
+      // Outstanding tab: hide packages that have a sibling which is more recent
+      // or a sibling that is already Reviewed.
+      if (activeTab === "outstanding" && pkg.conversationId) {
+        const siblings = conversationMap.get(pkg.conversationId);
+        if (siblings && siblings.length > 1) {
+          const pkReceivedDate = pkg.receivedDate ?? "";
+          const hasNewerSibling = siblings.some((s) => {
+            if (String(s.$primaryKey) === pkId) return false;
+            return (s.receivedDate ?? "") > pkReceivedDate;
+          });
+          const hasReviewedSibling = siblings.some((s) => {
+            if (String(s.$primaryKey) === pkId) return false;
+            return s.completionStatus === "Reviewed";
+          });
+          if (hasNewerSibling || hasReviewedSibling) return false;
+        }
+      }
+
       // Due date range
       if (filters.dueDateStart && pkg.dueDate) {
         const due = pkg.dueDate.split("T")[0];
@@ -222,6 +259,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       if (filters.dueDateEnd && pkg.dueDate) {
         const due = pkg.dueDate.split("T")[0];
         if (due > filters.dueDateEnd) return false;
+      }
+
+      // Subject search
+      if (filters.subjectSearch) {
+        if (!pkg.subject) return false;
+        if (!pkg.subject.toLowerCase().includes(filters.subjectSearch.toLowerCase())) return false;
       }
 
       // Customer search — matches linked customer name OR raw customerName property
@@ -238,6 +281,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         if (!pkg.platform.toLowerCase().includes(filters.platformSearch.toLowerCase())) return false;
       }
 
+      // Tags filter — package must have ALL selected tags
+      if (filters.selectedTags.length > 0) {
+        const pkgTags = pkg.tags ?? [];
+        if (!filters.selectedTags.some((t) => pkgTags.includes(t))) return false;
+      }
+
       // Has parsed tools (only if metadata resolved)
       if (filters.hasParsedTools && meta) {
         if (meta.toolCount === 0) return false;
@@ -245,7 +294,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
       return true;
     });
-  }, [allPackages, metaMap, activeStatus, filters]);
+  }, [allPackages, metaMap, activeStatus, activeTab, conversationMap, filters]);
 
   // ── Client-side pagination ──
   const totalPages = Math.max(1, Math.ceil(filteredPackages.length / PAGE_SIZE));
@@ -255,7 +304,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   }, [filteredPackages, currentPage]);
 
   // Reset to page 0 when filters change
-  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.customerSearch}|${filters.platformSearch}|${filters.hasParsedTools}`;
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}`;
   useEffect(() => {
     setCurrentPage(0);
   }, [filterKey]);
@@ -557,7 +606,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
           <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
             Due: {formatDate(pkg.dueDate)}
           </span>
-          {pkg.automatedDueDate === "true" && (
+          {(pkg.automatedDueDate === "true" || pkg.automatedDueDate === "True") && (
             <span className={css.autoIcon} title="Auto-generated due date">🤖</span>
           )}
         </span>

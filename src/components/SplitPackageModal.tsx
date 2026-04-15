@@ -2,12 +2,19 @@ import React, { useEffect, useState } from "react";
 import {
   PendingRfqPackage,
   PendingRFQPackageTool,
+  PendingRfqPackagePart,
   splitPackage,
 } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./SplitPackageModal.module.css";
 import { compareToolNumber } from "../utils/sortTools";
+
+/** Summarised part info for display in the split modal */
+interface PartSummary {
+  partName: string | undefined;
+  partNumber: string | undefined;
+}
 
 interface SplitPackageModalProps {
   packageId: string;
@@ -23,12 +30,13 @@ function SplitPackageModal({
   onSplit,
 }: SplitPackageModalProps): React.ReactElement {
   const [tools, setTools] = useState<Osdk.Instance<PendingRFQPackageTool>[]>([]);
+  const [toolPartsMap, setToolPartsMap] = useState<Record<string, PartSummary[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
   const [splitting, setSplitting] = useState(false);
 
-  // Fetch tools for the package
+  // Fetch tools for the package, then resolve parts for each tool
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -37,12 +45,35 @@ function SplitPackageModal({
           .where({ packageId: { $eq: packageId } })
           .pivotTo("pendingRfqPackageTools")
           .fetchPage({ $pageSize: 200, $orderBy: { toolNumber: "asc" } });
-        if (!cancelled) {
-          setTools(
-            [...page.data].sort((a, b) => compareToolNumber(a.toolNumber, b.toolNumber)),
-          );
-          setLoading(false);
+        if (cancelled) return;
+
+        const sortedTools = [...page.data].sort((a, b) => compareToolNumber(a.toolNumber, b.toolNumber));
+        setTools(sortedTools);
+        setLoading(false);
+
+        // Resolve parts for each tool in parallel
+        const partsEntries = await Promise.all(
+          sortedTools.map(async (tool) => {
+            const toolId = String(tool.$primaryKey);
+            try {
+              const partsPage = await tool.$link.pendingRfqPackageParts.fetchPage({ $pageSize: 200 });
+              const parts: PartSummary[] = partsPage.data.map((p: Osdk.Instance<PendingRfqPackagePart>) => ({
+                partName: p.partName,
+                partNumber: p.partNumber,
+              }));
+              return { toolId, parts };
+            } catch {
+              return { toolId, parts: [] as PartSummary[] };
+            }
+          }),
+        );
+        if (cancelled) return;
+
+        const map: Record<string, PartSummary[]> = {};
+        for (const { toolId, parts } of partsEntries) {
+          map[toolId] = parts;
         }
+        setToolPartsMap(map);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load tools");
@@ -150,6 +181,7 @@ function SplitPackageModal({
             <div className={css.toolList}>
               {tools.map((tool) => {
                 const toolId = String(tool.$primaryKey);
+                const parts = toolPartsMap[toolId] ?? [];
                 return (
                   <label key={toolId} className={css.toolOption}>
                     <input
@@ -162,7 +194,17 @@ function SplitPackageModal({
                       <span className={css.toolName}>
                         {tool.toolNumber ? `Tool #${tool.toolNumber}` : "Unnamed Tool"}
                       </span>
-                      {tool.commodityType && (
+                      {parts.length > 0 && (
+                        <span className={css.toolDetail}>
+                          {parts.map((p, i) => {
+                            const segments = [p.partName, p.partNumber].filter(Boolean);
+                            return segments.length > 0
+                              ? (i > 0 ? "; " : "") + segments.join(" — ")
+                              : null;
+                          })}
+                        </span>
+                      )}
+                      {parts.length === 0 && tool.commodityType && (
                         <span className={css.toolDetail}>{tool.commodityType}</span>
                       )}
                     </div>
