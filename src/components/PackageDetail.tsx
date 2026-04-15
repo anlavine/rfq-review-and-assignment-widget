@@ -18,6 +18,7 @@ interface PackageDetailProps {
 interface ConversationSibling {
   packageId: string;
   packageName: string | undefined;
+  subject: string | undefined;
   completionStatus: string | undefined;
   receivedDate: string | undefined;
   toolCount: number | null;
@@ -261,7 +262,8 @@ function PackageDetail({
                 }
                 return {
                   packageId: String(p.$primaryKey),
-                  packageName: p.packageName ?? p.subject,
+                  packageName: p.packageName,
+                  subject: p.subject,
                   completionStatus: p.completionStatus,
                   receivedDate: p.receivedDate,
                   toolCount: sibToolCount,
@@ -390,7 +392,7 @@ function PackageDetail({
       <div className={css.header}>
         <div className={css.headerLeft}>
           <h2 className={css.title}>
-            {pkg.packageName || pkg.subject || "Untitled Package"}
+            {pkg.subject || pkg.packageName || "Untitled Package"}
           </h2>
           {merged && (
             <span className={css.mergedBadge}>
@@ -492,17 +494,10 @@ function PackageDetail({
             <span className={css.fieldLabel}>To</span>
             <ContactList contacts={toContacts} />
           </div>
-
-          <div className={css.field}>
-            <span className={css.fieldLabel}>Subject</span>
-            <span className={pkg.subject ? css.fieldValue : css.fieldValueMuted}>
-              {pkg.subject ?? "—"}
-            </span>
-          </div>
         </div>
       )}
 
-      {/* Customer field — always shown outside the merged cards */}
+      {/* Customer + Package Name fields — always shown outside the merged cards */}
       <div className={css.emailFields}>
         <div className={css.field}>
           <span className={css.fieldLabel}>Customer</span>
@@ -523,8 +518,18 @@ function PackageDetail({
                   ✏️
                 </button>
               )}
+              {!savingCustomer && pkg.customerName && (
+                <span className={css.customerNameRaw}> ({pkg.customerName})</span>
+              )}
             </span>
           )}
+        </div>
+
+        <div className={css.field}>
+          <span className={css.fieldLabel}>Package Name</span>
+          <span className={pkg.packageName ? css.fieldValue : css.fieldValueMuted}>
+            {pkg.packageName ?? "—"}
+          </span>
         </div>
       </div>
 
@@ -570,7 +575,7 @@ function PackageDetail({
                 }}
               >
                 <div className={css.conversationItemName}>
-                  {sibling.packageName || "[Unnamed Package]"}
+                  {sibling.subject || sibling.packageName || "[Unnamed Package]"}
                 </div>
                 <div className={css.conversationItemMeta}>
                   <span className={`${css.conversationStatus} ${sibling.completionStatus === "Active" ? css.statusActive

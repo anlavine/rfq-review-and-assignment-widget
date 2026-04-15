@@ -278,7 +278,10 @@ function ReviewPanel({
         <h3 className={css.sectionTitle}>Attachments</h3>
         {attachments.length > 0 ? (
           <ul className={css.attachmentList}>
-            {attachments.map((att) => (
+            {attachments.filter((att, idx, arr) => {
+              const name = att.fileName ?? "";
+              return arr.findIndex((a) => (a.fileName ?? "") === name) === idx;
+            }).map((att) => (
               <li key={att.$primaryKey} className={css.attachmentItem}>
                 <span className={css.attachmentIcon}>📎</span>
                 <span className={css.attachmentName}>

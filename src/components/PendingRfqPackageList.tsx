@@ -30,6 +30,7 @@ export interface Filters {
   dueDateStart: string;
   dueDateEnd: string;
   customerSearch: string;
+  platformSearch: string;
   hasParsedTools: boolean;
 }
 
@@ -223,10 +224,18 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         if (due > filters.dueDateEnd) return false;
       }
 
-      // Customer search (only if metadata resolved)
-      if (filters.customerSearch && meta) {
-        if (meta.customerName === null) return false;
-        if (!meta.customerName.toLowerCase().includes(filters.customerSearch.toLowerCase())) return false;
+      // Customer search — matches linked customer name OR raw customerName property
+      if (filters.customerSearch) {
+        const search = filters.customerSearch.toLowerCase();
+        const linkedMatch = meta?.customerName?.toLowerCase().includes(search) ?? false;
+        const rawMatch = pkg.customerName?.toLowerCase().includes(search) ?? false;
+        if (!linkedMatch && !rawMatch) return false;
+      }
+
+      // Platform search
+      if (filters.platformSearch) {
+        if (!pkg.platform) return false;
+        if (!pkg.platform.toLowerCase().includes(filters.platformSearch.toLowerCase())) return false;
       }
 
       // Has parsed tools (only if metadata resolved)
@@ -246,7 +255,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   }, [filteredPackages, currentPage]);
 
   // Reset to page 0 when filters change
-  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.customerSearch}|${filters.hasParsedTools}`;
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.customerSearch}|${filters.platformSearch}|${filters.hasParsedTools}`;
   useEffect(() => {
     setCurrentPage(0);
   }, [filterKey]);
@@ -490,7 +499,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
   return (
     <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
-        <div className={css.cardTitle}>{pkg.packageName || pkg.subject || "[Unnamed Package]"}</div>
+        <div className={css.cardTitle}>{pkg.subject || pkg.packageName || "[Unnamed Package]"}</div>
         {isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent) && (
           <span className={css.mergedIcon} title="Merged Package">⛙</span>
         )}

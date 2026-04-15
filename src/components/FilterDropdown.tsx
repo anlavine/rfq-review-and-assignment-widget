@@ -33,6 +33,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
     filters.dueDateStart !== "" ||
     filters.dueDateEnd !== "" ||
     filters.customerSearch !== "" ||
+    filters.platformSearch !== "" ||
     filters.hasParsedTools;
 
   const handleApply = () => {
@@ -42,7 +43,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
 
   const handleClear = () => {
 
-    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", customerSearch: "", hasParsedTools: false };
+    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", customerSearch: "", platformSearch: "", hasParsedTools: false };
     setLocalFilters(cleared);
     onFiltersChange(cleared);
     setOpen(false);
@@ -90,6 +91,18 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
               placeholder="Search customer name…"
               value={localFilters.customerSearch}
               onChange={(e) => setLocalFilters((f) => ({ ...f, customerSearch: e.target.value }))}
+            />
+          </div>
+
+          <div className={css.section}>
+            <label className={css.label} htmlFor="filter-platform">Platform</label>
+            <input
+              id="filter-platform"
+              type="text"
+              className={css.input}
+              placeholder="Search platform…"
+              value={localFilters.platformSearch}
+              onChange={(e) => setLocalFilters((f) => ({ ...f, platformSearch: e.target.value }))}
             />
           </div>
 

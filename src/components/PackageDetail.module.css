@@ -183,6 +183,12 @@
   font-size: 13px;
 }
 
+.customerNameRaw {
+  color: #5f6b7c;
+  font-size: 13px;
+  font-weight: 400;
+}
+
 /* Bottom boxes — Linked Tools + Attachments */
 .bottomGrid {
   display: grid;
