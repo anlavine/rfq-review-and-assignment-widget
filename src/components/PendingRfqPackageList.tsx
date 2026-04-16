@@ -549,6 +549,14 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
     <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
         <div className={css.cardTitle}>{pkg.subject || pkg.packageName || "[Unnamed Package]"}</div>
+        {pkg.rfqPackageId && (
+          <span className={css.rfqPackageIdChip} title={`RFQ Package ID: ${pkg.rfqPackageId}`}>
+            <svg className={css.rfqPackageIdIcon} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8.5 1.2l5 2.4a1 1 0 0 1 .5.9v7a1 1 0 0 1-.5.9l-5 2.4a1 1 0 0 1-.9 0l-5-2.4a1 1 0 0 1-.6-.9v-7a1 1 0 0 1 .5-.9l5-2.4a1 1 0 0 1 1 0ZM8 3.1L4.3 4.9 8 6.7l3.7-1.8L8 3.1ZM3 6.1v5l4.5 2.1V8.3L3 6.1Zm10 5V6.1l-4.5 2.2v4.8l4.5-2.1Z" />
+            </svg>
+            {pkg.rfqPackageId}
+          </span>
+        )}
         {isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent) && (
           <span className={css.mergedIcon} title="Merged Package">⛙</span>
         )}
