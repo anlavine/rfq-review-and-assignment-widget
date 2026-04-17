@@ -4,6 +4,7 @@ import PendingRfqPackageList from "./components/PendingRfqPackageList";
 import type { TabKey, Filters, MergeStep, SplitStep } from "./components/PendingRfqPackageList";
 import MergeConfirmModal from "./components/MergeConfirmModal";
 import SplitPackageModal from "./components/SplitPackageModal";
+import LinkToRfqModal from "./components/LinkToRfqModal";
 import FilterDropdown from "./components/FilterDropdown";
 import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
@@ -34,6 +35,7 @@ function Home(): React.ReactElement {
   const [splitStep, setSplitStep] = useState<SplitStep>(null);
   const [splitPackageId, setSplitPackageId] = useState<string | null>(null);
   const [splitPackageName, setSplitPackageName] = useState<string>("");
+  const [showLinkToRfq, setShowLinkToRfq] = useState(false);
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -367,6 +369,13 @@ function Home(): React.ReactElement {
                     </span>
                   </button>
                   <button
+                    className={css.headerButton}
+                    disabled={!selectedPackageId}
+                    onClick={() => setShowLinkToRfq(true)}
+                  >
+                    Update RFQ Link
+                  </button>
+                  <button
                     className={css.createPackageButton}
                     disabled={!selectedPackageId}
                     onClick={() => setReviewMode(true)}
@@ -440,6 +449,17 @@ function Home(): React.ReactElement {
           packageName={splitPackageName}
           onClose={handleCancelSplit}
           onSplit={handleSplitComplete}
+        />
+      )}
+
+      {showLinkToRfq && selectedPackageId && (
+        <LinkToRfqModal
+          pendingPackageId={selectedPackageId}
+          onClose={() => setShowLinkToRfq(false)}
+          onLinked={() => {
+            setShowLinkToRfq(false);
+            setRefreshToken((t) => t + 1);
+          }}
         />
       )}
     </div>
