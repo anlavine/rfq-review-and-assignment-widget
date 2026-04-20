@@ -27,6 +27,7 @@ const TOOL_DISPLAY_PROPERTIES: {
   apiName: keyof Osdk.Instance<PendingRFQPackageTool>;
   label: string;
 }[] = [
+    { apiName: "customerToolNumber", label: "Customer Tool Number" },
     { apiName: "commodityCategory", label: "Commodity Category" },
     { apiName: "commodityType", label: "Commodity Type" },
     { apiName: "cavitations", label: "Cavitations" },
