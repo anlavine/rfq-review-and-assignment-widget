@@ -1,23 +1,23 @@
 /* ── URL links ── */
 .link {
-  color: #2d72d2;
+  color: var(--link-fg);
   text-decoration: underline;
-  text-decoration-color: rgba(45, 114, 210, 0.35);
+  text-decoration-color: rgba(74, 144, 226, 0.35);
   word-break: break-all;
   cursor: pointer;
   transition: color 0.15s, text-decoration-color 0.15s;
 }
 
 .link:hover {
-  color: #215db0;
-  text-decoration-color: #215db0;
+  color: var(--link-hover);
+  text-decoration-color: var(--link-hover);
 }
 
 /* ── File paths (click-to-copy) ── */
 .filepath {
   position: relative;
-  color: #1c6e42;
-  background: #e8f5ee;
+  color: var(--filepath-fg);
+  background: var(--filepath-bg);
   padding: 1px 5px;
   border-radius: 3px;
   cursor: pointer;
@@ -26,8 +26,8 @@
 }
 
 .filepath:hover {
-  background: #c8e6d4;
-  color: #145a34;
+  background: var(--filepath-hover-bg);
+  color: var(--filepath-hover-fg);
 }
 
 /* ── "Copied!" tooltip ── */
@@ -36,8 +36,8 @@
   bottom: calc(100% + 4px);
   left: 50%;
   transform: translateX(-50%);
-  background: #1c2127;
-  color: #fff;
+  background: var(--popover-bg);
+  color: var(--popover-fg);
   font-size: 11px;
   font-weight: 600;
   padding: 3px 8px;

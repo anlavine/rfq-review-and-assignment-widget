@@ -10,7 +10,7 @@
 
 .subtitle {
   font-size: 13px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   margin-bottom: 12px;
 }
 
@@ -18,7 +18,7 @@
 .tabBar {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid #dce0e5;
+  border-bottom: 1px solid var(--border-default);
   margin-bottom: 14px;
   flex-shrink: 0;
   overflow-x: auto;
@@ -34,7 +34,7 @@
   padding: 6px 10px;
   font-size: 12px;
   font-weight: 500;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
@@ -44,12 +44,12 @@
 }
 
 .tab:hover {
-  color: #1c2127;
+  color: var(--text-primary);
 }
 
 .tabActive {
-  color: #2d72d2;
-  border-bottom-color: #2d72d2;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
   font-weight: 600;
 }
 
@@ -62,27 +62,27 @@
 
 /* Card */
 .card {
-  border: 2px solid #dce0e5;
+  border: 2px solid var(--border-default);
   border-radius: 6px;
   padding: 6px 10px;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  background: #fff;
+  background: var(--bg-card);
   transition: box-shadow 0.15s, border-color 0.15s;
   width: 100%;
   box-sizing: border-box;
 }
 
 .card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-color: #2d72d2;
+  box-shadow: var(--shadow-card);
+  border-color: var(--border-active);
   cursor: pointer;
 }
 
 .cardSelected {
-  border-color: #2d72d2;
-  background: #e8f1fc;
+  border-color: var(--border-active);
+  background: var(--bg-card-selected);
 }
 
 .cardHeader {
@@ -95,7 +95,7 @@
 .cardTitle {
   font-size: 14px;
   font-weight: 600;
-  color: #1c2127;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -109,7 +109,7 @@
   gap: 0;
   font-size: 12px;
   line-height: 16px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   min-width: 0;
 }
 
@@ -129,7 +129,7 @@
 }
 
 .cardMetaSep {
-  color: #abb3bf;
+  color: var(--separator);
   margin: 0 5px;
 }
 
@@ -143,20 +143,20 @@
 }
 
 .cardLabel {
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-weight: 500;
   flex-shrink: 0;
 }
 
 .cardValue {
-  color: #1c2127;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .cardValueMuted {
-  color: #abb3bf;
+  color: var(--text-muted);
 }
 
 /* RFQ Package ID chip — green */
@@ -165,9 +165,9 @@
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  background: #d4edda;
-  color: #155724;
-  border: 1px solid #a3d9a5;
+  background: var(--rfq-chip-bg);
+  color: var(--rfq-chip-fg);
+  border: 1px solid var(--rfq-chip-border);
   border-radius: 10px;
   font-size: 11px;
   font-weight: 600;
@@ -183,7 +183,7 @@
   width: 11px;
   height: 11px;
   flex-shrink: 0;
-  color: #155724;
+  color: var(--rfq-chip-fg);
 }
 
 /* Merged package icon chip */
@@ -197,9 +197,9 @@
   border-radius: 3px;
   font-size: 12px;
   line-height: 1;
-  background: #ede9fe;
-  color: #7c3aed;
-  border: 1px solid #c4b5fd;
+  background: var(--merged-bg);
+  color: var(--merged-fg);
+  border: 1px solid var(--merged-border);
 }
 
 .tagsInline {
@@ -216,34 +216,34 @@
   padding: 1px 6px;
   white-space: nowrap;
   flex-shrink: 0;
-  background: #e1e8ed;
-  color: #1c2127;
+  background: var(--tag-default-bg);
+  color: var(--tag-default-fg);
 }
 
 /* Tag colors */
 .tagTargets {
-  background: #fce4ec;
-  color: #b71c1c;
+  background: var(--tag-targets-bg);
+  color: var(--tag-targets-fg);
 }
 
 .tagWaitingForData {
-  background: #fff3e0;
-  color: #e65100;
+  background: var(--tag-waiting-bg);
+  color: var(--tag-waiting-fg);
 }
 
 .tagRepeatRequest {
-  background: #e8eaf6;
-  color: #283593;
+  background: var(--tag-repeat-bg);
+  color: var(--tag-repeat-fg);
 }
 
 .tagDuplicate {
-  background: #fce4ec;
-  color: #880e4f;
+  background: var(--tag-duplicate-bg);
+  color: var(--tag-duplicate-fg);
 }
 
 .tagUpdateQuote {
-  background: #e0f2f1;
-  color: #004d40;
+  background: var(--tag-update-bg);
+  color: var(--tag-update-fg);
 }
 
 /* "+N more" hover trigger */
@@ -254,24 +254,24 @@
 
 .moreTagsTrigger {
   font-size: 11px;
-  color: #5f6b7c;
+  color: var(--more-tags-fg);
   cursor: default;
   white-space: nowrap;
   padding: 1px 4px;
   border-radius: 3px;
-  background: #f0f2f5;
+  background: var(--more-tags-bg);
 }
 
 /* Popover — fixed position, rendered via JS */
 .moreTagsPopover {
   position: fixed;
-  background: #1c2127;
-  color: #fff;
+  background: var(--popover-bg);
+  color: var(--popover-fg);
   border-radius: 4px;
   padding: 8px 12px;
   z-index: 9999;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-dropdown);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -296,8 +296,8 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  background: #e1e8ed;
-  color: #1c2127;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
   font-size: 11px;
   font-weight: 600;
   padding: 2px 7px;
@@ -309,7 +309,7 @@
 .countChipIcon {
   width: 11px;
   height: 11px;
-  color: #5f6b7c;
+  color: var(--chip-icon);
   flex-shrink: 0;
 }
 
@@ -330,23 +330,23 @@
 }
 
 .statusActive {
-  background: #d4edda;
-  color: #155724;
+  background: var(--status-active-bg);
+  color: var(--status-active-fg);
 }
 
 .statusSkipped {
-  background: #fff3cd;
-  color: #856404;
+  background: var(--status-skipped-bg);
+  color: var(--status-skipped-fg);
 }
 
 .statusReviewed {
-  background: #cce5ff;
-  color: #004085;
+  background: var(--status-reviewed-bg);
+  color: var(--status-reviewed-fg);
 }
 
 .statusDefault {
-  background: #e1e8ed;
-  color: #1c2127;
+  background: var(--status-default-bg);
+  color: var(--status-default-fg);
 }
 
 /* Disabled card (e.g., merge source already selected) */
@@ -357,8 +357,8 @@
 
 /* Merge mode banner */
 .mergeBanner {
-  background: #2d72d2;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 13px;
   font-weight: 500;
   padding: 8px 12px;
@@ -374,9 +374,9 @@
 
 .dueDateOverdue {
   display: inline-block;
-  background: #fee2e2;
-  color: #9b1c1c;
-  border: 1px solid #f5a3a3;
+  background: var(--due-overdue-bg);
+  color: var(--due-overdue-fg);
+  border: 1px solid var(--due-overdue-border);
   border-radius: 10px;
   padding: 0 7px;
   font-size: 11px;
@@ -387,9 +387,9 @@
 
 .dueDateDueSoon {
   display: inline-block;
-  background: #fff3cd;
-  color: #8a5a00;
-  border: 1px solid #ffe083;
+  background: var(--due-soon-bg);
+  color: var(--due-soon-fg);
+  border: 1px solid var(--due-soon-border);
   border-radius: 10px;
   padding: 0 7px;
   font-size: 11px;
@@ -400,8 +400,8 @@
 
 /* Background loading indicator */
 .backgroundLoadingBar {
-  background: #e8f1fc;
-  color: #2d72d2;
+  background: var(--loading-bar-bg);
+  color: var(--loading-bar-fg);
   font-size: 12px;
   font-weight: 500;
   padding: 6px 12px;
@@ -418,7 +418,7 @@
 
 /* Empty / loading / error placeholder card */
 .emptyCard {
-  border: 2px dashed #dce0e5;
+  border: 2px dashed var(--border-default);
   border-radius: 6px;
   padding: 12px 14px;
   display: flex;
@@ -426,7 +426,7 @@
   gap: 6px;
   align-items: center;
   justify-content: center;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 13px;
   min-height: 90px;
   width: 100%;
@@ -434,7 +434,7 @@
 }
 
 .emptyCardError {
-  color: #cd4246;
+  color: var(--error-fg);
 }
 
 /* Pagination */
@@ -444,25 +444,24 @@
   justify-content: space-between;
   padding: 12px 0 0;
   font-size: 13px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
 }
 
 .paginationButton {
-  background: white;
-  border: 1px solid #dce0e5;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
-  color: #1c2127;
+  color: var(--btn-text);
   cursor: pointer;
   font-size: 13px;
   padding: 6px 14px;
 }
 
 .paginationButton:hover {
-  background: #f6f7f9;
+  background: var(--btn-hover-bg);
 }
 
 .paginationButton:disabled {
-  color: #abb3bf;
+  color: var(--btn-disabled-text);
   cursor: not-allowed;
 }
-

@@ -4,9 +4,12 @@ import { RouterProvider } from "react-router-dom";
 import "./index.css";
 import client from "./client";
 import { router } from "./router";
+import { ThemeProvider } from "./ThemeContext";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <OsdkProvider client={client}>
-    <RouterProvider router={router} />
-  </OsdkProvider>,
+  <ThemeProvider>
+    <OsdkProvider client={client}>
+      <RouterProvider router={router} />
+    </OsdkProvider>
+  </ThemeProvider>,
 );

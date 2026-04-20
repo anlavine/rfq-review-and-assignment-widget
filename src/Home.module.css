@@ -39,9 +39,9 @@
   align-items: center;
   gap: 6px;
   background: none;
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 4px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -50,14 +50,14 @@
 }
 
 .backButton:hover {
-  background: #f6f7f9;
-  color: #1c2127;
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 /* Merge/split mode banner — sits in the header bar */
 .modeBanner {
-  background: #2d72d2;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   font-size: 13px;
   font-weight: 500;
   padding: 6px 14px;
@@ -68,10 +68,10 @@
 }
 
 .headerButton {
-  background: #fff;
-  border: 1px solid #dce0e5;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
-  color: #1c2127;
+  color: var(--btn-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -80,21 +80,21 @@
 }
 
 .headerButton:hover:not(:disabled) {
-  background: #f6f7f9;
-  border-color: #bfc5cd;
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
 }
 
 .headerButton:disabled {
-  color: #abb3bf;
+  color: var(--btn-disabled-text);
   cursor: not-allowed;
-  background: #f6f7f9;
+  background: var(--btn-disabled-bg);
 }
 
 .createPackageButton {
-  background: #2d72d2;
-  border: 1px solid #2d72d2;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: 4px;
-  color: #fff;
+  color: var(--color-primary-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -103,8 +103,8 @@
 }
 
 .createPackageButton:hover:not(:disabled) {
-  background: #215db0;
-  border-color: #215db0;
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
 }
 
 .createPackageButton:disabled {
@@ -184,12 +184,12 @@
 
 .reviewPanelContent {
   height: 100%;
-  border: 1px dashed #dce0e5;
+  border: 1px dashed var(--border-default);
   border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 14px;
   padding: 40px;
 }
@@ -199,10 +199,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: #fff;
-  border: 1px solid #dce0e5;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
-  color: #1c2127;
+  color: var(--btn-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -212,8 +212,8 @@
 }
 
 .headerButtonWithInfo:hover:not(:disabled) {
-  background: #f6f7f9;
-  border-color: #bfc5cd;
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
 }
 
 .infoIconWrap {
@@ -225,14 +225,14 @@
 .infoIcon {
   width: 13px;
   height: 13px;
-  color: #8f99a8;
+  color: var(--text-muted);
   cursor: help;
   transition: color 0.15s;
   flex-shrink: 0;
 }
 
 .infoIconWrap:hover .infoIcon {
-  color: #5f6b7c;
+  color: var(--text-secondary);
 }
 
 .infoTooltip {
@@ -242,13 +242,13 @@
   right: -6px;
   width: 240px;
   padding: 8px 10px;
-  background: #1c2127;
-  color: #f6f7f9;
+  background: var(--popover-bg);
+  color: var(--popover-fg);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.45;
   border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--shadow-dropdown);
   z-index: 100;
   pointer-events: none;
   white-space: normal;
@@ -260,7 +260,7 @@
   bottom: 100%;
   right: 8px;
   border: 5px solid transparent;
-  border-bottom-color: #1c2127;
+  border-bottom-color: var(--popover-bg);
 }
 
 .infoIconWrap:hover .infoTooltip {
@@ -272,10 +272,31 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 14px;
   text-align: center;
   padding: 40px;
-  border: 1px dashed #dce0e5;
+  border: 1px dashed var(--border-default);
   border-radius: 6px;
+}
+
+/* ── Theme toggle ── */
+.themeToggle {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 4px;
+  color: var(--btn-text);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 5px 8px;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.themeToggle:hover {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
 }

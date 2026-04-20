@@ -27,23 +27,23 @@
 .title {
   font-size: 20px;
   font-weight: 600;
-  color: #1c2127;
+  color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .subtitle {
   font-size: 13px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
 }
 
 .dateCompact {
   font-size: 12px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
 .dateCompact strong {
-  color: #1c2127;
+  color: var(--text-primary);
 }
 
 .editIcon {
@@ -70,23 +70,24 @@
 .dateInput {
   font-size: 12px;
   padding: 2px 6px;
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 3px;
-  color: #1c2127;
+  color: var(--text-primary);
+  background: var(--bg-input);
 }
 
 .dateConfirm {
   font-size: 11px;
   padding: 2px 8px;
-  border: 1px solid #2d72d2;
+  border: 1px solid var(--color-primary);
   border-radius: 3px;
-  background: #2d72d2;
-  color: #fff;
+  background: var(--color-primary);
+  color: var(--color-primary-text);
   cursor: pointer;
 }
 
 .dateConfirm:hover:not(:disabled) {
-  background: #215db0;
+  background: var(--color-primary-hover);
 }
 
 .dateConfirm:disabled {
@@ -97,38 +98,38 @@
 .dateCancel {
   font-size: 11px;
   padding: 2px 8px;
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 3px;
-  background: #fff;
-  color: #5f6b7c;
+  background: var(--btn-bg);
+  color: var(--text-secondary);
   cursor: pointer;
 }
 
 .dateCancel:hover:not(:disabled) {
-  background: #f6f7f9;
+  background: var(--btn-hover-bg);
 }
 
 .autoLabel {
   font-size: 11px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
 /* Due date urgency colors */
 .dateOverdue {
-  color: #cd4246;
+  color: var(--due-overdue-fg);
 }
 
 .dateOverdue strong {
-  color: #cd4246;
+  color: var(--due-overdue-fg);
 }
 
 .dateDueSoon {
-  color: #d4a017;
+  color: var(--due-soon-fg);
 }
 
 .dateDueSoon strong {
-  color: #d4a017;
+  color: var(--due-soon-fg);
 }
 
 /* Email fields — single column */
@@ -148,21 +149,21 @@
 .fieldLabel {
   font-size: 12px;
   font-weight: 600;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
 .fieldValue {
   font-size: 14px;
-  color: #1c2127;
+  color: var(--text-primary);
   line-height: 20px;
   word-break: break-word;
 }
 
 .fieldValueMuted {
   font-size: 14px;
-  color: #abb3bf;
+  color: var(--text-muted);
   line-height: 20px;
 }
 
@@ -174,17 +175,17 @@
 
 .contactRow {
   font-size: 14px;
-  color: #1c2127;
+  color: var(--text-primary);
   line-height: 20px;
 }
 
 .contactName {
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
 .customerNameRaw {
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 400;
 }
@@ -198,7 +199,7 @@
 }
 
 .box {
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 14px;
   display: flex;
@@ -210,7 +211,7 @@
 .boxLabel {
   font-size: 12px;
   font-weight: 600;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
@@ -220,15 +221,15 @@
   align-items: center;
   gap: 6px;
   font-size: 14px;
-  color: #1c2127;
+  color: var(--text-primary);
 }
 
 .toolCountBadge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #445372;
-  color: #fff;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
@@ -247,9 +248,9 @@
 }
 
 .attachmentChip {
-  background: #e1e8ed;
+  background: var(--chip-bg);
   border-radius: 3px;
-  color: #1c2127;
+  color: var(--text-primary);
   font-size: 12px;
   padding: 3px 8px;
 }
@@ -261,15 +262,14 @@
 
 .bodyContent {
   font-size: 13px;
-  color: #1c2127;
+  color: var(--text-primary);
   line-height: 20px;
   white-space: pre-wrap;
   word-break: break-word;
-  background: #f6f7f9;
-  border: 1px solid #edeff2;
+  background: var(--bg-body-content);
+  border: 1px solid var(--border-subtle);
   border-radius: 4px;
   padding: 12px;
-  
 }
 
 /* ── Merged Package Badge ── */
@@ -282,9 +282,9 @@
   border-radius: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #7c3aed;
-  background: #ede9fe;
-  border: 1px solid #c4b5fd;
+  color: var(--merged-fg);
+  background: var(--merged-bg);
+  border: 1px solid var(--merged-border);
 }
 
 .mergedBadgeIcon {
@@ -301,21 +301,21 @@
 }
 
 .mergedEmailCard {
-  border: 1px solid #c4b5fd;
+  border: 1px solid var(--merged-border);
   border-radius: 6px;
   overflow: hidden;
-  background: #fff;
+  background: var(--bg-card);
 }
 
 .mergedEmailLabel {
-  background: #ede9fe;
-  color: #7c3aed;
+  background: var(--merged-bg);
+  color: var(--merged-fg);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 6px 12px;
-  border-bottom: 1px solid #c4b5fd;
+  border-bottom: 1px solid var(--merged-border);
 }
 
 .mergedEmailBody {
@@ -333,20 +333,20 @@
 }
 
 .mergedBodyCard {
-  border: 1px solid #c4b5fd;
+  border: 1px solid var(--merged-border);
   border-radius: 6px;
   overflow: hidden;
 }
 
 .mergedBodyLabel {
-  background: #ede9fe;
-  color: #7c3aed;
+  background: var(--merged-bg);
+  color: var(--merged-fg);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding: 6px 12px;
-  border-bottom: 1px solid #c4b5fd;
+  border-bottom: 1px solid var(--merged-border);
 }
 
 /* ── Attachment parse-status chips ── */
@@ -365,27 +365,27 @@
 }
 
 .attachmentChipGreen {
-  color: #0d6e3a;
-  background: #d4edda;
-  border: 1px solid #a3d9b1;
+  color: var(--att-green-fg);
+  background: var(--att-green-bg);
+  border: 1px solid var(--att-green-border);
 }
 
 .attachmentChipOrange {
-  color: #8a5a00;
-  background: #fff3cd;
-  border: 1px solid #ffe083;
+  color: var(--att-orange-fg);
+  background: var(--att-orange-bg);
+  border: 1px solid var(--att-orange-border);
 }
 
 .attachmentChipRed {
-  color: #9b1c1c;
-  background: #fee2e2;
-  border: 1px solid #f5a3a3;
+  color: var(--att-red-fg);
+  background: var(--att-red-bg);
+  border: 1px solid var(--att-red-border);
 }
 
 .attachmentChipBlue {
-  color: #1a56db;
-  background: #dbeafe;
-  border: 1px solid #93bbfd;
+  color: var(--att-blue-fg);
+  background: var(--att-blue-bg);
+  border: 1px solid var(--att-blue-border);
 }
 
 /* ── Conversation section ── */
@@ -417,22 +417,22 @@
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: #fff;
+  background: var(--bg-card);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 
 .conversationItem:hover {
-  background: #f0f4ff;
-  border-color: #2d72d2;
+  background: var(--conv-hover-bg);
+  border-color: var(--border-active);
 }
 
 .conversationItemName {
   font-size: 13px;
   font-weight: 500;
-  color: #1c2127;
+  color: var(--text-primary);
   min-width: 0;
   flex: 1;
   overflow: hidden;
@@ -456,26 +456,26 @@
 }
 
 .statusActive {
-  color: #0d6e3a;
-  background: #d4edda;
+  color: var(--status-active-fg);
+  background: var(--status-active-bg);
 }
 
 .statusSkipped {
-  color: #8a5a00;
-  background: #fff3cd;
+  color: var(--status-skipped-fg);
+  background: var(--status-skipped-bg);
 }
 
 .statusReviewed {
-  color: #1a56db;
-  background: #dbeafe;
+  color: var(--status-reviewed-fg);
+  background: var(--status-reviewed-bg);
 }
 
 .conversationToolChip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  background: #e1e8ed;
-  color: #4b4e52;
+  background: var(--conv-tool-chip-bg);
+  color: var(--conv-tool-chip-fg);
   font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
@@ -487,13 +487,13 @@
 .conversationToolIcon {
   width: 13px;
   height: 13px;
-  color: #5f6b7c;
+  color: var(--chip-icon);
   flex-shrink: 0;
 }
 
 .conversationDate {
   font-size: 12px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   white-space: nowrap;
 }
 
@@ -503,7 +503,7 @@
   align-items: center;
   justify-content: center;
   padding: 60px 0;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   font-size: 14px;
 }
 
@@ -512,6 +512,6 @@
   align-items: center;
   justify-content: center;
   padding: 40px 0;
-  color: #cd4246;
+  color: var(--error-fg);
   font-size: 14px;
 }

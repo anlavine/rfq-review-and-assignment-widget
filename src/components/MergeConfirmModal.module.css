@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,9 +9,9 @@
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-modal);
   padding: 24px;
   width: 480px;
   max-width: 90vw;
@@ -23,7 +23,7 @@
 .title {
   font-size: 16px;
   font-weight: 600;
-  color: #1c2127;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -35,7 +35,7 @@
 
 .packageBox {
   flex: 1;
-  border: 1px solid #dce0e5;
+  border: 1px solid var(--border-default);
   border-radius: 6px;
   padding: 12px;
   display: flex;
@@ -46,7 +46,7 @@
 .packageRole {
   font-size: 11px;
   font-weight: 600;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -54,28 +54,28 @@
 .packageName {
   font-size: 14px;
   font-weight: 500;
-  color: #1c2127;
+  color: var(--text-primary);
   word-break: break-word;
 }
 
 .arrow {
   font-size: 20px;
-  color: #5f6b7c;
+  color: var(--text-secondary);
   flex-shrink: 0;
 }
 
 .warning {
   font-size: 13px;
-  color: #8a6d3b;
-  background: #fcf8e3;
-  border: 1px solid #f0e0a8;
+  color: var(--warning-fg);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
   border-radius: 4px;
   padding: 10px 12px;
   line-height: 18px;
 }
 
 .error {
-  color: #cd4246;
+  color: var(--error-fg);
   font-size: 13px;
 }
 
@@ -87,10 +87,10 @@
 }
 
 .cancelButton {
-  background: #fff;
-  border: 1px solid #dce0e5;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
-  color: #1c2127;
+  color: var(--btn-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -98,7 +98,7 @@
 }
 
 .cancelButton:hover:not(:disabled) {
-  background: #f6f7f9;
+  background: var(--btn-hover-bg);
 }
 
 .cancelButton:disabled {
@@ -107,8 +107,8 @@
 }
 
 .mergeButton {
-  background: #cd4246;
-  border: 1px solid #cd4246;
+  background: var(--color-danger);
+  border: 1px solid var(--color-danger);
   border-radius: 4px;
   color: #fff;
   cursor: pointer;
@@ -118,7 +118,7 @@
 }
 
 .mergeButton:hover:not(:disabled) {
-  background: #b02e31;
+  background: var(--color-danger-hover);
 }
 
 .mergeButton:disabled {

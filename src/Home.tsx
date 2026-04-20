@@ -12,6 +12,7 @@ import client from "./client";
 import EditTagsModal from "./components/EditTagsModal";
 import ReviewPanel from "./components/ReviewPanel";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
+import { useTheme } from "./ThemeContext";
 
 import { isAsyncValue_Loaded } from "@osdk/workshop-iframe-custom-widget";
 
@@ -36,6 +37,7 @@ function Home(): React.ReactElement {
   const [splitPackageId, setSplitPackageId] = useState<string | null>(null);
   const [splitPackageName, setSplitPackageName] = useState<string>("");
   const [showLinkToRfq, setShowLinkToRfq] = useState(false);
+  const { theme, toggleTheme } = useTheme();
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -299,6 +301,13 @@ function Home(): React.ReactElement {
                   Select a package to split
                 </div>
               )}
+              <button
+                className={css.themeToggle}
+                onClick={toggleTheme}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {theme === "dark" ? "☀️" : "🌙"}
+              </button>
               <FilterDropdown filters={filters} onFiltersChange={setFilters} />
               {mergeStep ? (
                 <button

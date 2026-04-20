@@ -1,7 +1,7 @@
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -9,9 +9,9 @@
 }
 
 .modal {
-  background: #fff;
+  background: var(--bg-card);
   border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-modal);
   padding: 24px;
   width: 360px;
   max-width: 90vw;
@@ -23,7 +23,7 @@
 .title {
   font-size: 16px;
   font-weight: 600;
-  color: #1c2127;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -38,7 +38,7 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #1c2127;
+  color: var(--text-primary);
   cursor: pointer;
 }
 
@@ -56,10 +56,10 @@
 }
 
 .cancelButton {
-  background: #fff;
-  border: 1px solid #dce0e5;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
   border-radius: 4px;
-  color: #1c2127;
+  color: var(--btn-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -67,14 +67,14 @@
 }
 
 .cancelButton:hover {
-  background: #f6f7f9;
+  background: var(--btn-hover-bg);
 }
 
 .saveButton {
-  background: #2d72d2;
-  border: 1px solid #2d72d2;
+  background: var(--color-primary);
+  border: 1px solid var(--color-primary);
   border-radius: 4px;
-  color: #fff;
+  color: var(--color-primary-text);
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
@@ -82,7 +82,7 @@
 }
 
 .saveButton:hover:not(:disabled) {
-  background: #215db0;
+  background: var(--color-primary-hover);
 }
 
 .saveButton:disabled {
@@ -91,6 +91,6 @@
 }
 
 .error {
-  color: #cd4246;
+  color: var(--error-fg);
   font-size: 13px;
 }

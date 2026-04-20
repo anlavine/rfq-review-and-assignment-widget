@@ -1,5 +1,157 @@
 :root {
-  color: #1c2127;
+  /* ── Surface / Background ── */
+  --bg-page: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-selected: #e8f1fc;
+  --bg-input: #ffffff;
+  --bg-hover: #f6f7f9;
+  --bg-muted: #f6f7f9;
+  --bg-body-content: #f6f7f9;
+
+  /* ── Text ── */
+  --text-primary: #1c2127;
+  --text-secondary: #5f6b7c;
+  --text-muted: #abb3bf;
+  --text-disabled: #abb3bf;
+
+  /* ── Borders ── */
+  --border-default: #dce0e5;
+  --border-subtle: #edeff2;
+  --border-active: #2d72d2;
+
+  /* ── Primary accent ── */
+  --color-primary: #2d72d2;
+  --color-primary-hover: #215db0;
+  --color-primary-bg: #e8f1fc;
+  --color-primary-text: #ffffff;
+
+  /* ── Buttons ── */
+  --btn-bg: #ffffff;
+  --btn-border: #dce0e5;
+  --btn-text: #1c2127;
+  --btn-hover-bg: #f6f7f9;
+  --btn-hover-border: #bfc5cd;
+  --btn-disabled-text: #abb3bf;
+  --btn-disabled-bg: #f6f7f9;
+
+  /* ── Danger ── */
+  --color-danger: #cd4246;
+  --color-danger-hover: #b02e31;
+
+  /* ── Shadows / Overlays ── */
+  --overlay-bg: rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.2);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.12);
+
+  /* ── Status chips ── */
+  --status-active-bg: #d4edda;
+  --status-active-fg: #155724;
+  --status-skipped-bg: #fff3cd;
+  --status-skipped-fg: #856404;
+  --status-reviewed-bg: #cce5ff;
+  --status-reviewed-fg: #004085;
+  --status-default-bg: #e1e8ed;
+  --status-default-fg: #1c2127;
+
+  /* ── Due date urgency ── */
+  --due-overdue-bg: #fee2e2;
+  --due-overdue-fg: #9b1c1c;
+  --due-overdue-border: #f5a3a3;
+  --due-soon-bg: #fff3cd;
+  --due-soon-fg: #8a5a00;
+  --due-soon-border: #ffe083;
+
+  /* ── Tags ── */
+  --tag-default-bg: #e1e8ed;
+  --tag-default-fg: #1c2127;
+  --tag-targets-bg: #fce4ec;
+  --tag-targets-fg: #b71c1c;
+  --tag-waiting-bg: #fff3e0;
+  --tag-waiting-fg: #e65100;
+  --tag-repeat-bg: #e8eaf6;
+  --tag-repeat-fg: #283593;
+  --tag-duplicate-bg: #fce4ec;
+  --tag-duplicate-fg: #880e4f;
+  --tag-update-bg: #e0f2f1;
+  --tag-update-fg: #004d40;
+
+  /* ── Count chips ── */
+  --chip-bg: #e1e8ed;
+  --chip-fg: #1c2127;
+  --chip-icon: #5f6b7c;
+
+  /* ── More-tags trigger / popover ── */
+  --more-tags-bg: #f0f2f5;
+  --more-tags-fg: #5f6b7c;
+  --popover-bg: #1c2127;
+  --popover-fg: #ffffff;
+
+  /* ── Merged package ── */
+  --merged-bg: #ede9fe;
+  --merged-fg: #7c3aed;
+  --merged-border: #c4b5fd;
+
+  /* ── RFQ Package ID chip ── */
+  --rfq-chip-bg: #d4edda;
+  --rfq-chip-fg: #155724;
+  --rfq-chip-border: #a3d9a5;
+
+  /* ── Attachment parse chips ── */
+  --att-green-bg: #d4edda;
+  --att-green-fg: #0d6e3a;
+  --att-green-border: #a3d9b1;
+  --att-orange-bg: #fff3cd;
+  --att-orange-fg: #8a5a00;
+  --att-orange-border: #ffe083;
+  --att-red-bg: #fee2e2;
+  --att-red-fg: #9b1c1c;
+  --att-red-border: #f5a3a3;
+  --att-blue-bg: #dbeafe;
+  --att-blue-fg: #1a56db;
+  --att-blue-border: #93bbfd;
+
+  /* ── Warning box ── */
+  --warning-bg: #fcf8e3;
+  --warning-fg: #8a6d3b;
+  --warning-border: #f0e0a8;
+
+  /* ── Error ── */
+  --error-bg: #fef2f2;
+  --error-fg: #cd4246;
+  --error-border: #f5c6c6;
+
+  /* ── Linkified text ── */
+  --link-fg: #2d72d2;
+  --link-hover: #215db0;
+  --filepath-bg: #e8f5ee;
+  --filepath-fg: #1c6e42;
+  --filepath-hover-bg: #c8e6d4;
+  --filepath-hover-fg: #145a34;
+
+  /* ── Conversation items ── */
+  --conv-hover-bg: #f0f4ff;
+  --conv-tool-chip-bg: #e1e8ed;
+  --conv-tool-chip-fg: #4b4e52;
+
+  /* ── Detail badges ── */
+  --badge-bg: #445372;
+  --badge-fg: #ffffff;
+
+  /* ── Review panel ── */
+  --sub-section-fg: #2d72d2;
+
+  /* ── Background loading bar ── */
+  --loading-bar-bg: #e8f1fc;
+  --loading-bar-fg: #2d72d2;
+
+  /* ── Misc ── */
+  --separator: #abb3bf;
+
+  /* ── Native form controls ── */
+  color-scheme: light;
+
+  color: var(--text-primary);
   font-family: 'Source Sans Pro', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 18px;
   font-size: 14px;
@@ -8,6 +160,163 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ════════════════════════════════════════════
+   DARK THEME
+   ════════════════════════════════════════════ */
+[data-theme="dark"] {
+  /* ── Surface / Background ── */
+  --bg-page: #1c2127;
+  --bg-card: #252a31;
+  --bg-card-selected: #1a2a42;
+  --bg-input: #2e333b;
+  --bg-hover: #2e333b;
+  --bg-muted: #2e333b;
+  --bg-body-content: #2e333b;
+
+  /* ── Text ── */
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a8b4;
+  --text-muted: #6b7280;
+  --text-disabled: #4b5563;
+
+  /* ── Borders ── */
+  --border-default: #3a3f47;
+  --border-subtle: #2e333b;
+  --border-active: #4a90e2;
+
+  /* ── Primary accent ── */
+  --color-primary: #4a90e2;
+  --color-primary-hover: #3a7bd5;
+  --color-primary-bg: #1a2a42;
+  --color-primary-text: #ffffff;
+
+  /* ── Buttons ── */
+  --btn-bg: #2e333b;
+  --btn-border: #3a3f47;
+  --btn-text: #e0e0e0;
+  --btn-hover-bg: #3a3f47;
+  --btn-hover-border: #4a5060;
+  --btn-disabled-text: #4b5563;
+  --btn-disabled-bg: #252a31;
+
+  /* ── Danger ── */
+  --color-danger: #e06469;
+  --color-danger-hover: #c9383c;
+
+  /* ── Shadows / Overlays ── */
+  --overlay-bg: rgba(0, 0, 0, 0.6);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-modal: 0 8px 32px rgba(0, 0, 0, 0.5);
+  --shadow-dropdown: 0 4px 16px rgba(0, 0, 0, 0.4);
+
+  /* ── Status chips ── */
+  --status-active-bg: #1a3a2a;
+  --status-active-fg: #6ee7a0;
+  --status-skipped-bg: #3a2e1a;
+  --status-skipped-fg: #fbbf24;
+  --status-reviewed-bg: #1a2a42;
+  --status-reviewed-fg: #60a5fa;
+  --status-default-bg: #2e333b;
+  --status-default-fg: #a0a8b4;
+
+  /* ── Due date urgency ── */
+  --due-overdue-bg: #3a1a1a;
+  --due-overdue-fg: #f87171;
+  --due-overdue-border: #7f1d1d;
+  --due-soon-bg: #3a2e1a;
+  --due-soon-fg: #fbbf24;
+  --due-soon-border: #78350f;
+
+  /* ── Tags ── */
+  --tag-default-bg: #2e333b;
+  --tag-default-fg: #a0a8b4;
+  --tag-targets-bg: #3a1a1e;
+  --tag-targets-fg: #f87171;
+  --tag-waiting-bg: #3a2a1a;
+  --tag-waiting-fg: #fb923c;
+  --tag-repeat-bg: #1e2040;
+  --tag-repeat-fg: #818cf8;
+  --tag-duplicate-bg: #3a1a2a;
+  --tag-duplicate-fg: #f472b6;
+  --tag-update-bg: #1a3030;
+  --tag-update-fg: #5eead4;
+
+  /* ── Count chips ── */
+  --chip-bg: #2e333b;
+  --chip-fg: #a0a8b4;
+  --chip-icon: #6b7280;
+
+  /* ── More-tags trigger / popover ── */
+  --more-tags-bg: #3a3f47;
+  --more-tags-fg: #a0a8b4;
+  --popover-bg: #3a3f47;
+  --popover-fg: #e0e0e0;
+
+  /* ── Merged package ── */
+  --merged-bg: #2d1f5e;
+  --merged-fg: #b89aff;
+  --merged-border: #5b3fbf;
+
+  /* ── RFQ Package ID chip ── */
+  --rfq-chip-bg: #1a3a2a;
+  --rfq-chip-fg: #6ee7a0;
+  --rfq-chip-border: #1a5c3a;
+
+  /* ── Attachment parse chips ── */
+  --att-green-bg: #1a3a2a;
+  --att-green-fg: #6ee7a0;
+  --att-green-border: #1a5c3a;
+  --att-orange-bg: #3a2e1a;
+  --att-orange-fg: #fbbf24;
+  --att-orange-border: #78350f;
+  --att-red-bg: #3a1a1a;
+  --att-red-fg: #f87171;
+  --att-red-border: #7f1d1d;
+  --att-blue-bg: #1a2a42;
+  --att-blue-fg: #60a5fa;
+  --att-blue-border: #1e40af;
+
+  /* ── Warning box ── */
+  --warning-bg: #3a2e1a;
+  --warning-fg: #fbbf24;
+  --warning-border: #78350f;
+
+  /* ── Error ── */
+  --error-bg: #3a1a1a;
+  --error-fg: #f87171;
+  --error-border: #7f1d1d;
+
+  /* ── Linkified text ── */
+  --link-fg: #60a5fa;
+  --link-hover: #93bbfd;
+  --filepath-bg: #1a3a2a;
+  --filepath-fg: #6ee7a0;
+  --filepath-hover-bg: #1a5c3a;
+  --filepath-hover-fg: #86efac;
+
+  /* ── Conversation items ── */
+  --conv-hover-bg: #1a2a42;
+  --conv-tool-chip-bg: #2e333b;
+  --conv-tool-chip-fg: #a0a8b4;
+
+  /* ── Detail badges ── */
+  --badge-bg: #4a90e2;
+  --badge-fg: #ffffff;
+
+  /* ── Review panel ── */
+  --sub-section-fg: #60a5fa;
+
+  /* ── Background loading bar ── */
+  --loading-bar-bg: #1a2a42;
+  --loading-bar-fg: #4a90e2;
+
+  /* ── Misc ── */
+  --separator: #4a5060;
+
+  /* ── Native form controls ── */
+  color-scheme: dark;
 }
 
 #root-container {
@@ -29,6 +338,9 @@ body {
   flex-direction: column;
   margin: 0;
   min-height: 100vh;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  transition: background 0.2s, color 0.2s;
 }
 
 h2,
