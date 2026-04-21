@@ -8,6 +8,7 @@ const AVAILABLE_TAGS = [
   "Repeat Request",
   "Duplicate",
   "Update Quote",
+  "No Quote",
 ];
 
 interface FilterDropdownProps {

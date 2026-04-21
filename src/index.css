@@ -75,6 +75,8 @@
   --tag-duplicate-fg: #880e4f;
   --tag-update-bg: #e0f2f1;
   --tag-update-fg: #004d40;
+  --tag-noquote-bg: #f3e8ff;
+  --tag-noquote-fg: #6b21a8;
 
   /* ── Count chips ── */
   --chip-bg: #e1e8ed;
@@ -242,6 +244,8 @@
   --tag-duplicate-fg: #f472b6;
   --tag-update-bg: #1a3030;
   --tag-update-fg: #5eead4;
+  --tag-noquote-bg: #2a1a3a;
+  --tag-noquote-fg: #c084fc;
 
   /* ── Count chips ── */
   --chip-bg: #2e333b;

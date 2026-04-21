@@ -491,6 +491,8 @@ function getTagClass(tag: string): string {
       return css.tagDuplicate;
     case "Update Quote":
       return css.tagUpdateQuote;
+    case "No Quote":
+      return css.tagNoQuote;
     default:
       return "";
   }

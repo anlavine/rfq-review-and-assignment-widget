@@ -253,6 +253,11 @@
   color: var(--tag-update-fg);
 }
 
+.tagNoQuote {
+  background: var(--tag-noquote-bg);
+  color: var(--tag-noquote-fg);
+}
+
 /* "+N more" hover trigger */
 .moreTagsWrapper {
   position: relative;
