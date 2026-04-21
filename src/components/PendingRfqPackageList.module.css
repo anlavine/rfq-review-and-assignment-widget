@@ -159,6 +159,13 @@
   color: var(--text-muted);
 }
 
+/* Conversation sibling icon in card title */
+.conversationIcon {
+  margin-right: 4px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
 /* RFQ Package ID chip — green */
 .rfqPackageIdChip {
   display: inline-flex;

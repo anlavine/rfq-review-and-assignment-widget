@@ -125,6 +125,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const loadIdRef = useRef(0);
+  const paginationRef = useRef<HTMLDivElement | null>(null);
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
@@ -152,7 +153,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         while (hasMore && !cancelled) {
           const page = await client(PendingRfqPackage)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .where({ receivedDate: { $gte: cutoffStr } } as any)
+            .where({ $or: [{ receivedDate: { $gte: cutoffStr } }, { receivedDate: { $isNull: true } }] } as any)
             .fetchPage({
               $pageSize: FETCH_PAGE_SIZE,
               ...(token ? { $nextPageToken: token } : {}),
@@ -315,8 +316,20 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     }
   };
 
+  const scrollToBottom = () => {
+    requestAnimationFrame(() => {
+      paginationRef.current?.scrollIntoView({ block: "end" });
+    });
+  };
+
   const handleFirstPage = () => {
     setCurrentPage(0);
+    scrollToBottom();
+  };
+
+  const handlePrevPage = () => {
+    setCurrentPage((p) => p - 1);
+    scrollToBottom();
   };
 
   const handleTabChange = (tab: TabKey) => {
@@ -381,6 +394,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
                 isSelected={inSpecialMode ? isMergeSource : pkId === selectedPackageId}
                 showStatus={activeTab === "all"}
                 disabled={isMergeSource}
+                hasSiblings={!!pkg.conversationId && (conversationMap.get(pkg.conversationId)?.length ?? 0) > 1}
                 onClick={() => {
                   if (mergeStep) {
                     if (!isMergeSource) {
@@ -399,7 +413,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       </div>
 
       {!initialLoading && !error && filteredPackages.length > 0 && (
-        <div className={css.paginationBar}>
+        <div className={css.paginationBar} ref={paginationRef}>
           <span>
             Page {currentPage + 1} of {totalPages} &middot; {filteredPackages.length} result{filteredPackages.length !== 1 ? "s" : ""}
             {backgroundLoading && " (still loading…)"}
@@ -412,6 +426,15 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
                 style={{ marginRight: 8 }}
               >
                 First Page
+              </button>
+            )}
+            {currentPage > 0 && (
+              <button
+                className={css.paginationButton}
+                onClick={handlePrevPage}
+                style={{ marginRight: 8 }}
+              >
+                Previous Page
               </button>
             )}
             <button
@@ -523,10 +546,11 @@ interface PackageCardProps {
   isSelected: boolean;
   showStatus: boolean;
   disabled?: boolean;
+  hasSiblings?: boolean;
   onClick: () => void;
 }
 
-function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: PackageCardProps): React.ReactElement {
+function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings, onClick }: PackageCardProps): React.ReactElement {
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
   const metaLoaded = meta !== undefined;
@@ -548,7 +572,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
   return (
     <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
-        <div className={css.cardTitle}>{pkg.subject || pkg.packageName || "[Unnamed Package]"}</div>
+        <div className={css.cardTitle}>{hasSiblings && <span className={css.conversationIcon} title="Part of a conversation with sibling packages">💬</span>}{pkg.subject || pkg.packageName || "[Unnamed Package]"}</div>
         {pkg.rfqPackageId && (
           <span className={css.rfqPackageIdChip} title={`RFQ Package ID: ${pkg.rfqPackageId}`}>
             <svg className={css.rfqPackageIdIcon} viewBox="0 0 16 16" fill="currentColor">
@@ -611,6 +635,8 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, onClick }: P
           )}
         </span>
         <span className={css.cardMetaRight}>
+          <span>Received: {formatDate(pkg.receivedDate)}</span>
+          <span className={css.cardMetaSep}>·</span>
           <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
             Due: {formatDate(pkg.dueDate)}
           </span>

@@ -122,6 +122,27 @@ function LinkToRfqModal({ pendingPackageId, onClose, onLinked }: LinkToRfqModalP
     return parts.length > 0 ? parts.join(" · ") : "";
   };
 
+  const handleRemoveLink = async () => {
+    if (applying) return;
+    setApplying(true);
+    setError(null);
+    try {
+      const pendingPkg = await client(PendingRfqPackage).fetchOne(pendingPackageId);
+      await client(linkToRfqPackage).applyAction(
+        {
+          pending_rfq_package: pendingPkg,
+          rfqPackageId: null,
+        },
+        { $returnEdits: true },
+      );
+      onLinked();
+    } catch (e) {
+      console.error("Failed to remove RFQ link:", e);
+      setError(e instanceof Error ? e.message : "Failed to remove RFQ link");
+      setApplying(false);
+    }
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !applying) {
       onClose();
@@ -134,9 +155,19 @@ function LinkToRfqModal({ pendingPackageId, onClose, onLinked }: LinkToRfqModalP
       <div className={css.modal}>
         <div className={css.header}>
           <span className={css.title}>Link to RFQ Package</span>
-          <button className={css.closeButton} onClick={onClose} title="Close">
-            ×
-          </button>
+          <div className={css.headerActions}>
+            <button
+              className={css.removeLinkButton}
+              onClick={handleRemoveLink}
+              disabled={applying}
+              title="Remove RFQ link"
+            >
+              Remove link
+            </button>
+            <button className={css.closeButton} onClick={onClose} title="Close">
+              ×
+            </button>
+          </div>
         </div>
 
         <div className={css.body}>
