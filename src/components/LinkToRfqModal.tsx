@@ -39,22 +39,29 @@ function LinkToRfqModal({ pendingPackageId, onClose, onLinked }: LinkToRfqModalP
       setError(null);
       const term = search.trim().toLowerCase();
       try {
-        // Search across multiple fields in parallel
+        // Search across multiple fields in parallel.
+        // We use $containsAllTermsInOrder for text fields — it does phrase-prefix
+        // matching so "A2" matches "A2LC …" (unlike $containsAnyTerm which only
+        // matches whole tokens).
         const [byName, byId, byOem, byPlatform] = await Promise.all([
           client(RfqPackage)
-            .where({ packageName: { $containsAnyTerm: term } })
+            .where({ packageName: { $containsAllTermsInOrder: term } })
             .fetchPage({ $pageSize: 20, $orderBy: { packageName: "asc" } })
             .catch(() => ({ data: [] as Osdk.Instance<RfqPackage>[] })),
+          client(RfqPackage)
+            .where({ packageName: { $startsWith: term } })
+            .fetchPage({ $pageSize: 20, $orderBy: { packageName: "asc" } })
+            .catch(() => ({ data: [] as Osdk.Instance<RfqPackage>[] })),  
           client(RfqPackage)
             .where({ packageId: { $startsWith: term } })
             .fetchPage({ $pageSize: 20 })
             .catch(() => ({ data: [] as Osdk.Instance<RfqPackage>[] })),
           client(RfqPackage)
-            .where({ oem: { $containsAnyTerm: term } })
+            .where({ oem: { $containsAllTermsInOrder: term } })
             .fetchPage({ $pageSize: 20, $orderBy: { packageName: "asc" } })
             .catch(() => ({ data: [] as Osdk.Instance<RfqPackage>[] })),
           client(RfqPackage)
-            .where({ platform: { $containsAnyTerm: term } })
+            .where({ platform: { $containsAllTermsInOrder: term } })
             .fetchPage({ $pageSize: 20, $orderBy: { packageName: "asc" } })
             .catch(() => ({ data: [] as Osdk.Instance<RfqPackage>[] })),
         ]);
