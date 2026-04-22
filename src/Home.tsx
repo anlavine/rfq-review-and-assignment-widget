@@ -60,6 +60,14 @@ function Home(): React.ReactElement {
     }
   }, [workshopContext]);
 
+  const handleFirstPackageReady = useCallback((packageId: string, completionStatus?: string) => {
+    // Auto-select the first package in the list when no package is selected.
+    // Skip if Workshop already restored a selection.
+    if (restoredRef.current) return;
+    setSelectedPackageId(packageId);
+    setSelectedPackageStatus(completionStatus ?? null);
+  }, []);
+
   const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
     setSelectedPackageId((prev) => {
       if (prev === packageId) {
@@ -264,6 +272,7 @@ function Home(): React.ReactElement {
             onMergeSelect={handleMergeSelect}
             splitStep={splitStep}
             onSplitSelect={handleSplitSelect}
+            onFirstPackageReady={handleFirstPackageReady}
           />
         </div>
 

@@ -57,6 +57,8 @@ interface PendingRfqPackageListProps {
   onMergeSelect: (packageId: string, packageName: string) => void;
   splitStep: SplitStep;
   onSplitSelect: (packageId: string, packageName: string) => void;
+  /** Called once after the initial load completes with the first package in the filtered list (if any) */
+  onFirstPackageReady?: (packageId: string, completionStatus?: string) => void;
 }
 
 /** Resolve customer name and tool count for a single package */
@@ -114,7 +116,7 @@ async function resolveMetaStreaming(
   }
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect }: PendingRfqPackageListProps): React.ReactElement {
+function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady }: PendingRfqPackageListProps): React.ReactElement {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -126,6 +128,8 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);
+  /** Tracks whether we've already fired the auto-select for this load cycle */
+  const autoSelectedRef = useRef(false);
 
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
@@ -140,6 +144,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       setError(null);
       setAllPackages([]);
       setMetaMap({});
+      autoSelectedRef.current = false;
       try {
         // Build date cutoff: 4 months ago
         const cutoff = new Date();
@@ -296,6 +301,21 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       return true;
     });
   }, [allPackages, metaMap, activeStatus, activeTab, conversationMap, filters]);
+
+  // ── Auto-select first package after all pages have loaded ──
+  // We wait for both initialLoading AND backgroundLoading to be false so the
+  // conversationMap (used by the Outstanding tab's sibling-based filtering) is
+  // complete. Selecting earlier would use an incomplete sibling map and could
+  // pick a package that gets filtered out once later pages arrive.
+  useEffect(() => {
+    if (autoSelectedRef.current || initialLoading || backgroundLoading || filteredPackages.length === 0) return;
+    // Only auto-select if nothing is currently selected
+    if (selectedPackageId) return;
+    autoSelectedRef.current = true;
+    const first = filteredPackages[0];
+    const firstId = String(first.$primaryKey);
+    onFirstPackageReady?.(firstId, first.completionStatus ?? undefined);
+  }, [initialLoading, backgroundLoading, filteredPackages, selectedPackageId, onFirstPackageReady]);
 
   // ── Client-side pagination ──
   const totalPages = Math.max(1, Math.ceil(filteredPackages.length / PAGE_SIZE));
