@@ -6,6 +6,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
+import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
 import HtmlBodyContent from "./HtmlBodyContent";
 
 interface PackageDetailProps {
@@ -163,15 +164,17 @@ function MergedEmailFields({
  */
 function MergedBodyContent({
   segments,
+  emailIdSegments,
 }: {
   segments: string[];
+  emailIdSegments: string[];
 }): React.ReactElement {
   return (
     <div className={css.mergedBodyStack}>
       {segments.map((segment, i) => (
         <div key={i} className={css.mergedBodyCard}>
           <div className={css.mergedBodyLabel}>Email {i + 1} — Body</div>
-          <HtmlBodyContent html={segment} />
+          <HtmlBodyContent html={segment} emailId={emailIdSegments[i]} />
         </div>
       ))}
     </div>
@@ -366,11 +369,9 @@ function PackageDetail({
     }
   };
 
-  const PARSED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsb", ".xlsm"];
-  const attachments = (pkg.attachmentFileNames ?? []).filter((name) => {
-    const lower = name.toLowerCase();
-    return PARSED_EXTENSIONS.some((ext) => lower.endsWith(ext));
-  });
+  // Exclude inline images (jpg, png, etc.) from the attachment list — they're rendered in the body
+  const nonImageFileNames = excludeInlineImages(pkg.attachmentFileNames ?? []);
+  const attachments = nonImageFileNames.filter(isParsedAttachment);
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
   // Detect merged packages
@@ -381,6 +382,7 @@ function PackageDetail({
   const toSegments = splitMergedField(pkg.to);
   const subjectSegments = splitMergedField(pkg.subject);
   const bodySegments = splitMergedField(pkg.bodyContent);
+  const emailIdSegments = splitMergedField(pkg.emailId);
 
   // For non-merged display, keep the existing parsed contact logic
   const toContacts = merged ? [] : parseToContacts(pkg.to);
@@ -453,8 +455,7 @@ function PackageDetail({
             </div>
           )}
           {(() => {
-            const allFileNames = pkg.attachmentFileNames ?? [];
-            const totalCount = allFileNames.length;
+            const totalCount = nonImageFileNames.length;
             const parsedCount = attachments.length;
             let chipClass: string;
             let chipLabel: string;
@@ -605,9 +606,9 @@ function PackageDetail({
         <div className={css.field}>
           <span className={css.fieldLabel}>Body Content</span>
           {merged && bodySegments.length > 1 ? (
-            <MergedBodyContent segments={bodySegments} />
+            <MergedBodyContent segments={bodySegments} emailIdSegments={emailIdSegments} />
           ) : pkg.bodyContent ? (
-            <HtmlBodyContent html={pkg.bodyContent} />
+            <HtmlBodyContent html={pkg.bodyContent} emailId={pkg.emailId} />
           ) : (
             <span className={css.fieldValueMuted}>No body content</span>
           )}

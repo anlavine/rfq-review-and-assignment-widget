@@ -71,6 +71,26 @@
   height: auto;
 }
 
+/* ── Inline CID image loading / error states ── */
+.imgLoading {
+  display: inline-block;
+  min-width: 48px;
+  min-height: 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  animation: imgPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes imgPulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.imgFailed {
+  display: none;
+}
+
 .htmlBody table {
   border-collapse: collapse;
   max-width: 100%;

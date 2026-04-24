@@ -6,10 +6,10 @@ import type { Osdk } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { isMergedPackage } from "../utils/mergedFields";
+import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
-const PARSED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsb", ".xlsm"];
 /** Concurrency limit for metadata resolution to avoid flooding the server */
 const META_BATCH_SIZE = 10;
 /** Only fetch packages received within this many months */
@@ -578,10 +578,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings,
   const metaLoaded = meta !== undefined;
 
   const toolCount = meta?.toolCount ?? null;
-  const attachmentCount = (pkg.attachmentFileNames ?? []).filter((name) => {
-    const lower = name.toLowerCase();
-    return PARSED_EXTENSIONS.some((ext) => lower.endsWith(ext));
-  }).length;
+  const attachmentCount = excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;
 
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 

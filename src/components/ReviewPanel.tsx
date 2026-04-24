@@ -10,6 +10,7 @@ import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
+import { isInlineImage } from "../utils/attachments";
 
 const ATTACHMENT_DATASET_RID =
   "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
@@ -156,9 +157,10 @@ function ReviewPanel({
         })();
 
         // Fetch attachments: match on fileName ∈ attachmentFileNames AND conversationId
-        const fileNames = fetchedPkg.attachmentFileNames ?? []
+        // Exclude inline images (jpg, png, etc.) — they're rendered in the email body
+        const fileNames = (fetchedPkg.attachmentFileNames ?? []).filter((n) => !isInlineImage(n));
         const attachmentPromise = (async () => {
-          if (!conversationId) return [];
+          if (!conversationId || fileNames.length === 0) return [];
           try {
             const page = await client(PendingRfqAttachments)
               .where({
