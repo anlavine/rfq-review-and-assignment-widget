@@ -388,15 +388,9 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       <h2 className={css.title}>Pending RFQ Packages</h2>
       {tabBar}
 
-      {backgroundLoading && (
-        <div className={css.backgroundLoadingBar}>
-          Loading more packages… ({allPackages.length} loaded so far)
-        </div>
-      )}
-
       <div className={css.cardGrid}>
-        {initialLoading ? (
-          <div className={css.emptyCard}>Fetching packages…</div>
+        {initialLoading || backgroundLoading ? (
+          <div className={css.emptyCard}>Fetching packages…{backgroundLoading && ` (${allPackages.length} loaded so far)`}</div>
         ) : error ? (
           <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>
         ) : pagePackages.length === 0 ? (
@@ -432,11 +426,10 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         )}
       </div>
 
-      {!initialLoading && !error && filteredPackages.length > 0 && (
+      {!initialLoading && !backgroundLoading && !error && filteredPackages.length > 0 && (
         <div className={css.paginationBar} ref={paginationRef}>
           <span>
             Page {currentPage + 1} of {totalPages} &middot; {filteredPackages.length} result{filteredPackages.length !== 1 ? "s" : ""}
-            {backgroundLoading && " (still loading…)"}
           </span>
           <div>
             {currentPage > 0 && (
