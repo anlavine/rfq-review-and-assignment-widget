@@ -199,6 +199,22 @@
   padding: 0 6px;
 }
 
+/* ── Confidence banner ── */
+.confidenceBanner {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: 6px 12px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+}
+
+.confidenceBanner strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
 /* ── Empty / loading / error ── */
 .emptyMessage {
   margin: 0;

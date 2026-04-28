@@ -8,6 +8,7 @@ import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
 import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
 import HtmlBodyContent from "./HtmlBodyContent";
+import { getConfidenceColor } from "../utils/confidenceColor";
 
 interface PackageDetailProps {
   packageId: string;
@@ -474,6 +475,14 @@ function PackageDetail({
             }
             return <span className={chipClass}>{chipLabel}</span>;
           })()}
+          {pkg.overallConfidenceScore != null && (
+            <span className={css.confidenceChip}>
+              Overall Confidence:{" "}
+              <strong style={{ color: getConfidenceColor(pkg.overallConfidenceScore) }}>
+                {pkg.overallConfidenceScore}%
+              </strong>
+            </span>
+          )}
         </div>
       </div>
 

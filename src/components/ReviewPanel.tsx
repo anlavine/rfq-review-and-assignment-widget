@@ -11,6 +11,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
 import { isInlineImage } from "../utils/attachments";
+import { getConfidenceColor } from "../utils/confidenceColor";
 
 const ATTACHMENT_DATASET_RID =
   "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
@@ -340,6 +341,14 @@ function ReviewPanel({
       {pkg && (
         <section className={css.section}>
           <h3 className={css.sectionTitle}>Package Information</h3>
+          {pkg.packageConfidenceScore != null && (
+            <div className={css.confidenceBanner}>
+              Package Confidence:{" "}
+              <strong style={{ color: getConfidenceColor(pkg.packageConfidenceScore) }}>
+                {pkg.packageConfidenceScore}%
+              </strong>
+            </div>
+          )}
           <div className={css.packageInfoCard}>
             <dl className={css.toolProps}>
               {([
@@ -370,6 +379,14 @@ function ReviewPanel({
           Tools{" "}
           <span className={css.toolCountBadge}>{tools.length}</span>
         </h3>
+        {pkg && pkg.toolConfidenceScore != null && (
+          <div className={css.confidenceBanner}>
+            Tool Confidence:{" "}
+            <strong style={{ color: getConfidenceColor(pkg.toolConfidenceScore) }}>
+              {pkg.toolConfidenceScore}%
+            </strong>
+          </div>
+        )}
         {tools.length > 0 ? (
           <div className={css.toolGrid}>
             {tools.map((tool) => {
