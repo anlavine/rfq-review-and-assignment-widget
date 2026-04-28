@@ -280,6 +280,35 @@
   border-radius: 6px;
 }
 
+/* ── Feedback button ── */
+.feedbackButton {
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  border-radius: 4px;
+  color: var(--btn-text);
+  cursor: pointer;
+  padding: 5px 8px;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feedbackButton:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+  border-color: var(--btn-hover-border);
+}
+
+.feedbackButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.feedbackIcon {
+  width: 16px;
+  height: 16px;
+}
+
 /* ── Theme toggle ── */
 .themeToggle {
   background: var(--btn-bg);

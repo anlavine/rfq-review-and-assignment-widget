@@ -10,6 +10,7 @@ import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
 import client from "./client";
 import EditTagsModal from "./components/EditTagsModal";
+import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
@@ -37,6 +38,7 @@ function Home(): React.ReactElement {
   const [splitPackageId, setSplitPackageId] = useState<string | null>(null);
   const [splitPackageName, setSplitPackageName] = useState<string>("");
   const [showLinkToRfq, setShowLinkToRfq] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   // Workshop integration — hook is always called, but context is only
@@ -311,6 +313,16 @@ function Home(): React.ReactElement {
                 </div>
               )}
               <button
+                className={css.feedbackButton}
+                disabled={!selectedPackageId}
+                onClick={() => setShowFeedback(true)}
+                title="Submit feedback"
+              >
+                <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
+                </svg>
+              </button>
+              <button
                 className={css.themeToggle}
                 onClick={toggleTheme}
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -478,6 +490,14 @@ function Home(): React.ReactElement {
             setShowLinkToRfq(false);
             setRefreshToken((t) => t + 1);
           }}
+        />
+      )}
+
+      {showFeedback && selectedPackageId && (
+        <FeedbackModal
+          packageId={selectedPackageId}
+          onClose={() => setShowFeedback(false)}
+          onSubmitted={() => setShowFeedback(false)}
         />
       )}
     </div>
