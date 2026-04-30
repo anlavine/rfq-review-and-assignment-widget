@@ -185,6 +185,12 @@
   animation: fadeIn 0.12s ease-out;
 }
 
+/* Override the .htmlBody * wildcard so tooltip colors are preserved */
+.htmlBody .copiedTooltip {
+  color: var(--popover-fg);
+  background-color: var(--popover-bg);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

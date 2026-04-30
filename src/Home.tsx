@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
-import type { TabKey, Filters, MergeStep, SplitStep } from "./components/PendingRfqPackageList";
+import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect } from "./components/PendingRfqPackageList";
 import MergeConfirmModal from "./components/MergeConfirmModal";
 import SplitPackageModal from "./components/SplitPackageModal";
 import LinkToRfqModal from "./components/LinkToRfqModal";
@@ -39,6 +39,7 @@ function Home(): React.ReactElement {
   const [splitPackageName, setSplitPackageName] = useState<string>("");
   const [showLinkToRfq, setShowLinkToRfq] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [excludeFromAutoSelect, setExcludeFromAutoSelect] = useState<ExcludeFromAutoSelect>([]);
   const { theme, toggleTheme } = useTheme();
 
   // Workshop integration — hook is always called, but context is only
@@ -68,6 +69,8 @@ function Home(): React.ReactElement {
     if (restoredRef.current) return;
     setSelectedPackageId(packageId);
     setSelectedPackageStatus(completionStatus ?? null);
+    // Clear exclude list once a new selection has been made
+    setExcludeFromAutoSelect([]);
   }, []);
 
   const handleSelectPackage = useCallback((packageId: string, completionStatus?: string) => {
@@ -85,11 +88,13 @@ function Home(): React.ReactElement {
     if (!selectedPackageId || actionLoading) return;
     setActionLoading(true);
     try {
-      const pkg = await client(PendingRfqPackage).fetchOne(selectedPackageId);
+      const skippedId = selectedPackageId;
+      const pkg = await client(PendingRfqPackage).fetchOne(skippedId);
       await client(skipPackageReview).applyAction(
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
+      setExcludeFromAutoSelect((prev) => [...prev, skippedId]);
       setSelectedPackageId(null);
       setRefreshToken((t) => t + 1);
     } catch (e) {
@@ -275,6 +280,7 @@ function Home(): React.ReactElement {
             splitStep={splitStep}
             onSplitSelect={handleSplitSelect}
             onFirstPackageReady={handleFirstPackageReady}
+            excludeFromAutoSelect={excludeFromAutoSelect}
           />
         </div>
 

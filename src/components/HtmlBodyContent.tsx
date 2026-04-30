@@ -99,7 +99,10 @@ function linkifyFilePathsInDOM(root: HTMLElement): void {
         span.setAttribute("role", "button");
         span.setAttribute("tabindex", "0");
         span.setAttribute("title", "Click to copy path");
-        span.textContent = part.path;
+
+        const textSpan = document.createElement("span");
+        textSpan.textContent = part.path;
+        span.appendChild(textSpan);
 
         const pathValue = part.path;
         const handler = () => {

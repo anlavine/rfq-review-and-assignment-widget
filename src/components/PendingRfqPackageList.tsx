@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import ReactDOM from "react-dom";
 import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
+import { Branches } from "@osdk/foundry.datasets";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
@@ -16,6 +17,8 @@ const META_BATCH_SIZE = 10;
 const RECEIVED_MONTHS = 4;
 /** How many packages to fetch per OSDK page request */
 const FETCH_PAGE_SIZE = 50;
+/** Dataset RID backing PendingRfqPackage */
+const PENDING_PACKAGE_DATASET_RID = "ri.foundry.main.dataset.d1ca8ee5-fe27-46fa-9ef0-fef7be64799d";
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
@@ -35,6 +38,9 @@ export interface Filters {
   selectedTags: string[];
   hasParsedTools: boolean;
 }
+
+/** Package IDs to exclude from auto-selection (e.g. just-skipped packages) */
+export type ExcludeFromAutoSelect = string[];
 
 /** Resolved metadata for a package */
 interface PackageMeta {
@@ -59,6 +65,8 @@ interface PendingRfqPackageListProps {
   onSplitSelect: (packageId: string, packageName: string) => void;
   /** Called once after the initial load completes with the first package in the filtered list (if any) */
   onFirstPackageReady?: (packageId: string, completionStatus?: string) => void;
+  /** Package IDs to exclude when auto-selecting the first package */
+  excludeFromAutoSelect?: ExcludeFromAutoSelect;
 }
 
 /** Resolve customer name and tool count for a single package */
@@ -116,7 +124,25 @@ async function resolveMetaStreaming(
   }
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady }: PendingRfqPackageListProps): React.ReactElement {
+/** Format an ISO timestamp as Eastern Time, e.g. "Apr 30, 2026 at 2:15 PM ET" */
+function formatLastUpdated(iso: string): string {
+  try {
+    const date = new Date(iso);
+    return date.toLocaleString("en-US", {
+      timeZone: "America/New_York",
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }) + " ET";
+  } catch {
+    return iso;
+  }
+}
+
+function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect }: PendingRfqPackageListProps): React.ReactElement {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -124,6 +150,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const loadIdRef = useRef(0);
@@ -145,6 +172,19 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       setAllPackages([]);
       setMetaMap({});
       autoSelectedRef.current = false;
+
+      // Fetch last updated timestamp from the dataset's latest transaction
+      Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
+        pageSize: 1,
+        preview: true,
+      }).then((res) => {
+        if (cancelled || loadId !== loadIdRef.current) return;
+        const latest = res.data[0];
+        if (latest?.closedTime) {
+          setLastUpdated(latest.closedTime);
+        }
+      }).catch(() => { /* ignore — non-critical */ });
+
       try {
         // Build date cutoff: 4 months ago
         const cutoff = new Date();
@@ -312,10 +352,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     // Only auto-select if nothing is currently selected
     if (selectedPackageId) return;
     autoSelectedRef.current = true;
-    const first = filteredPackages[0];
-    const firstId = String(first.$primaryKey);
-    onFirstPackageReady?.(firstId, first.completionStatus ?? undefined);
-  }, [initialLoading, backgroundLoading, filteredPackages, selectedPackageId, onFirstPackageReady]);
+    const excludeSet = new Set(excludeFromAutoSelect ?? []);
+    const candidate = filteredPackages.find((p) => !excludeSet.has(String(p.$primaryKey)));
+    if (!candidate) return;
+    const candidateId = String(candidate.$primaryKey);
+    onFirstPackageReady?.(candidateId, candidate.completionStatus ?? undefined);
+  }, [initialLoading, backgroundLoading, filteredPackages, selectedPackageId, onFirstPackageReady, excludeFromAutoSelect]);
 
   // ── Client-side pagination ──
   const totalPages = Math.max(1, Math.ceil(filteredPackages.length / PAGE_SIZE));
@@ -385,7 +427,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
   return (
     <div className={css.container}>
-      <h2 className={css.title}>Pending RFQ Packages</h2>
+      <div className={css.titleRow}>
+        <h2 className={css.title}>Pending RFQ Packages</h2>
+        {lastUpdated && (
+          <span className={css.lastUpdated}>Last updated: {formatLastUpdated(lastUpdated)}</span>
+        )}
+      </div>
       {tabBar}
 
       <div className={css.cardGrid}>
