@@ -343,7 +343,7 @@ function ReviewPanel({
           <h3 className={css.sectionTitle}>Package Information</h3>
           {pkg.packageConfidenceScore != null && (
             <div className={css.confidenceBanner}>
-              Package Confidence:{" "}
+              Package Completion:{" "}
               <strong style={{ color: getConfidenceColor(pkg.packageConfidenceScore) }}>
                 {pkg.packageConfidenceScore}%
               </strong>
@@ -381,7 +381,7 @@ function ReviewPanel({
         </h3>
         {pkg && pkg.toolConfidenceScore != null && (
           <div className={css.confidenceBanner}>
-            Tool Confidence:{" "}
+            Tool Completion:{" "}
             <strong style={{ color: getConfidenceColor(pkg.toolConfidenceScore) }}>
               {pkg.toolConfidenceScore}%
             </strong>

@@ -477,7 +477,7 @@ function PackageDetail({
           })()}
           {pkg.overallConfidenceScore != null && (
             <span className={css.confidenceChip}>
-              Overall Confidence:{" "}
+              Overall Completion:{" "}
               <strong style={{ color: getConfidenceColor(pkg.overallConfidenceScore) }}>
                 {pkg.overallConfidenceScore}%
               </strong>
