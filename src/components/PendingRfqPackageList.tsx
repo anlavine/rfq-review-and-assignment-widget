@@ -281,16 +281,14 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     return map;
   }, [allPackages]);
 
-  // ── Client-side filtering ──
+  // ── Client-side filtering + sorting ──
   const filteredPackages = useMemo(() => {
-    return allPackages.filter((pkg) => {
+    const filtered = allPackages.filter((pkg) => {
       const pkId = String(pkg.$primaryKey);
       const meta = metaMap[pkId];
 
       // Tab / status filter
       if (activeStatus && pkg.completionStatus !== activeStatus) return false;
-
-
 
       // Due date range
       if (filters.dueDateStart && pkg.dueDate) {
@@ -335,7 +333,22 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
       return true;
     });
-  }, [allPackages, metaMap, activeStatus, filters]);
+
+    // Sort: Outstanding tab → ascending due date (server default order)
+    //       All other tabs → descending received date
+    if (activeTab !== "outstanding") {
+      filtered.sort((a, b) => {
+        const aDate = a.receivedDate ?? "";
+        const bDate = b.receivedDate ?? "";
+        // Descending: newer first
+        if (bDate > aDate) return 1;
+        if (bDate < aDate) return -1;
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [allPackages, metaMap, activeStatus, activeTab, filters]);
 
   // ── Auto-select first package after all pages have loaded ──
   // We wait for both initialLoading AND backgroundLoading to be false so the
