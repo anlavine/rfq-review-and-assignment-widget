@@ -462,6 +462,56 @@
   color: var(--error-fg);
 }
 
+/* ── Bulk skip mode ── */
+.bulkSkipBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+.bulkSkipCount {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.bulkSkipSelectAll,
+.bulkSkipDeselectAll {
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  background: var(--btn-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.bulkSkipSelectAll:hover,
+.bulkSkipDeselectAll:hover:not(:disabled) {
+  background: var(--btn-hover-bg);
+}
+
+.bulkSkipDeselectAll:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.bulkCheckbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+}
+
 /* Pagination */
 .paginationBar {
   display: flex;

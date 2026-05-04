@@ -50,6 +50,7 @@ interface PackageMeta {
 
 export type MergeStep = "selectSource" | "selectTarget" | null;
 export type SplitStep = "selectPackage" | null;
+export type BulkSkipMode = boolean;
 
 interface PendingRfqPackageListProps {
   onSelectPackage: (packageId: string, completionStatus?: string) => void;
@@ -67,6 +68,16 @@ interface PendingRfqPackageListProps {
   onFirstPackageReady?: (packageId: string, completionStatus?: string) => void;
   /** Package IDs to exclude when auto-selecting the first package */
   excludeFromAutoSelect?: ExcludeFromAutoSelect;
+  /** Whether bulk skip mode is active */
+  bulkSkipMode?: BulkSkipMode;
+  /** IDs currently checked for bulk skip */
+  bulkSkipSelected?: string[];
+  /** Toggle a package in/out of bulk skip selection */
+  onBulkSkipToggle?: (packageId: string) => void;
+  /** Select all visible (filtered) packages for bulk skip */
+  onBulkSkipSelectAll?: (ids: string[]) => void;
+  /** Deselect all packages for bulk skip */
+  onBulkSkipDeselectAll?: () => void;
 }
 
 /** Resolve customer name and tool count for a single package */
@@ -142,7 +153,7 @@ function formatLastUpdated(iso: string): string {
   }
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect }: PendingRfqPackageListProps): React.ReactElement {
+function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll }: PendingRfqPackageListProps): React.ReactElement {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -279,23 +290,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       // Tab / status filter
       if (activeStatus && pkg.completionStatus !== activeStatus) return false;
 
-      // Outstanding tab: hide packages that have a sibling which is more recent
-      // or a sibling that is already Reviewed.
-      if (activeTab === "outstanding" && pkg.conversationId) {
-        const siblings = conversationMap.get(pkg.conversationId);
-        if (siblings && siblings.length > 1) {
-          const pkReceivedDate = pkg.receivedDate ?? "";
-          const hasNewerSibling = siblings.some((s) => {
-            if (String(s.$primaryKey) === pkId) return false;
-            return (s.receivedDate ?? "") > pkReceivedDate;
-          });
-          const hasReviewedSibling = siblings.some((s) => {
-            if (String(s.$primaryKey) === pkId) return false;
-            return s.completionStatus === "Reviewed";
-          });
-          if (hasNewerSibling || hasReviewedSibling) return false;
-        }
-      }
+
 
       // Due date range
       if (filters.dueDateStart && pkg.dueDate) {
@@ -340,13 +335,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
 
       return true;
     });
-  }, [allPackages, metaMap, activeStatus, activeTab, conversationMap, filters]);
+  }, [allPackages, metaMap, activeStatus, filters]);
 
   // ── Auto-select first package after all pages have loaded ──
   // We wait for both initialLoading AND backgroundLoading to be false so the
-  // conversationMap (used by the Outstanding tab's sibling-based filtering) is
-  // complete. Selecting earlier would use an incomplete sibling map and could
-  // pick a package that gets filtered out once later pages arrive.
+  // full dataset is available. Selecting earlier could pick a package that
+  // gets filtered out once later pages arrive.
   useEffect(() => {
     if (autoSelectedRef.current || initialLoading || backgroundLoading || filteredPackages.length === 0) return;
     // Only auto-select if nothing is currently selected
@@ -435,6 +429,30 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       </div>
       {tabBar}
 
+      {bulkSkipMode && (
+        <div className={css.bulkSkipBar}>
+          <span className={css.bulkSkipCount}>
+            {bulkSkipSelected?.length ?? 0} selected
+          </span>
+          <button
+            className={css.bulkSkipSelectAll}
+            onClick={() => {
+              const allIds = filteredPackages.map((p) => String(p.$primaryKey));
+              onBulkSkipSelectAll?.(allIds);
+            }}
+          >
+            Select All ({filteredPackages.length})
+          </button>
+          <button
+            className={css.bulkSkipDeselectAll}
+            onClick={() => onBulkSkipDeselectAll?.()}
+            disabled={!bulkSkipSelected?.length}
+          >
+            Deselect All
+          </button>
+        </div>
+      )}
+
       <div className={css.cardGrid}>
         {initialLoading || backgroundLoading ? (
           <div className={css.emptyCard}>Fetching packages…{backgroundLoading && ` (${allPackages.length} loaded so far)`}</div>
@@ -447,17 +465,22 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
             const pkId = String(pkg.$primaryKey);
             const isMergeSource = mergeStep === "selectTarget" && pkId === mergeSourceId;
             const inSpecialMode = !!mergeStep || !!splitStep;
+            const isBulkChecked = bulkSkipMode && bulkSkipSelected?.includes(pkId);
             return (
               <PackageCard
                 key={pkg.$primaryKey}
                 pkg={pkg}
                 meta={metaMap[pkId]}
-                isSelected={inSpecialMode ? isMergeSource : pkId === selectedPackageId}
+                isSelected={inSpecialMode ? isMergeSource : bulkSkipMode ? !!isBulkChecked : pkId === selectedPackageId}
                 showStatus={activeTab === "all"}
                 disabled={isMergeSource}
                 hasSiblings={!!pkg.conversationId && (conversationMap.get(pkg.conversationId)?.length ?? 0) > 1}
+                showCheckbox={!!bulkSkipMode}
+                checked={!!isBulkChecked}
                 onClick={() => {
-                  if (mergeStep) {
+                  if (bulkSkipMode) {
+                    onBulkSkipToggle?.(pkId);
+                  } else if (mergeStep) {
                     if (!isMergeSource) {
                       onMergeSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
                     }
@@ -609,10 +632,12 @@ interface PackageCardProps {
   showStatus: boolean;
   disabled?: boolean;
   hasSiblings?: boolean;
+  showCheckbox?: boolean;
+  checked?: boolean;
   onClick: () => void;
 }
 
-function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings, onClick }: PackageCardProps): React.ReactElement {
+function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, onClick }: PackageCardProps): React.ReactElement {
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
   const metaLoaded = meta !== undefined;
@@ -631,6 +656,15 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings,
   return (
     <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
+        {showCheckbox && (
+          <input
+            type="checkbox"
+            className={css.bulkCheckbox}
+            checked={!!checked}
+            readOnly
+            tabIndex={-1}
+          />
+        )}
         <div className={css.cardTitle}>{hasSiblings && <span className={css.conversationIcon} title="Part of a conversation with sibling packages">💬</span>}{pkg.subject || pkg.packageName || "[Unnamed Package]"}</div>
         {pkg.rfqPackageId && (
           <span className={css.rfqPackageIdChip} title={`RFQ Package ID: ${pkg.rfqPackageId}`}>

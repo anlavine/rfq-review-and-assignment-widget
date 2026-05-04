@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
-import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect } from "./components/PendingRfqPackageList";
+import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode } from "./components/PendingRfqPackageList";
+import BulkSkipConfirmModal from "./components/BulkSkipConfirmModal";
 import MergeConfirmModal from "./components/MergeConfirmModal";
 import SplitPackageModal from "./components/SplitPackageModal";
 import LinkToRfqModal from "./components/LinkToRfqModal";
@@ -40,6 +41,9 @@ function Home(): React.ReactElement {
   const [showLinkToRfq, setShowLinkToRfq] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [excludeFromAutoSelect, setExcludeFromAutoSelect] = useState<ExcludeFromAutoSelect>([]);
+  const [bulkSkipMode, setBulkSkipMode] = useState<BulkSkipMode>(false);
+  const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
+  const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
   // Workshop integration — hook is always called, but context is only
@@ -200,6 +204,41 @@ function Home(): React.ReactElement {
     }
   }, [selectedPackageId, workshopContext]);
 
+  const handleStartBulkSkip = useCallback(() => {
+    setBulkSkipMode(true);
+    setBulkSkipSelected([]);
+  }, []);
+
+  const handleCancelBulkSkip = useCallback(() => {
+    setBulkSkipMode(false);
+    setBulkSkipSelected([]);
+  }, []);
+
+  const handleBulkSkipToggle = useCallback((packageId: string) => {
+    setBulkSkipSelected((prev) =>
+      prev.includes(packageId)
+        ? prev.filter((id) => id !== packageId)
+        : [...prev, packageId],
+    );
+  }, []);
+
+  const handleBulkSkipSelectAll = useCallback((ids: string[]) => {
+    setBulkSkipSelected(ids);
+  }, []);
+
+  const handleBulkSkipDeselectAll = useCallback(() => {
+    setBulkSkipSelected([]);
+  }, []);
+
+  const handleBulkSkipComplete = useCallback(() => {
+    setShowBulkSkipConfirm(false);
+    setExcludeFromAutoSelect((prev) => [...prev, ...bulkSkipSelected]);
+    setBulkSkipMode(false);
+    setBulkSkipSelected([]);
+    setSelectedPackageId(null);
+    setRefreshToken((t) => t + 1);
+  }, [bulkSkipSelected]);
+
   const handleStartMerge = useCallback(() => {
     setMergeStep("selectSource");
     setMergeSourceId(null);
@@ -281,6 +320,11 @@ function Home(): React.ReactElement {
             onSplitSelect={handleSplitSelect}
             onFirstPackageReady={handleFirstPackageReady}
             excludeFromAutoSelect={excludeFromAutoSelect}
+            bulkSkipMode={bulkSkipMode}
+            bulkSkipSelected={bulkSkipSelected}
+            onBulkSkipToggle={handleBulkSkipToggle}
+            onBulkSkipSelectAll={handleBulkSkipSelectAll}
+            onBulkSkipDeselectAll={handleBulkSkipDeselectAll}
           />
         </div>
 
@@ -318,6 +362,11 @@ function Home(): React.ReactElement {
                   Select a package to split
                 </div>
               )}
+              {bulkSkipMode && (
+                <div className={css.modeBanner}>
+                  Select packages to skip
+                </div>
+              )}
               <button
                 className={css.feedbackButton}
                 disabled={!selectedPackageId}
@@ -350,6 +399,22 @@ function Home(): React.ReactElement {
                 >
                   Cancel Split
                 </button>
+              ) : bulkSkipMode ? (
+                <>
+                  <button
+                    className={css.createPackageButton}
+                    disabled={bulkSkipSelected.length === 0}
+                    onClick={() => setShowBulkSkipConfirm(true)}
+                  >
+                    Skip Selected ({bulkSkipSelected.length})
+                  </button>
+                  <button
+                    className={css.headerButton}
+                    onClick={handleCancelBulkSkip}
+                  >
+                    Cancel
+                  </button>
+                </>
               ) : (
                 <>
                   {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
@@ -367,6 +432,14 @@ function Home(): React.ReactElement {
                       onClick={handleSkip}
                     >
                       {actionLoading ? "Skipping…" : "Skip"}
+                    </button>
+                  )}
+                  {(activeTab === "outstanding" || activeTab === "all") && (
+                    <button
+                      className={css.headerButton}
+                      onClick={handleStartBulkSkip}
+                    >
+                      Bulk Skip
                     </button>
                   )}
                   <button
@@ -504,6 +577,14 @@ function Home(): React.ReactElement {
           packageId={selectedPackageId}
           onClose={() => setShowFeedback(false)}
           onSubmitted={() => setShowFeedback(false)}
+        />
+      )}
+
+      {showBulkSkipConfirm && bulkSkipSelected.length > 0 && (
+        <BulkSkipConfirmModal
+          packageIds={bulkSkipSelected}
+          onClose={() => setShowBulkSkipConfirm(false)}
+          onSkipped={handleBulkSkipComplete}
         />
       )}
     </div>
