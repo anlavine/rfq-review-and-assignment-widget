@@ -9,6 +9,7 @@ import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
 import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
 import HtmlBodyContent from "./HtmlBodyContent";
 import { getConfidenceColor } from "../utils/confidenceColor";
+import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 
 interface PackageDetailProps {
   packageId: string;
@@ -23,6 +24,7 @@ interface ConversationSibling {
   subject: string | undefined;
   completionStatus: string | undefined;
   receivedDate: string | undefined;
+  receivedDatetime: string | undefined;
   toolCount: number | null;
 }
 
@@ -270,6 +272,7 @@ function PackageDetail({
                   subject: p.subject,
                   completionStatus: p.completionStatus,
                   receivedDate: p.receivedDate,
+                  receivedDatetime: p.receivedDatetime,
                   toolCount: sibToolCount,
                 };
               }),
@@ -405,7 +408,7 @@ function PackageDetail({
         </div>
         <div className={css.headerRight}>
           <span className={css.dateCompact}>
-            Received: <strong>{formatDate(pkg.receivedDate)}</strong>
+            Received: <strong>{formatReceivedDatetime(pkg.receivedDatetime, pkg.receivedDate)}</strong>
           </span>
           <span className={`${css.dateCompact} ${urgency === "overdue" ? css.dateOverdue : urgency === "dueSoon" ? css.dateDueSoon : ""}`}>
             Due: <strong>{formatDate(pkg.dueDate)}</strong>
@@ -602,7 +605,7 @@ function PackageDetail({
                     {sibling.toolCount != null ? sibling.toolCount : "…"}
                   </span>
                   <span className={css.conversationDate}>
-                    Received: {formatDate(sibling.receivedDate)}
+                    Received: {formatReceivedDatetime(sibling.receivedDatetime, sibling.receivedDate)}
                   </span>
                 </div>
               </div>

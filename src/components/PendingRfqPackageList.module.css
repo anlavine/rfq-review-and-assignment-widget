@@ -73,6 +73,30 @@
   gap: 6px;
 }
 
+/* Section divider for Outstanding tab buckets */
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.sectionDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.sectionDividerLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Card */
 .card {
   border: 2px solid var(--border-default);

@@ -8,6 +8,7 @@ import css from "./PendingRfqPackageList.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { isMergedPackage } from "../utils/mergedFields";
 import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
+import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -133,6 +134,51 @@ async function resolveMetaStreaming(
       onBatch(batchResult);
     }
   }
+}
+
+/** Due date bucket for Outstanding tab section dividers */
+type DueDateBucket = "noDueDate" | "today" | "tomorrow" | "thisWeek" | "later";
+
+const BUCKET_LABELS: Record<DueDateBucket, string> = {
+  noDueDate: "No Due Date",
+  today: "Due Today",
+  tomorrow: "Due Tomorrow",
+  thisWeek: "Due This Week",
+  later: "Due Later",
+};
+
+/** Order in which buckets should appear */
+const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWeek", "later"];
+
+/**
+ * Assigns a package to a due-date bucket based on the current local date.
+ * - No due date → "noDueDate"
+ * - Overdue or due today → "today"
+ * - Due tomorrow → "tomorrow"
+ * - Due on or before Sunday of the current week → "thisWeek"
+ * - Everything else → "later"
+ */
+function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
+  if (!dueDate) return "noDueDate";
+
+  const parts = dueDate.split("T")[0].split("-");
+  const due = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  // End of current week (Sunday). getDay(): 0=Sun, 1=Mon, …, 6=Sat
+  const dayOfWeek = today.getDay(); // 0=Sun
+  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+  const endOfWeek = new Date(today);
+  endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
+
+  if (due.getTime() <= today.getTime()) return "today"; // overdue + today
+  if (due.getTime() === tomorrow.getTime()) return "tomorrow";
+  if (due.getTime() <= endOfWeek.getTime()) return "thisWeek";
+  return "later";
 }
 
 /** Format an ISO timestamp as Eastern Time, e.g. "Apr 30, 2026 at 2:15 PM ET" */
@@ -335,11 +381,11 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     });
 
     // Sort: Outstanding tab → ascending due date (server default order)
-    //       All other tabs → descending received date
+    //       All other tabs → descending received datetime
     if (activeTab !== "outstanding") {
       filtered.sort((a, b) => {
-        const aDate = a.receivedDate ?? "";
-        const bDate = b.receivedDate ?? "";
+        const aDate = a.receivedDatetime ?? a.receivedDate ?? "";
+        const bDate = b.receivedDatetime ?? b.receivedDate ?? "";
         // Descending: newer first
         if (bDate > aDate) return 1;
         if (bDate < aDate) return -1;
@@ -474,38 +520,75 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         ) : pagePackages.length === 0 ? (
           <div className={css.emptyCard}>No packages found.</div>
         ) : (
-          pagePackages.map((pkg) => {
-            const pkId = String(pkg.$primaryKey);
-            const isMergeSource = mergeStep === "selectTarget" && pkId === mergeSourceId;
-            const inSpecialMode = !!mergeStep || !!splitStep;
-            const isBulkChecked = bulkSkipMode && bulkSkipSelected?.includes(pkId);
-            return (
-              <PackageCard
-                key={pkg.$primaryKey}
-                pkg={pkg}
-                meta={metaMap[pkId]}
-                isSelected={inSpecialMode ? isMergeSource : bulkSkipMode ? !!isBulkChecked : pkId === selectedPackageId}
-                showStatus={activeTab === "all"}
-                disabled={isMergeSource}
-                hasSiblings={!!pkg.conversationId && (conversationMap.get(pkg.conversationId)?.length ?? 0) > 1}
-                showCheckbox={!!bulkSkipMode}
-                checked={!!isBulkChecked}
-                onClick={() => {
-                  if (bulkSkipMode) {
-                    onBulkSkipToggle?.(pkId);
-                  } else if (mergeStep) {
-                    if (!isMergeSource) {
-                      onMergeSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
+          (() => {
+            const elements: React.ReactElement[] = [];
+            let lastBucket: DueDateBucket | null = null;
+
+            // For the outstanding tab, sort by bucket order first, then due date within each bucket
+            const sortedForDisplay = activeTab === "outstanding"
+              ? [...pagePackages].sort((a, b) => {
+                const bucketA = getDueDateBucket(a.dueDate);
+                const bucketB = getDueDateBucket(b.dueDate);
+                const orderA = BUCKET_ORDER.indexOf(bucketA);
+                const orderB = BUCKET_ORDER.indexOf(bucketB);
+                if (orderA !== orderB) return orderA - orderB;
+                // Within same bucket, ascending due date
+                const dateA = a.dueDate ?? "";
+                const dateB = b.dueDate ?? "";
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+                return 0;
+              })
+              : pagePackages;
+
+            for (const pkg of sortedForDisplay) {
+              const pkId = String(pkg.$primaryKey);
+
+              // Insert section divider on the Outstanding tab
+              if (activeTab === "outstanding") {
+                const bucket = getDueDateBucket(pkg.dueDate);
+                if (bucket !== lastBucket) {
+                  lastBucket = bucket;
+                  elements.push(
+                    <div key={`divider-${bucket}`} className={css.sectionDivider}>
+                      <span className={css.sectionDividerLabel}>{BUCKET_LABELS[bucket]}</span>
+                    </div>,
+                  );
+                }
+              }
+
+              const isMergeSource = mergeStep === "selectTarget" && pkId === mergeSourceId;
+              const inSpecialMode = !!mergeStep || !!splitStep;
+              const isBulkChecked = bulkSkipMode && bulkSkipSelected?.includes(pkId);
+              elements.push(
+                <PackageCard
+                  key={pkg.$primaryKey}
+                  pkg={pkg}
+                  meta={metaMap[pkId]}
+                  isSelected={inSpecialMode ? isMergeSource : bulkSkipMode ? !!isBulkChecked : pkId === selectedPackageId}
+                  showStatus={activeTab === "all"}
+                  disabled={isMergeSource}
+                  hasSiblings={!!pkg.conversationId && (conversationMap.get(pkg.conversationId)?.length ?? 0) > 1}
+                  showCheckbox={!!bulkSkipMode}
+                  checked={!!isBulkChecked}
+                  onClick={() => {
+                    if (bulkSkipMode) {
+                      onBulkSkipToggle?.(pkId);
+                    } else if (mergeStep) {
+                      if (!isMergeSource) {
+                        onMergeSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
+                      }
+                    } else if (splitStep) {
+                      onSplitSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
+                    } else {
+                      onSelectPackage(pkId, pkg.completionStatus ?? undefined);
                     }
-                  } else if (splitStep) {
-                    onSplitSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
-                  } else {
-                    onSelectPackage(pkId, pkg.completionStatus ?? undefined);
-                  }
-                }}
-              />
-            );
-          })
+                  }}
+                />,
+              );
+            }
+            return elements;
+          })()
         )}
       </div>
 
@@ -741,7 +824,7 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings,
           )}
         </span>
         <span className={css.cardMetaRight}>
-          <span>Received: {formatDate(pkg.receivedDate)}</span>
+          <span>Received: {formatReceivedDatetime(pkg.receivedDatetime, pkg.receivedDate)}</span>
           <span className={css.cardMetaSep}>·</span>
           <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
             Due: {formatDate(pkg.dueDate)}

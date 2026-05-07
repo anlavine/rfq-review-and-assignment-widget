@@ -274,11 +274,26 @@ function Home(): React.ReactElement {
     setRefreshToken((t) => t + 1);
   }, [handleCancelMerge]);
 
-  const handleStartSplit = useCallback(() => {
-    setSplitStep("selectPackage");
-    setSplitPackageId(null);
-    setSplitPackageName("");
-  }, []);
+  const handleStartSplit = useCallback(async () => {
+    if (selectedPackageId) {
+      // A package is already selected — use it directly
+      try {
+        const pkg = await client(PendingRfqPackage).fetchOne(selectedPackageId);
+        const name = pkg.packageName ?? pkg.subject ?? "Unnamed Package";
+        setSplitPackageId(selectedPackageId);
+        setSplitPackageName(name);
+      } catch {
+        // Fallback: let the user pick manually
+        setSplitStep("selectPackage");
+        setSplitPackageId(null);
+        setSplitPackageName("");
+      }
+    } else {
+      setSplitStep("selectPackage");
+      setSplitPackageId(null);
+      setSplitPackageName("");
+    }
+  }, [selectedPackageId]);
 
   const handleCancelSplit = useCallback(() => {
     setSplitStep(null);
