@@ -327,15 +327,15 @@ function PackageDetail({
     );
   }
 
-  const handleDueDateSave = async (dateStr: string) => {
-    if (!dateStr || savingDueDate) return;
+  const handleDueDateSave = async (dateStr: string | null) => {
+    if (savingDueDate) return;
     setSavingDueDate(true);
     try {
       const freshPkg = await client(PendingRfqPackage).fetchOne(packageId);
       await client(editDueDate).applyAction(
         {
           pending_rfq_package: freshPkg,
-          dueDate: dateStr,
+          dueDate: dateStr === null ? null : dateStr,
         },
         { $returnEdits: true },
       );
@@ -444,7 +444,7 @@ function PackageDetail({
                 disabled={savingDueDate}
                 onClick={() => {
                   const val = dateInputRef.current?.value;
-                  if (val) handleDueDateSave(val);
+                  handleDueDateSave(val || null);
                 }}
               >
                 {savingDueDate ? "…" : "Save"}

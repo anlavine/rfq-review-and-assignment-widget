@@ -137,18 +137,19 @@ async function resolveMetaStreaming(
 }
 
 /** Due date bucket for Outstanding tab section dividers */
-type DueDateBucket = "noDueDate" | "today" | "tomorrow" | "thisWeek" | "later";
+type DueDateBucket = "noDueDate" | "today" | "tomorrow" | "thisWeek" | "nextWeek" | "later";
 
 const BUCKET_LABELS: Record<DueDateBucket, string> = {
   noDueDate: "No Due Date",
   today: "Due Today",
   tomorrow: "Due Tomorrow",
   thisWeek: "Due This Week",
+  nextWeek: "Due Next Week",
   later: "Due Later",
 };
 
 /** Order in which buckets should appear */
-const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWeek", "later"];
+const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWeek", "nextWeek", "later"];
 
 /**
  * Assigns a package to a due-date bucket based on the current local date.
@@ -156,6 +157,7 @@ const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWe
  * - Overdue or due today → "today"
  * - Due tomorrow → "tomorrow"
  * - Due on or before Sunday of the current week → "thisWeek"
+ * - Due on or before Sunday of the following week → "nextWeek"
  * - Everything else → "later"
  */
 function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
@@ -175,9 +177,14 @@ function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
   const endOfWeek = new Date(today);
   endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
 
+  // End of next week (the following Sunday)
+  const endOfNextWeek = new Date(endOfWeek);
+  endOfNextWeek.setDate(endOfNextWeek.getDate() + 7);
+
   if (due.getTime() <= today.getTime()) return "today"; // overdue + today
   if (due.getTime() === tomorrow.getTime()) return "tomorrow";
   if (due.getTime() <= endOfWeek.getTime()) return "thisWeek";
+  if (due.getTime() <= endOfNextWeek.getTime()) return "nextWeek";
   return "later";
 }
 

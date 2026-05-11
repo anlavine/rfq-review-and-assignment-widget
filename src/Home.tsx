@@ -10,6 +10,7 @@ import FilterDropdown from "./components/FilterDropdown";
 import PackageDetail from "./components/PackageDetail";
 import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
 import client from "./client";
+import { compareToolNumber } from "./utils/sortTools";
 import EditTagsModal from "./components/EditTagsModal";
 import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
@@ -136,12 +137,14 @@ function Home(): React.ReactElement {
     if (!selectedPackageId) return;
     setCreatePackageLoading(true);
     try {
-      // Fetch tools for this package
+      // Fetch tools for this package, sorted by customerToolNumber
       const toolPage = await client(PendingRfqPackage)
         .where({ packageId: { $eq: selectedPackageId } })
         .pivotTo("pendingRfqPackageTools")
-        .fetchPage({ $pageSize: 200, $orderBy: { toolNumber: "asc" } });
-      const tools = toolPage.data;
+        .fetchPage({ $pageSize: 200 });
+      const tools = [...toolPage.data].sort((a, b) =>
+        compareToolNumber(a.customerToolNumber, b.customerToolNumber),
+      );
       const toolIds = tools
         .map((t) => t.toolId)
         .filter((id): id is string => id != null);

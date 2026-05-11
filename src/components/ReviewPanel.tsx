@@ -204,7 +204,7 @@ function ReviewPanel({
         if (cancelled) return;
         setAttachments(resolvedAttachments);
         setTools(
-          [...resolvedTools].sort((a, b) => compareToolNumber(a.toolNumber, b.toolNumber)),
+          [...resolvedTools].sort((a, b) => compareToolNumber(a.customerToolNumber, b.customerToolNumber)),
         );
         setCustomerName(resolvedCustomer);
 
@@ -389,7 +389,7 @@ function ReviewPanel({
         )}
         {tools.length > 0 ? (
           <div className={css.toolGrid}>
-            {tools.map((tool) => {
+            {tools.map((tool, toolIndex) => {
               const toolId = String(tool.$primaryKey);
               const linked = toolLinkedMap[toolId];
               const parts = linked?.parts ?? [];
@@ -398,9 +398,7 @@ function ReviewPanel({
               return (
                 <div key={tool.$primaryKey} className={css.toolCard}>
                   <div className={css.toolCardHeader}>
-                    {tool.toolNumber
-                      ? `Tool #${tool.toolNumber}`
-                      : "Unnamed Tool"}
+                    Tool #{toolIndex + 1}
                   </div>
 
                   {/* Tool properties */}
