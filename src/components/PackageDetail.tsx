@@ -10,6 +10,7 @@ import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
 import HtmlBodyContent from "./HtmlBodyContent";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
+import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
 
 interface PackageDetailProps {
   packageId: string;
@@ -343,6 +344,7 @@ function PackageDetail({
       const updated = await client(PendingRfqPackage).fetchOne(packageId);
       setPkg(updated);
       setEditingDueDate(false);
+      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE);
       onDueDateChanged?.();
     } catch (e) {
       console.error("Failed to update due date:", e);
@@ -365,6 +367,7 @@ function PackageDetail({
       );
       setCustomerName(newCustomerName);
       setEditingCustomer(false);
+      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_CUSTOMER);
       onDueDateChanged?.(); // re-use callback to trigger list refresh
     } catch (e) {
       console.error("Failed to change customer:", e);

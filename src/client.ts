@@ -31,6 +31,7 @@ const scopes = [
   "api:use-filesystem-read",
   "api:use-mediasets-read",
   "api:use-mediasets-write",
+  "api:admin-read",
 ];
 
 export const auth: PublicOauthClient = createPublicOauthClient(

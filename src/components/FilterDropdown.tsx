@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import css from "./FilterDropdown.module.css";
 import type { Filters } from "./PendingRfqPackageList";
+import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
 
 const AVAILABLE_TAGS = [
   "Targets",
@@ -49,6 +50,13 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
 
   const handleApply = () => {
     onFiltersChange(localFilters);
+    // Track which filters were applied
+    if (localFilters.dueDateStart || localFilters.dueDateEnd) trackUsage(INTERACTION_KEYS.FILTER_DUE_DATE);
+    if (localFilters.subjectSearch) trackUsage(INTERACTION_KEYS.FILTER_SUBJECT);
+    if (localFilters.customerSearch) trackUsage(INTERACTION_KEYS.FILTER_CUSTOMER);
+    if (localFilters.platformSearch) trackUsage(INTERACTION_KEYS.FILTER_PLATFORM);
+    if (localFilters.selectedTags.length > 0) trackUsage(INTERACTION_KEYS.FILTER_TAGS);
+    if (localFilters.hasParsedTools) trackUsage(INTERACTION_KEYS.FILTER_HAS_PARSED_TOOLS);
     setOpen(false);
   };
 

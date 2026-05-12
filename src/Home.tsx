@@ -16,6 +16,7 @@ import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
+import { trackUsage, INTERACTION_KEYS } from "./utils/trackUsage";
 
 import { isAsyncValue_Loaded } from "@osdk/workshop-iframe-custom-widget";
 
@@ -99,6 +100,7 @@ function Home(): React.ReactElement {
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
+      trackUsage(INTERACTION_KEYS.PACKAGE_SKIP);
       setExcludeFromAutoSelect((prev) => [...prev, skippedId]);
       setSelectedPackageId(null);
       setRefreshToken((t) => t + 1);
@@ -118,6 +120,7 @@ function Home(): React.ReactElement {
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
+      trackUsage(INTERACTION_KEYS.PACKAGE_UNSKIP);
       setSelectedPackageId(null);
       setRefreshToken((t) => t + 1);
     } catch (e) {
@@ -191,6 +194,7 @@ function Home(): React.ReactElement {
         workshopContext.selectedManifoldIds.setLoadedValue(manifoldIds);
         // Fire the Workshop event
         workshopContext.createPackageEvent.executeEvent(undefined);
+        trackUsage(INTERACTION_KEYS.PACKAGE_CREATE);
       } else {
         // Not inside Workshop — log for debugging
         console.log("Create Package (standalone mode):", {
@@ -235,6 +239,7 @@ function Home(): React.ReactElement {
 
   const handleBulkSkipComplete = useCallback(() => {
     setShowBulkSkipConfirm(false);
+    trackUsage(INTERACTION_KEYS.PACKAGE_BULK_SKIP);
     setExcludeFromAutoSelect((prev) => [...prev, ...bulkSkipSelected]);
     setBulkSkipMode(false);
     setBulkSkipSelected([]);
@@ -271,6 +276,7 @@ function Home(): React.ReactElement {
   }, [mergeStep]);
 
   const handleMergeComplete = useCallback(() => {
+    trackUsage(INTERACTION_KEYS.PACKAGE_MERGE);
     handleCancelMerge();
     setSelectedPackageId(null);
     setSelectedPackageStatus(null);
@@ -311,6 +317,7 @@ function Home(): React.ReactElement {
   }, []);
 
   const handleSplitComplete = useCallback(() => {
+    trackUsage(INTERACTION_KEYS.PACKAGE_SPLIT);
     handleCancelSplit();
     setSelectedPackageId(null);
     setSelectedPackageStatus(null);
@@ -397,7 +404,7 @@ function Home(): React.ReactElement {
               </button>
               <button
                 className={css.themeToggle}
-                onClick={toggleTheme}
+                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {theme === "dark" ? "☀️" : "🌙"}
@@ -553,6 +560,7 @@ function Home(): React.ReactElement {
           packageId={selectedPackageId}
           onClose={() => setShowEditTags(false)}
           onSaved={() => {
+            trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS);
             setShowEditTags(false);
             setRefreshToken((t) => t + 1);
           }}
@@ -584,6 +592,7 @@ function Home(): React.ReactElement {
           pendingPackageId={selectedPackageId}
           onClose={() => setShowLinkToRfq(false)}
           onLinked={() => {
+            trackUsage(INTERACTION_KEYS.PACKAGE_LINK_TO_RFQ);
             setShowLinkToRfq(false);
             setRefreshToken((t) => t + 1);
           }}
@@ -594,7 +603,7 @@ function Home(): React.ReactElement {
         <FeedbackModal
           packageId={selectedPackageId}
           onClose={() => setShowFeedback(false)}
-          onSubmitted={() => setShowFeedback(false)}
+          onSubmitted={() => { trackUsage(INTERACTION_KEYS.FEEDBACK_SUBMIT); setShowFeedback(false); }}
         />
       )}
 

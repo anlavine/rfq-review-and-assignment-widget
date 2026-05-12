@@ -12,6 +12,7 @@ import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
 import { isInlineImage } from "../utils/attachments";
 import { getConfidenceColor } from "../utils/confidenceColor";
+import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
 
 const ATTACHMENT_DATASET_RID =
   "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
@@ -313,6 +314,7 @@ function ReviewPanel({
                         anchor.click();
                         document.body.removeChild(anchor);
                         URL.revokeObjectURL(objectUrl);
+                        trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD);
                       } catch (e) {
                         console.error("Download failed:", e);
                         setDownloadError(
