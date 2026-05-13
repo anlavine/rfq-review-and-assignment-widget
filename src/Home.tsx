@@ -148,13 +148,15 @@ function Home(): React.ReactElement {
       const tools = [...toolPage.data].sort((a, b) =>
         compareToolNumber(a.customerToolNumber, b.customerToolNumber),
       );
-      const toolIds = tools
+      // Exclude removed tools
+      const activeTools = tools.filter((t) => !t.removed);
+      const toolIds = activeTools
         .map((t) => t.toolId)
         .filter((id): id is string => id != null);
 
-      // Fetch parts and manifolds for all tools in parallel
+      // Fetch parts and manifolds for all active tools in parallel
       const linkedResults = await Promise.all(
-        tools.map(async (tool) => {
+        activeTools.map(async (tool) => {
           const [parts, manifolds] = await Promise.all([
             (async () => {
               try {

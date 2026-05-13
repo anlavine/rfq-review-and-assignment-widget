@@ -5,6 +5,7 @@ import {
   PendingRFQPackageTool,
   PendingRfqPackagePart,
   PendingRfqPackageManifold,
+  setRemovalStatus,
 } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -124,6 +125,7 @@ function ReviewPanel({
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [removingToolId, setRemovingToolId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -260,6 +262,58 @@ function ReviewPanel({
     };
   }, [packageId, refreshToken]);
 
+  // Separate tools into active and removed
+  const activeTools = tools.filter((t) => !t.removed);
+  const removedTools = tools.filter((t) => t.removed);
+
+  const handleRemoveTool = async (tool: Osdk.Instance<PendingRFQPackageTool>) => {
+    const toolId = String(tool.$primaryKey);
+    setRemovingToolId(toolId);
+    try {
+      await client(setRemovalStatus).applyAction(
+        { pending_rfqpackage_tool: tool, removed: true },
+        { $returnEdits: true },
+      );
+      trackUsage(INTERACTION_KEYS.TOOL_REMOVE);
+      // Update local state so tool immediately moves to "Removed Tools"
+      setTools((prev) =>
+        prev.map((t) =>
+          String(t.$primaryKey) === toolId
+            ? { ...t, removed: true } as Osdk.Instance<PendingRFQPackageTool>
+            : t,
+        ),
+      );
+    } catch (e) {
+      console.error("Failed to remove tool:", e);
+    } finally {
+      setRemovingToolId(null);
+    }
+  };
+
+  const handleUnremoveTool = async (tool: Osdk.Instance<PendingRFQPackageTool>) => {
+    const toolId = String(tool.$primaryKey);
+    setRemovingToolId(toolId);
+    try {
+      await client(setRemovalStatus).applyAction(
+        { pending_rfqpackage_tool: tool, removed: false },
+        { $returnEdits: true },
+      );
+      trackUsage(INTERACTION_KEYS.TOOL_UNREMOVE);
+      // Update local state so tool immediately moves back to "Tools"
+      setTools((prev) =>
+        prev.map((t) =>
+          String(t.$primaryKey) === toolId
+            ? { ...t, removed: false } as Osdk.Instance<PendingRFQPackageTool>
+            : t,
+        ),
+      );
+    } catch (e) {
+      console.error("Failed to restore tool:", e);
+    } finally {
+      setRemovingToolId(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className={css.container}>
@@ -379,7 +433,7 @@ function ReviewPanel({
       <section className={css.section}>
         <h3 className={css.sectionTitle}>
           Tools{" "}
-          <span className={css.toolCountBadge}>{tools.length}</span>
+          <span className={css.toolCountBadge}>{activeTools.length}</span>
         </h3>
         {pkg && pkg.toolConfidenceScore != null && (
           <div className={css.confidenceBanner}>
@@ -389,9 +443,9 @@ function ReviewPanel({
             </strong>
           </div>
         )}
-        {tools.length > 0 ? (
+        {activeTools.length > 0 ? (
           <div className={css.toolGrid}>
-            {tools.map((tool, toolIndex) => {
+            {activeTools.map((tool, toolIndex) => {
               const toolId = String(tool.$primaryKey);
               const linked = toolLinkedMap[toolId];
               const parts = linked?.parts ?? [];
@@ -400,7 +454,15 @@ function ReviewPanel({
               return (
                 <div key={tool.$primaryKey} className={css.toolCard}>
                   <div className={css.toolCardHeader}>
-                    Tool #{toolIndex + 1}
+                    <span>Tool #{toolIndex + 1}</span>
+                    <button
+                      className={css.removeToolButton}
+                      disabled={removingToolId === toolId}
+                      onClick={() => handleRemoveTool(tool)}
+                      title="Remove tool from package"
+                    >
+                      {removingToolId === toolId ? "…" : "✕"}
+                    </button>
                   </div>
 
                   {/* Tool properties */}
@@ -484,6 +546,114 @@ function ReviewPanel({
           <p className={css.emptyMessage}>No tools found.</p>
         )}
       </section>
+
+      {/* ── Removed Tools Section ── */}
+      {removedTools.length > 0 && (
+        <section className={css.section}>
+          <h3 className={css.sectionTitle}>
+            Removed Tools{" "}
+            <span className={css.removedToolCountBadge}>{removedTools.length}</span>
+          </h3>
+          <div className={css.toolGrid}>
+            {removedTools.map((tool, toolIndex) => {
+              const toolId = String(tool.$primaryKey);
+              const linked = toolLinkedMap[toolId];
+              const parts = linked?.parts ?? [];
+              const manifolds = linked?.manifolds ?? [];
+
+              return (
+                <div key={tool.$primaryKey} className={`${css.toolCard} ${css.toolCardRemoved}`}>
+                  <div className={css.toolCardHeader}>
+                    <span>Removed Tool #{toolIndex + 1}</span>
+                    <button
+                      className={css.restoreToolButton}
+                      disabled={removingToolId === toolId}
+                      onClick={() => handleUnremoveTool(tool)}
+                      title="Restore tool to package"
+                    >
+                      {removingToolId === toolId ? "…" : "↩"}
+                    </button>
+                  </div>
+
+                  {/* Tool properties */}
+                  <dl className={css.toolProps}>
+                    {TOOL_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                      const value = tool[apiName];
+                      if (value == null || value === "") return null;
+                      const display =
+                        value instanceof Date
+                          ? value.toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                          })
+                          : String(value);
+                      return (
+                        <div key={apiName} className={css.toolPropRow}>
+                          <dt className={css.toolPropLabel}>{label}:</dt>
+                          <dd className={css.toolPropValue}>{display}</dd>
+                        </div>
+                      );
+                    })}
+                  </dl>
+
+                  {/* Parts sub-section */}
+                  {parts.length > 0 && (
+                    <div className={css.subSection}>
+                      <div className={css.subSectionTitle}>
+                        Parts ({parts.length})
+                      </div>
+                      {parts.map((part, partIdx) => (
+                        <React.Fragment key={part.$primaryKey}>
+                          {partIdx > 0 && <hr className={css.subItemDivider} />}
+                          <dl className={css.toolProps}>
+                            {PART_DISPLAY_PROPERTIES.map(({ apiName, label, suffix }) => {
+                              const value = part[apiName];
+                              if (value == null || value === "") return null;
+                              return (
+                                <div key={apiName} className={css.toolPropRow}>
+                                  <dt className={css.toolPropLabel}>{label}:</dt>
+                                  <dd className={css.toolPropValue}>{String(value)}{suffix ?? ""}</dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Manifolds sub-section */}
+                  {manifolds.length > 0 && (
+                    <div className={css.subSection}>
+                      <div className={css.subSectionTitle}>
+                        Manifolds ({manifolds.length})
+                      </div>
+                      {manifolds.map((manifold, manIdx) => (
+                        <React.Fragment key={manifold.$primaryKey}>
+                          {manIdx > 0 && <hr className={css.subItemDivider} />}
+                          <dl className={css.toolProps}>
+                            {MANIFOLD_DISPLAY_PROPERTIES.map(({ apiName, label }) => {
+                              const value = manifold[apiName];
+                              if (value == null || value === "") return null;
+                              return (
+                                <div key={apiName} className={css.toolPropRow}>
+                                  <dt className={css.toolPropLabel}>{label}:</dt>
+                                  <dd className={css.toolPropValue}>{String(value)}</dd>
+                                </div>
+                              );
+                            })}
+                          </dl>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

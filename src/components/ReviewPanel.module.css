@@ -127,6 +127,87 @@
   color: var(--text-primary);
   padding-bottom: 8px;
   border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* ── Remove / Restore buttons ── */
+.removeToolButton {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.removeToolButton:hover:not(:disabled) {
+  background: var(--error-bg);
+  color: var(--error-fg);
+  border-color: var(--error-border);
+}
+
+.removeToolButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.restoreToolButton {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.restoreToolButton:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+  border-color: var(--color-primary);
+}
+
+.restoreToolButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Removed tool card styling ── */
+.toolCardRemoved {
+  opacity: 0.6;
+  border-style: dashed;
+}
+
+/* ── Removed tool count badge ── */
+.removedToolCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--text-muted);
+  color: var(--color-primary-text);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
 }
 
 .toolProps {

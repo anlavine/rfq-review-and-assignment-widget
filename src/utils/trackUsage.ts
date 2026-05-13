@@ -22,6 +22,9 @@ export const INTERACTION_KEYS = {
   PACKAGE_EDIT_DUE_DATE: "package.editDueDate",
   PACKAGE_EDIT_CUSTOMER: "package.editCustomer",
   PACKAGE_CREATE: "package.create",
+  // Tool actions
+  TOOL_REMOVE: "tool.remove",
+  TOOL_UNREMOVE: "tool.unremove",
   // Other
   ATTACHMENT_DOWNLOAD: "attachment.download",
   FEEDBACK_SUBMIT: "feedback.submit",
