@@ -62,13 +62,12 @@ export function trackUsage(interactionKey: InteractionKey): void {
   (async () => {
     try {
       const userId = await getCurrentUserId();
-      if (!userId) return;
 
       await client(createRfqIngestionUsageMetric).applyAction({
         interactionKey,
         interactionTimestamp: new Date().toISOString(),
         usageMinutes: null,
-        userId,
+        userId: userId ?? null,
       });
     } catch {
       // Silently swallow — tracking should never block the user
