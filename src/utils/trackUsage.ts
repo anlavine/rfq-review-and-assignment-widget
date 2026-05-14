@@ -21,6 +21,7 @@ export const INTERACTION_KEYS = {
   PACKAGE_LINK_TO_RFQ: "package.linkToRfq",
   PACKAGE_EDIT_DUE_DATE: "package.editDueDate",
   PACKAGE_EDIT_CUSTOMER: "package.editCustomer",
+  PACKAGE_MARK_OUTSTANDING: "package.markOutstanding",
   PACKAGE_CREATE: "package.create",
   // Tool actions
   TOOL_REMOVE: "tool.remove",

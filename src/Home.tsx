@@ -130,6 +130,25 @@ function Home(): React.ReactElement {
     }
   }, [selectedPackageId, actionLoading]);
 
+  const handleMarkOutstanding = useCallback(async () => {
+    if (!selectedPackageId || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const pkg = await client(PendingRfqPackage).fetchOne(selectedPackageId);
+      await client(unskipPackageReview).applyAction(
+        { pending_rfq_package: pkg },
+        { $returnEdits: true },
+      );
+      trackUsage(INTERACTION_KEYS.PACKAGE_MARK_OUTSTANDING);
+      setSelectedPackageId(null);
+      setRefreshToken((t) => t + 1);
+    } catch (e) {
+      console.error("Failed to mark package as outstanding:", e);
+    } finally {
+      setActionLoading(false);
+    }
+  }, [selectedPackageId, actionLoading]);
+
   /**
    * "Create Package" handler:
    * 1. Fetches the linked tool IDs, part IDs, and manifold IDs for the selected package.
@@ -451,6 +470,14 @@ function Home(): React.ReactElement {
                       onClick={handleUnskip}
                     >
                       {actionLoading ? "Unskipping…" : "Unskip"}
+                    </button>
+                  ) : (activeTab === "reviewed" || (activeTab === "all" && selectedPackageStatus === "Reviewed")) ? (
+                    <button
+                      className={css.headerButton}
+                      disabled={!selectedPackageId || actionLoading}
+                      onClick={handleMarkOutstanding}
+                    >
+                      {actionLoading ? "Marking…" : "Mark Outstanding"}
                     </button>
                   ) : (
                     <button
