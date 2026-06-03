@@ -47,6 +47,11 @@
   color: var(--text-primary);
 }
 
+.attachmentItemIndented {
+  margin-left: 24px;
+  border-left: 2px solid var(--border-default);
+}
+
 .attachmentIcon {
   flex-shrink: 0;
   font-size: 14px;

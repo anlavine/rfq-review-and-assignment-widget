@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   PendingRfqPackage,
   PendingRfqAttachments,
@@ -262,6 +262,132 @@ function ReviewPanel({
     };
   }, [packageId, refreshToken]);
 
+  // ── Group attachments: zip parents with their extracted children ──
+  type AttachmentGroupItem =
+    | { type: "standalone"; att: Osdk.Instance<PendingRfqAttachments> }
+    | { type: "zip"; zip: Osdk.Instance<PendingRfqAttachments>; children: Osdk.Instance<PendingRfqAttachments>[] };
+
+  const groupedAttachments: AttachmentGroupItem[] = useMemo(() => {
+    // De-duplicate by fileName, keeping the first occurrence
+    const deduped = attachments.filter((att, idx, arr) => {
+      const name = att.fileName ?? "";
+      return arr.findIndex((a) => (a.fileName ?? "") === name) === idx;
+    });
+    const dedupedFilepaths = new Set(deduped.map((a) => a.filepath ?? ""));
+
+    // Build a map from every duplicate ZIP filepath → the surviving deduped
+    // attachment's filepath. Multiple ZIPs can share the same fileName but
+    // have different filepaths. Children reference the filepath of the
+    // specific ZIP they came from, which may have been the one removed by
+    // deduplication. This map lets us redirect those children to the
+    // surviving ZIP.
+    const zipFilepathToSurvivor = new Map<string, string>();
+    for (const att of attachments) {
+      if (!att.filepath) continue;
+      // Find the deduped survivor with the same fileName
+      const survivor = deduped.find((d) => (d.fileName ?? "") === (att.fileName ?? ""));
+      if (survivor && survivor.filepath && survivor.filepath !== att.filepath) {
+        zipFilepathToSurvivor.set(att.filepath, survivor.filepath);
+      }
+    }
+
+    // Collect children (have sourceZipFilename) from ALL attachments (pre-dedup),
+    // de-duplicating children by fileName as well.
+    // Resolve each child's sourceZipFilename to the surviving ZIP's filepath.
+    const childrenByZipPath = new Map<string, Osdk.Instance<PendingRfqAttachments>[]>();
+    const childFilepaths = new Set<string>();
+    const seenChildNames = new Set<string>();
+
+    for (const att of attachments) {
+      const srcZip = att.sourceZipFilename;
+      if (!srcZip) continue;
+      const childName = att.fileName ?? "";
+      if (seenChildNames.has(childName)) continue;
+      seenChildNames.add(childName);
+
+      // Resolve to the surviving ZIP filepath
+      const resolvedZipPath = zipFilepathToSurvivor.get(srcZip) ?? srcZip;
+
+      const list = childrenByZipPath.get(resolvedZipPath) ?? [];
+      list.push(att);
+      childrenByZipPath.set(resolvedZipPath, list);
+      childFilepaths.add(att.filepath ?? "");
+    }
+
+    const zipParentPaths = new Set(childrenByZipPath.keys());
+
+    // Build the grouped list from deduped attachments
+    const result: AttachmentGroupItem[] = [];
+    const rendered = new Set<string>();
+
+    for (const att of deduped) {
+      const fp = att.filepath ?? "";
+      if (rendered.has(fp)) continue;
+
+      // If this attachment is a zip that has children, render as a group
+      if (zipParentPaths.has(fp)) {
+        rendered.add(fp);
+        const children = childrenByZipPath.get(fp) ?? [];
+        for (const child of children) {
+          rendered.add(child.filepath ?? "");
+        }
+        result.push({ type: "zip", zip: att, children });
+        continue;
+      }
+
+      // If this attachment is a child of a zip, skip (will be rendered under its parent)
+      if (childFilepaths.has(fp)) continue;
+
+      // Standalone attachment
+      rendered.add(fp);
+      result.push({ type: "standalone", att });
+    }
+
+    // Handle orphaned children whose zip parent wasn't in the deduped list at all
+    for (const [zipPath, children] of childrenByZipPath) {
+      if (!dedupedFilepaths.has(zipPath)) {
+        for (const child of children) {
+          const cfp = child.filepath ?? "";
+          if (!rendered.has(cfp)) {
+            rendered.add(cfp);
+            result.push({ type: "standalone", att: child });
+          }
+        }
+      }
+    }
+
+    return result;
+  }, [attachments]);
+
+  const handleDownload = async (att: Osdk.Instance<PendingRfqAttachments>) => {
+    const attId = String(att.$primaryKey);
+    const displayName = att.fileName ?? att.filepath ?? "download";
+    setDownloadError(null);
+    setDownloadingId(attId);
+    try {
+      const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
+      const response = await fetch(url, { credentials: "include" });
+      if (!response.ok) throw new Error(`Download failed (${response.status})`);
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = displayName;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(objectUrl);
+      trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD);
+    } catch (e) {
+      console.error("Download failed:", e);
+      setDownloadError(
+        e instanceof Error ? e.message : "Failed to download file",
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   // Separate tools into active and removed
   const activeTools = tools.filter((t) => !t.removed);
   const removedTools = tools.filter((t) => t.removed);
@@ -337,53 +463,63 @@ function ReviewPanel({
         <h3 className={css.sectionTitle}>Attachments</h3>
         {attachments.length > 0 ? (
           <ul className={css.attachmentList}>
-            {attachments.filter((att, idx, arr) => {
-              const name = att.fileName ?? "";
-              return arr.findIndex((a) => (a.fileName ?? "") === name) === idx;
-            }).map((att) => (
-              <li key={att.$primaryKey} className={css.attachmentItem}>
-                <span className={css.attachmentIcon}>📎</span>
-                <span className={css.attachmentName}>
-                  {att.fileName ?? "Unnamed file"}
-                </span>
-                {att.filepath && (
-                  <button
-                    className={css.downloadButton}
-                    disabled={downloadingId === String(att.$primaryKey)}
-                    onClick={async () => {
-                      const attId = String(att.$primaryKey);
-                      const displayName = att.fileName ?? att.filepath ?? "download";
-                      setDownloadError(null);
-                      setDownloadingId(attId);
-                      try {
-                        const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
-                        const response = await fetch(url, { credentials: "include" });
-                        if (!response.ok) throw new Error(`Download failed (${response.status})`);
-                        const blob = await response.blob();
-                        const objectUrl = URL.createObjectURL(blob);
-                        const anchor = document.createElement("a");
-                        anchor.href = objectUrl;
-                        anchor.download = displayName;
-                        document.body.appendChild(anchor);
-                        anchor.click();
-                        document.body.removeChild(anchor);
-                        URL.revokeObjectURL(objectUrl);
-                        trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD);
-                      } catch (e) {
-                        console.error("Download failed:", e);
-                        setDownloadError(
-                          e instanceof Error ? e.message : "Failed to download file",
-                        );
-                      } finally {
-                        setDownloadingId(null);
-                      }
-                    }}
-                  >
-                    {downloadingId === String(att.$primaryKey) ? "Downloading…" : "Download"}
-                  </button>
-                )}
-              </li>
-            ))}
+            {groupedAttachments.map((item) => {
+              if (item.type === "zip") {
+                return (
+                  <React.Fragment key={item.zip.$primaryKey}>
+                    <li className={css.attachmentItem}>
+                      <span className={css.attachmentIcon}>🗜️</span>
+                      <span className={css.attachmentName}>
+                        {item.zip.fileName ?? "Unnamed zip"}
+                      </span>
+                      {item.zip.filepath && (
+                        <button
+                          className={css.downloadButton}
+                          disabled={downloadingId === String(item.zip.$primaryKey)}
+                          onClick={() => handleDownload(item.zip)}
+                        >
+                          {downloadingId === String(item.zip.$primaryKey) ? "Downloading…" : "Download"}
+                        </button>
+                      )}
+                    </li>
+                    {item.children.map((child) => (
+                      <li key={child.$primaryKey} className={`${css.attachmentItem} ${css.attachmentItemIndented}`}>
+                        <span className={css.attachmentIcon}>📎</span>
+                        <span className={css.attachmentName}>
+                          {child.fileName ?? "Unnamed file"}
+                        </span>
+                        {child.filepath && (
+                          <button
+                            className={css.downloadButton}
+                            disabled={downloadingId === String(child.$primaryKey)}
+                            onClick={() => handleDownload(child)}
+                          >
+                            {downloadingId === String(child.$primaryKey) ? "Downloading…" : "Download"}
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </React.Fragment>
+                );
+              }
+              return (
+                <li key={item.att.$primaryKey} className={css.attachmentItem}>
+                  <span className={css.attachmentIcon}>📎</span>
+                  <span className={css.attachmentName}>
+                    {item.att.fileName ?? "Unnamed file"}
+                  </span>
+                  {item.att.filepath && (
+                    <button
+                      className={css.downloadButton}
+                      disabled={downloadingId === String(item.att.$primaryKey)}
+                      onClick={() => handleDownload(item.att)}
+                    >
+                      {downloadingId === String(item.att.$primaryKey) ? "Downloading…" : "Download"}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p className={css.emptyMessage}>No attachments found.</p>

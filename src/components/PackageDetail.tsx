@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { PendingRfqPackage, editDueDate, changeCustomer } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, editDueDate, changeCustomer, RfqIngestionErrors } from "@rfq-review-hub-widget-application/sdk";
 import CustomerPicker from "./CustomerPicker";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -197,6 +197,8 @@ function PackageDetail({
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [toolCount, setToolCount] = useState<number | null>(null);
   const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
+  const [hasPackageError, setHasPackageError] = useState(false);
+  const [hasToolError, setHasToolError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDueDate, setEditingDueDate] = useState(false);
@@ -212,6 +214,8 @@ function PackageDetail({
     setCustomerName(null);
     setToolCount(null);
     setConversationSiblings([]);
+    setHasPackageError(false);
+    setHasToolError(false);
     setLoading(true);
     setError(null);
 
@@ -284,16 +288,43 @@ function PackageDetail({
           }
         })();
 
-        const [resolvedCustomer, resolvedToolCount, resolvedSiblings] = await Promise.all([
+        // Fetch ingestion errors matching this package's emailId
+        const errorsPromise = (async () => {
+          const emailId = obj.emailId;
+          if (!emailId) return { hasPackageError: false, hasToolError: false };
+          try {
+            const page = await client(RfqIngestionErrors)
+              .where({ emailId: { $eq: emailId } })
+              .fetchPage({ $pageSize: 200 });
+            let pkgErr = false;
+            let toolErr = false;
+            for (const err of page.data) {
+              if (err.agentId?.toLowerCase().includes("package")) {
+                pkgErr = true;
+              } else {
+                toolErr = true;
+              }
+              if (pkgErr && toolErr) break;
+            }
+            return { hasPackageError: pkgErr, hasToolError: toolErr };
+          } catch {
+            return { hasPackageError: false, hasToolError: false };
+          }
+        })();
+
+        const [resolvedCustomer, resolvedToolCount, resolvedSiblings, resolvedErrors] = await Promise.all([
           customerPromise,
           toolCountPromise,
           conversationPromise,
+          errorsPromise,
         ]);
 
         if (cancelled) return;
         setCustomerName(resolvedCustomer);
         setToolCount(resolvedToolCount);
         setConversationSiblings(resolvedSiblings);
+        setHasPackageError(resolvedErrors.hasPackageError);
+        setHasToolError(resolvedErrors.hasToolError);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -481,6 +512,12 @@ function PackageDetail({
             }
             return <span className={chipClass}>{chipLabel}</span>;
           })()}
+          {hasPackageError && (
+            <span className={css.ingestionErrorChip}>⚠ Package Error</span>
+          )}
+          {hasToolError && (
+            <span className={css.ingestionErrorChip}>⚠ Tool Error</span>
+          )}
           {pkg.overallConfidenceScore != null && (
             <span className={css.confidenceChip}>
               Overall Completion:{" "}
