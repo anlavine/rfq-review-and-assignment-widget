@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import ReactDOM from "react-dom";
 import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import { Branches } from "@osdk/foundry.datasets";
@@ -52,6 +52,22 @@ interface PackageMeta {
 export type MergeStep = "selectSource" | "selectTarget" | null;
 export type SplitStep = "selectPackage" | null;
 export type BulkSkipMode = boolean;
+
+/** Imperative handle exposed to parent for optimistic updates */
+export interface PendingRfqPackageListHandle {
+  /** Optimistically update a package's completionStatus in local state */
+  updatePackageStatus: (packageId: string, newStatus: string) => void;
+  /** Optimistically update a package's tags in local state */
+  updatePackageTags: (packageId: string, newTags: string[]) => void;
+  /** Remove packages from local state (used after merges/splits) */
+  removePackages: (packageIds: string[]) => void;
+}
+
+/** Local overrides applied optimistically before server confirms */
+interface PackageOverrides {
+  completionStatus?: string;
+  tags?: string[];
+}
 
 interface PendingRfqPackageListProps {
   onSelectPackage: (packageId: string, completionStatus?: string) => void;
@@ -206,7 +222,7 @@ function formatLastUpdated(iso: string): string {
   }
 }
 
-function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll }: PendingRfqPackageListProps): React.ReactElement {
+const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll }, ref) {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -222,9 +238,53 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
   /** Tracks whether we've already fired the auto-select for this load cycle */
   const autoSelectedRef = useRef(false);
 
+  /** Optimistic overrides — keyed by packageId */
+  const [overridesMap, setOverridesMap] = useState<Record<string, PackageOverrides>>({});
+
+  // ── Expose imperative handle for optimistic updates ──
+  useImperativeHandle(ref, () => ({
+    updatePackageStatus(packageId: string, newStatus: string) {
+      setOverridesMap((prev) => ({
+        ...prev,
+        [packageId]: { ...prev[packageId], completionStatus: newStatus },
+      }));
+    },
+    updatePackageTags(packageId: string, newTags: string[]) {
+      setOverridesMap((prev) => ({
+        ...prev,
+        [packageId]: { ...prev[packageId], tags: newTags },
+      }));
+    },
+    removePackages(packageIds: string[]) {
+      const idSet = new Set(packageIds);
+      setAllPackages((prev) => prev.filter((p) => !idSet.has(String(p.$primaryKey))));
+      setMetaMap((prev) => {
+        const next = { ...prev };
+        for (const id of packageIds) delete next[id];
+        return next;
+      });
+      setOverridesMap((prev) => {
+        const next = { ...prev };
+        for (const id of packageIds) delete next[id];
+        return next;
+      });
+    },
+  }));
+
   const activeStatus = TABS.find((t) => t.key === activeTab)?.status ?? null;
 
-  // ── Incremental load: fetch packages in pages of 50, render after first page ──
+  // ── Helper: get effective value of a package property, respecting overrides ──
+  const getEffectiveStatus = (pkg: Osdk.Instance<PendingRfqPackage>): string | undefined => {
+    const pkId = String(pkg.$primaryKey);
+    return overridesMap[pkId]?.completionStatus ?? pkg.completionStatus;
+  };
+
+  const getEffectiveTags = (pkg: Osdk.Instance<PendingRfqPackage>): string[] => {
+    const pkId = String(pkg.$primaryKey);
+    return overridesMap[pkId]?.tags ?? pkg.tags ?? [];
+  };
+
+  // ── Prioritized two-phase load: Outstanding first, then the rest ──
   useEffect(() => {
     const loadId = ++loadIdRef.current;
     let cancelled = false;
@@ -235,6 +295,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       setError(null);
       setAllPackages([]);
       setMetaMap({});
+      setOverridesMap({});
       autoSelectedRef.current = false;
 
       // Fetch last updated timestamp from the dataset's latest transaction
@@ -255,14 +316,27 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         cutoff.setMonth(cutoff.getMonth() - RECEIVED_MONTHS);
         const cutoffStr = cutoff.toISOString().split("T")[0];
 
+        const dateFilter = { $or: [{ receivedDate: { $gte: cutoffStr } }, { receivedDate: { $isNull: true } }] };
+
+        // Helper: deduplicate when appending to allPackages state
+        const appendDeduped = (newPackages: Osdk.Instance<PendingRfqPackage>[]) => {
+          setAllPackages((prev) => {
+            const existingPks = new Set(prev.map((p) => String(p.$primaryKey)));
+            const unique = newPackages.filter((p) => !existingPks.has(String(p.$primaryKey)));
+            return unique.length > 0 ? [...prev, ...unique] : prev;
+          });
+        };
+
+        // ── Phase 1: Load Outstanding (Active) packages first ──
+        // Since the user lands on the Outstanding tab, prioritize these.
         let token: string | undefined;
         let hasMore = true;
-        let isFirstPage = true;
+        const phase1Packages: Osdk.Instance<PendingRfqPackage>[] = [];
 
         while (hasMore && !cancelled) {
           const page = await client(PendingRfqPackage)
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .where({ $or: [{ receivedDate: { $gte: cutoffStr } }, { receivedDate: { $isNull: true } }] } as any)
+            .where({ $and: [dateFilter, { completionStatus: { $eq: "Active" } }] } as any)
             .fetchPage({
               $pageSize: FETCH_PAGE_SIZE,
               ...(token ? { $nextPageToken: token } : {}),
@@ -272,21 +346,10 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
           if (cancelled || loadId !== loadIdRef.current) return;
 
           const newPackages = page.data;
-
-          // Append new packages to state immediately so the UI can render them
+          phase1Packages.push(...newPackages);
           setAllPackages((prev) => [...prev, ...newPackages]);
 
-          // After the first page arrives, stop showing the full-screen spinner
-          if (isFirstPage) {
-            isFirstPage = false;
-            setInitialLoading(false);
-            if (page.nextPageToken) {
-              setBackgroundLoading(true);
-            }
-          }
-
-          // Start resolving metadata for this batch in the background
-          // (fire-and-forget — each resolved chunk merges into metaMap)
+          // Resolve metadata in the background
           resolveMetaStreaming(
             newPackages,
             (batch) => {
@@ -300,6 +363,108 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
           token = page.nextPageToken;
           hasMore = !!token;
         }
+
+        if (cancelled || loadId !== loadIdRef.current) return;
+
+        // Collect unique conversationIds from Outstanding packages for sibling lookup
+        const conversationIds = new Set<string>();
+        for (const pkg of phase1Packages) {
+          if (pkg.conversationId) conversationIds.add(pkg.conversationId);
+        }
+
+        // ── Phase 2 & Phase 3 run in PARALLEL after Phase 1 ──
+        // Phase 2: Load conversation siblings (part of initial load)
+        // Phase 3: Load all remaining non-Active packages (background)
+        setBackgroundLoading(true);
+
+        const phase2Promise = (async () => {
+          // Fetch non-Active packages that share a conversationId with Outstanding ones.
+          // Batch conversationIds to avoid overly large query clauses.
+          const CONV_BATCH_SIZE = 20;
+          const convIdArray = Array.from(conversationIds);
+
+          for (let i = 0; i < convIdArray.length && !cancelled; i += CONV_BATCH_SIZE) {
+            const batch = convIdArray.slice(i, i + CONV_BATCH_SIZE);
+            const convIdFilter = { $or: batch.map((id) => ({ conversationId: { $eq: id } })) };
+
+            let sibToken: string | undefined;
+            let sibHasMore = true;
+
+            while (sibHasMore && !cancelled) {
+              const sibPage = await client(PendingRfqPackage)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                .where({ $and: [dateFilter, convIdFilter, { $or: [{ completionStatus: { $ne: "Active" } }, { completionStatus: { $isNull: true } }] }] } as any)
+                .fetchPage({
+                  $pageSize: FETCH_PAGE_SIZE,
+                  ...(sibToken ? { $nextPageToken: sibToken } : {}),
+                  $orderBy: { dueDate: "asc" },
+                });
+
+              if (cancelled || loadId !== loadIdRef.current) return;
+
+              const sibPackages = sibPage.data;
+              appendDeduped(sibPackages);
+
+              resolveMetaStreaming(
+                sibPackages,
+                (metaBatch) => {
+                  if (loadId === loadIdRef.current) {
+                    setMetaMap((prev) => ({ ...prev, ...metaBatch }));
+                  }
+                },
+                () => cancelled || loadId !== loadIdRef.current,
+              );
+
+              sibToken = sibPage.nextPageToken;
+              sibHasMore = !!sibToken;
+            }
+          }
+        })();
+
+        const phase3Promise = (async () => {
+          // Load all non-Active packages in background; deduplicates against Phase 2 siblings.
+          let token3: string | undefined;
+          let hasMore3 = true;
+
+          while (hasMore3 && !cancelled) {
+            const page3 = await client(PendingRfqPackage)
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .where({ $and: [dateFilter, { $or: [{ completionStatus: { $ne: "Active" } }, { completionStatus: { $isNull: true } }] }] } as any)
+              .fetchPage({
+                $pageSize: FETCH_PAGE_SIZE,
+                ...(token3 ? { $nextPageToken: token3 } : {}),
+                $orderBy: { dueDate: "asc" },
+              });
+
+            if (cancelled || loadId !== loadIdRef.current) return;
+
+            const newPackages3 = page3.data;
+            appendDeduped(newPackages3);
+
+            resolveMetaStreaming(
+              newPackages3,
+              (metaBatch) => {
+                if (loadId === loadIdRef.current) {
+                  setMetaMap((prev) => ({ ...prev, ...metaBatch }));
+                }
+              },
+              () => cancelled || loadId !== loadIdRef.current,
+            );
+
+            token3 = page3.nextPageToken;
+            hasMore3 = !!token3;
+          }
+        })();
+
+        // Phase 2 completing marks the end of "initial" load (Outstanding + siblings ready)
+        phase2Promise.then(() => {
+          if (!cancelled && loadId === loadIdRef.current) {
+            setInitialLoading(false);
+          }
+        });
+
+        // Wait for both to finish before clearing backgroundLoading
+        await Promise.all([phase2Promise, phase3Promise]);
       } catch (e) {
         if (!cancelled && loadId === loadIdRef.current) {
           setError(e instanceof Error ? e.message : "Failed to load packages");
@@ -340,8 +505,12 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       const pkId = String(pkg.$primaryKey);
       const meta = metaMap[pkId];
 
+      // Use effective (overridden) values for filtering
+      const effectiveStatus = getEffectiveStatus(pkg);
+      const effectiveTags = getEffectiveTags(pkg);
+
       // Tab / status filter
-      if (activeStatus && pkg.completionStatus !== activeStatus) return false;
+      if (activeStatus && effectiveStatus !== activeStatus) return false;
 
       // Due date range
       if (filters.dueDateStart && pkg.dueDate) {
@@ -373,10 +542,9 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         if (!pkg.platform.toLowerCase().includes(filters.platformSearch.toLowerCase())) return false;
       }
 
-      // Tags filter — package must have ALL selected tags
+      // Tags filter — package must have ALL selected tags (uses effective tags)
       if (filters.selectedTags.length > 0) {
-        const pkgTags = pkg.tags ?? [];
-        if (!filters.selectedTags.some((t) => pkgTags.includes(t))) return false;
+        if (!filters.selectedTags.some((t) => effectiveTags.includes(t))) return false;
       }
 
       // Has parsed tools (only if metadata resolved)
@@ -401,14 +569,15 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     }
 
     return filtered;
-  }, [allPackages, metaMap, activeStatus, activeTab, filters]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allPackages, metaMap, activeStatus, activeTab, filters, overridesMap]);
 
   // ── Auto-select first package after all pages have loaded ──
-  // We wait for both initialLoading AND backgroundLoading to be false so the
+  // We wait for initialLoading to be false so the
   // full dataset is available. Selecting earlier could pick a package that
   // gets filtered out once later pages arrive.
   useEffect(() => {
-    if (autoSelectedRef.current || initialLoading || backgroundLoading || filteredPackages.length === 0) return;
+    if (autoSelectedRef.current || initialLoading || filteredPackages.length === 0) return;
     // Only auto-select if nothing is currently selected
     if (selectedPackageId) return;
     autoSelectedRef.current = true;
@@ -417,7 +586,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
     if (!candidate) return;
     const candidateId = String(candidate.$primaryKey);
     onFirstPackageReady?.(candidateId, candidate.completionStatus ?? undefined);
-  }, [initialLoading, backgroundLoading, filteredPackages, selectedPackageId, onFirstPackageReady, excludeFromAutoSelect]);
+  }, [initialLoading, filteredPackages, selectedPackageId, onFirstPackageReady, excludeFromAutoSelect]);
 
   // ── Client-side pagination ──
   const totalPages = Math.max(1, Math.ceil(filteredPackages.length / PAGE_SIZE));
@@ -464,7 +633,8 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         const selectedPkg = allPackages.find(
           (p) => String(p.$primaryKey) === selectedPackageId,
         );
-        if (!selectedPkg || selectedPkg.completionStatus !== newStatus) {
+        const selectedEffectiveStatus = selectedPkg ? getEffectiveStatus(selectedPkg) : undefined;
+        if (!selectedPkg || selectedEffectiveStatus !== newStatus) {
           onDeselectPackage();
         }
       }
@@ -520,8 +690,8 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       )}
 
       <div className={css.cardGrid}>
-        {initialLoading || backgroundLoading ? (
-          <div className={css.emptyCard}>Fetching packages…{backgroundLoading && ` (${allPackages.length} loaded so far)`}</div>
+        {initialLoading || (backgroundLoading && activeTab !== "outstanding") ? (
+          <div className={css.emptyCard}>Fetching packages…</div>
         ) : error ? (
           <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>
         ) : pagePackages.length === 0 ? (
@@ -572,6 +742,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
                   key={pkg.$primaryKey}
                   pkg={pkg}
                   meta={metaMap[pkId]}
+                  overrides={overridesMap[pkId]}
                   isSelected={inSpecialMode ? isMergeSource : bulkSkipMode ? !!isBulkChecked : pkId === selectedPackageId}
                   showStatus={activeTab === "all"}
                   disabled={isMergeSource}
@@ -588,7 +759,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
                     } else if (splitStep) {
                       onSplitSelect(pkId, pkg.packageName || pkg.subject || "Unnamed Package");
                     } else {
-                      onSelectPackage(pkId, pkg.completionStatus ?? undefined);
+                      onSelectPackage(pkId, (overridesMap[pkId]?.completionStatus ?? pkg.completionStatus) ?? undefined);
                     }
                   }}
                 />,
@@ -599,7 +770,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
         )}
       </div>
 
-      {!initialLoading && !backgroundLoading && !error && filteredPackages.length > 0 && (
+      {!initialLoading && !(backgroundLoading && activeTab !== "outstanding") && !error && filteredPackages.length > 0 && (
         <div className={css.paginationBar} ref={paginationRef}>
           <span>
             Page {currentPage + 1} of {totalPages} &middot; {filteredPackages.length} result{filteredPackages.length !== 1 ? "s" : ""}
@@ -635,7 +806,7 @@ function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPac
       )}
     </div>
   );
-}
+});
 
 function formatDate(date: string | undefined): string {
   if (!date) return "—";
@@ -731,6 +902,7 @@ function buildVehicleLine(
 interface PackageCardProps {
   pkg: Osdk.Instance<PendingRfqPackage>;
   meta?: PackageMeta;
+  overrides?: PackageOverrides;
   isSelected: boolean;
   showStatus: boolean;
   disabled?: boolean;
@@ -740,7 +912,7 @@ interface PackageCardProps {
   onClick: () => void;
 }
 
-function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, onClick }: PackageCardProps): React.ReactElement {
+function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, onClick }: PackageCardProps): React.ReactElement {
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
   const metaLoaded = meta !== undefined;
@@ -748,9 +920,11 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings,
   const toolCount = meta?.toolCount ?? null;
   const attachmentCount = excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;
 
-  const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
+  // Use effective (overridden) values
+  const effectiveStatus = overrides?.completionStatus ?? pkg.completionStatus;
+  const urgency = getDueDateUrgency(pkg.dueDate, effectiveStatus);
 
-  const tags = pkg.tags ?? [];
+  const tags = overrides?.tags ?? pkg.tags ?? [];
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
   const overflowTags = tags.slice(MAX_VISIBLE_TAGS);
   const [showPopover, setShowPopover] = useState(false);
@@ -821,11 +995,11 @@ function PackageCard({ pkg, meta, isSelected, showStatus, disabled, hasSiblings,
           {customerLoading ? "…" : customerName ?? "—"}
           <span className={css.cardMetaSep}>·</span>
           {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
-          {showStatus && pkg.completionStatus && (
+          {showStatus && effectiveStatus && (
             <>
               <span className={css.cardMetaSep}>·</span>
-              <span className={`${css.statusBadge} ${getStatusClass(pkg.completionStatus)}`}>
-                {pkg.completionStatus}
+              <span className={`${css.statusBadge} ${getStatusClass(effectiveStatus)}`}>
+                {effectiveStatus}
               </span>
             </>
           )}

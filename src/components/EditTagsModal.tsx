@@ -15,7 +15,7 @@ const AVAILABLE_TAGS = [
 interface EditTagsModalProps {
   packageId: string;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (newTags: string[]) => void;
 }
 
 function EditTagsModal({
@@ -75,7 +75,7 @@ function EditTagsModal({
         },
         { $returnEdits: true },
       );
-      onSaved();
+      onSaved(Array.from(selectedTags));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save tags");
       setSaving(false);

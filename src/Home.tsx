@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
-import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode } from "./components/PendingRfqPackageList";
+import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode, PendingRfqPackageListHandle } from "./components/PendingRfqPackageList";
 import BulkSkipConfirmModal from "./components/BulkSkipConfirmModal";
 import MergeConfirmModal from "./components/MergeConfirmModal";
 import SplitPackageModal from "./components/SplitPackageModal";
@@ -47,6 +47,9 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const { theme, toggleTheme } = useTheme();
+
+  /** Ref to PendingRfqPackageList for optimistic updates */
+  const listRef = useRef<PendingRfqPackageListHandle>(null);
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -101,9 +104,10 @@ function Home(): React.ReactElement {
         { $returnEdits: true },
       );
       trackUsage(INTERACTION_KEYS.PACKAGE_SKIP);
+      // Optimistic update: move package to "Skipped" in local state
+      listRef.current?.updatePackageStatus(skippedId, "Skipped");
       setExcludeFromAutoSelect((prev) => [...prev, skippedId]);
       setSelectedPackageId(null);
-      setRefreshToken((t) => t + 1);
     } catch (e) {
       console.error("Failed to skip package:", e);
     } finally {
@@ -121,8 +125,9 @@ function Home(): React.ReactElement {
         { $returnEdits: true },
       );
       trackUsage(INTERACTION_KEYS.PACKAGE_UNSKIP);
+      // Optimistic update: move package to "Active" in local state
+      listRef.current?.updatePackageStatus(selectedPackageId, "Active");
       setSelectedPackageId(null);
-      setRefreshToken((t) => t + 1);
     } catch (e) {
       console.error("Failed to unskip package:", e);
     } finally {
@@ -140,8 +145,9 @@ function Home(): React.ReactElement {
         { $returnEdits: true },
       );
       trackUsage(INTERACTION_KEYS.PACKAGE_MARK_OUTSTANDING);
+      // Optimistic update: move package to "Active" in local state
+      listRef.current?.updatePackageStatus(selectedPackageId, "Active");
       setSelectedPackageId(null);
-      setRefreshToken((t) => t + 1);
     } catch (e) {
       console.error("Failed to mark package as outstanding:", e);
     } finally {
@@ -261,11 +267,14 @@ function Home(): React.ReactElement {
   const handleBulkSkipComplete = useCallback(() => {
     setShowBulkSkipConfirm(false);
     trackUsage(INTERACTION_KEYS.PACKAGE_BULK_SKIP);
+    // Optimistic update: mark all selected packages as "Skipped"
+    for (const pkgId of bulkSkipSelected) {
+      listRef.current?.updatePackageStatus(pkgId, "Skipped");
+    }
     setExcludeFromAutoSelect((prev) => [...prev, ...bulkSkipSelected]);
     setBulkSkipMode(false);
     setBulkSkipSelected([]);
     setSelectedPackageId(null);
-    setRefreshToken((t) => t + 1);
   }, [bulkSkipSelected]);
 
   const handleStartMerge = useCallback(() => {
@@ -353,6 +362,7 @@ function Home(): React.ReactElement {
         {/* List panel — slides out when in review mode */}
         <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
           <PendingRfqPackageList
+            ref={listRef}
             onSelectPackage={handleSelectPackage}
             onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
             selectedPackageId={selectedPackageId}
@@ -588,10 +598,11 @@ function Home(): React.ReactElement {
         <EditTagsModal
           packageId={selectedPackageId}
           onClose={() => setShowEditTags(false)}
-          onSaved={() => {
+          onSaved={(newTags) => {
             trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS);
             setShowEditTags(false);
-            setRefreshToken((t) => t + 1);
+            // Optimistic update: update tags in local state
+            listRef.current?.updatePackageTags(selectedPackageId, newTags);
           }}
         />
       )}
