@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useRef } from "react";
-import { PendingRfqPackage, editDueDate, changeCustomer, RfqIngestionErrors } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, PendingRfqAttachments, editDueDate, changeCustomer, RfqIngestionErrors } from "@rfq-review-hub-widget-application/sdk";
 import CustomerPicker from "./CustomerPicker";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
-import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
+import { excludeInlineImages, isParsedAttachment, isInlineImage } from "../utils/attachments";
 import HtmlBodyContent from "./HtmlBodyContent";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
@@ -196,6 +196,7 @@ function PackageDetail({
   );
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [toolCount, setToolCount] = useState<number | null>(null);
+  const [attachmentCount, setAttachmentCount] = useState<number | null>(null);
   const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
   const [hasPackageError, setHasPackageError] = useState(false);
   const [hasToolError, setHasToolError] = useState(false);
@@ -213,6 +214,7 @@ function PackageDetail({
     setPkg(null);
     setCustomerName(null);
     setToolCount(null);
+    setAttachmentCount(null);
     setConversationSiblings([]);
     setHasPackageError(false);
     setHasToolError(false);
@@ -244,6 +246,30 @@ function PackageDetail({
               .pivotTo("pendingRfqPackageTools")
               .fetchPage({ $pageSize: 200 });
             return toolPage.data.length;
+          } catch {
+            return 0;
+          }
+        })();
+
+        const attachmentCountPromise = (async () => {
+          const emailId = obj.emailId;
+          const fileNames = (obj.attachmentFileNames ?? []).filter((n) => !isInlineImage(n));
+          if (!emailId || fileNames.length === 0) return 0;
+          try {
+            const page = await client(PendingRfqAttachments)
+              .where({
+                $and: [
+                  { fileName: { $in: fileNames } },
+                  { emailId: { $eq: emailId } },
+                ],
+              })
+              .fetchPage({ $pageSize: 200 });
+            // De-duplicate by fileName
+            const seen = new Set<string>();
+            for (const att of page.data) {
+              if (att.fileName) seen.add(att.fileName);
+            }
+            return seen.size;
           } catch {
             return 0;
           }
@@ -312,9 +338,10 @@ function PackageDetail({
           }
         })();
 
-        const [resolvedCustomer, resolvedToolCount, resolvedSiblings, resolvedErrors] = await Promise.all([
+        const [resolvedCustomer, resolvedToolCount, resolvedAttachmentCount, resolvedSiblings, resolvedErrors] = await Promise.all([
           customerPromise,
           toolCountPromise,
+          attachmentCountPromise,
           conversationPromise,
           errorsPromise,
         ]);
@@ -322,6 +349,7 @@ function PackageDetail({
         if (cancelled) return;
         setCustomerName(resolvedCustomer);
         setToolCount(resolvedToolCount);
+        setAttachmentCount(resolvedAttachmentCount);
         setConversationSiblings(resolvedSiblings);
         setHasPackageError(resolvedErrors.hasPackageError);
         setHasToolError(resolvedErrors.hasToolError);
@@ -407,9 +435,10 @@ function PackageDetail({
     }
   };
 
-  // Exclude inline images (jpg, png, etc.) from the attachment list — they're rendered in the body
-  const nonImageFileNames = excludeInlineImages(pkg.attachmentFileNames ?? []);
-  const attachments = nonImageFileNames.filter(isParsedAttachment);
+  // parsedAttachmentFilenames is the authoritative list of attachments that were actually parsed
+  const parsedAttachmentCount = pkg.receivedDatetime && (pkg.receivedDatetime > "2026-06-05T15:35:06Z")
+    ? (pkg.parsedAttachmentFilenames ?? []).length
+    : excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;;
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
   // Detect merged packages
@@ -493,8 +522,8 @@ function PackageDetail({
             </div>
           )}
           {(() => {
-            const totalCount = nonImageFileNames.length;
-            const parsedCount = attachments.length;
+            const totalCount = attachmentCount ?? 0;
+            const parsedCount = parsedAttachmentCount;
             let chipClass: string;
             let chipLabel: string;
             if (totalCount === 0) {
@@ -602,7 +631,11 @@ function PackageDetail({
         <div className={css.box}>
           <span className={css.boxLabel}>Number of Parsed Attachments</span>
           <div className={css.toolCount}>
-            <span className={css.toolCountBadge}>{attachments.length}</span>
+            <span className={css.toolCountBadge}>
+              {attachmentCount == null
+                ? "…"
+                : Math.min(parsedAttachmentCount, attachmentCount)}
+            </span>
           </div>
         </div>
       </div>

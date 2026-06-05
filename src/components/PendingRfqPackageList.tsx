@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import ReactDOM from "react-dom";
-import { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, PendingRfqAttachments } from "@rfq-review-hub-widget-application/sdk";
 import { Branches } from "@osdk/foundry.datasets";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./PendingRfqPackageList.module.css";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { isMergedPackage } from "../utils/mergedFields";
-import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
+import { isInlineImage } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 
 const PAGE_SIZE = 50;
@@ -47,6 +47,7 @@ export type ExcludeFromAutoSelect = string[];
 interface PackageMeta {
   customerName: string | null;
   toolCount: number;
+  attachmentCount: number;
 }
 
 export type MergeStep = "selectSource" | "selectTarget" | null;
@@ -97,9 +98,10 @@ interface PendingRfqPackageListProps {
   onBulkSkipDeselectAll?: () => void;
 }
 
-/** Resolve customer name and tool count for a single package */
-async function resolvePackageMeta(pkId: string): Promise<PackageMeta> {
-  const [customerName, toolCount] = await Promise.all([
+/** Resolve customer name, tool count, and attachment count for a single package */
+async function resolvePackageMeta(pkg: Osdk.Instance<PendingRfqPackage>): Promise<PackageMeta> {
+  const pkId = String(pkg.$primaryKey);
+  const [customerName, toolCount, attachmentCount] = await Promise.all([
     (async () => {
       try {
         const page = await client(PendingRfqPackage)
@@ -122,8 +124,31 @@ async function resolvePackageMeta(pkId: string): Promise<PackageMeta> {
         return 0;
       }
     })(),
+    (async () => {
+      const emailId = pkg.emailId;
+      const fileNames = (pkg.attachmentFileNames ?? []).filter((n) => !isInlineImage(n));
+      if (!emailId || fileNames.length === 0) return 0;
+      try {
+        const page = await client(PendingRfqAttachments)
+          .where({
+            $and: [
+              { fileName: { $in: fileNames } },
+              { emailId: { $eq: emailId } },
+            ],
+          })
+          .fetchPage({ $pageSize: 200 });
+        // De-duplicate by fileName
+        const seen = new Set<string>();
+        for (const att of page.data) {
+          if (att.fileName) seen.add(att.fileName);
+        }
+        return seen.size;
+      } catch {
+        return 0;
+      }
+    })(),
   ]);
-  return { customerName, toolCount };
+  return { customerName, toolCount, attachmentCount };
 }
 
 /** Resolve metadata for a batch with concurrency control, calling onBatch after each chunk */
@@ -138,7 +163,7 @@ async function resolveMetaStreaming(
     const metas = await Promise.all(
       batch.map(async (pkg) => {
         const pkId = String(pkg.$primaryKey);
-        const meta = await resolvePackageMeta(pkId);
+        const meta = await resolvePackageMeta(pkg);
         return { pkId, meta };
       }),
     );
@@ -569,7 +594,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
     }
 
     return filtered;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allPackages, metaMap, activeStatus, activeTab, filters, overridesMap]);
 
   // ── Auto-select first package after all pages have loaded ──
@@ -918,7 +943,7 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
   const metaLoaded = meta !== undefined;
 
   const toolCount = meta?.toolCount ?? null;
-  const attachmentCount = excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;
+  const attachmentCount = meta?.attachmentCount ?? null;
 
   // Use effective (overridden) values
   const effectiveStatus = overrides?.completionStatus ?? pkg.completionStatus;
@@ -985,7 +1010,7 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
             <svg className={css.countChipIcon} viewBox="0 0 16 16" fill="currentColor">
               <path d="M12.5 6.5l-5.14 5.14a2.5 2.5 0 0 1-3.54-3.54l5.84-5.84a1.5 1.5 0 0 1 2.12 2.12L6.04 10.1a.5.5 0 0 1-.7-.7L10.46 4.3l-.7-.72-5.14 5.12a1.5 1.5 0 0 0 2.12 2.12l5.72-5.72a2.5 2.5 0 0 0-3.54-3.54L3.08 7.4a3.5 3.5 0 0 0 4.96 4.96l5.14-5.14-.7-.7Z" />
             </svg>
-            {attachmentCount}
+            {attachmentCount !== null ? attachmentCount : "…"}
           </span>
         </div>
       </div>

@@ -52,6 +52,21 @@
   border-left: 2px solid var(--border-default);
 }
 
+.parsedBadge {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--att-green-fg);
+  background: transparent;
+  border: 1px solid var(--att-green-border);
+  border-radius: 8px;
+  padding: 1px 7px;
+  line-height: 16px;
+  white-space: nowrap;
+}
+
 .attachmentIcon {
   flex-shrink: 0;
   font-size: 14px;

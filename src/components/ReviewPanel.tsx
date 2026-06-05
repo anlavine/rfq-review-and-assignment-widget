@@ -145,7 +145,7 @@ function ReviewPanel({
         if (cancelled) return;
         setPkg(fetchedPkg);
 
-        const conversationId = fetchedPkg.conversationId;
+        const emailId = fetchedPkg.emailId;
 
         // Resolve customer name via link
         const customerPromise = (async () => {
@@ -164,13 +164,13 @@ function ReviewPanel({
         // Exclude inline images (jpg, png, etc.) — they're rendered in the email body
         const fileNames = (fetchedPkg.attachmentFileNames ?? []).filter((n) => !isInlineImage(n));
         const attachmentPromise = (async () => {
-          if (!conversationId || fileNames.length === 0) return [];
+          if (!emailId || fileNames.length === 0) return [];
           try {
             const page = await client(PendingRfqAttachments)
               .where({
                 $and: [
                   { fileName: { $in: fileNames } },
-                  { conversationId: { $eq: conversationId } }
+                  { emailId: { $eq: emailId } }
                 ]
               })
               .fetchPage({ $pageSize: 200 });
@@ -463,63 +463,53 @@ function ReviewPanel({
         <h3 className={css.sectionTitle}>Attachments</h3>
         {attachments.length > 0 ? (
           <ul className={css.attachmentList}>
-            {groupedAttachments.map((item) => {
-              if (item.type === "zip") {
-                return (
-                  <React.Fragment key={item.zip.$primaryKey}>
-                    <li className={css.attachmentItem}>
-                      <span className={css.attachmentIcon}>🗜️</span>
-                      <span className={css.attachmentName}>
-                        {item.zip.fileName ?? "Unnamed zip"}
-                      </span>
-                      {item.zip.filepath && (
-                        <button
-                          className={css.downloadButton}
-                          disabled={downloadingId === String(item.zip.$primaryKey)}
-                          onClick={() => handleDownload(item.zip)}
-                        >
-                          {downloadingId === String(item.zip.$primaryKey) ? "Downloading…" : "Download"}
-                        </button>
-                      )}
-                    </li>
-                    {item.children.map((child) => (
-                      <li key={child.$primaryKey} className={`${css.attachmentItem} ${css.attachmentItemIndented}`}>
-                        <span className={css.attachmentIcon}>📎</span>
-                        <span className={css.attachmentName}>
-                          {child.fileName ?? "Unnamed file"}
-                        </span>
-                        {child.filepath && (
-                          <button
-                            className={css.downloadButton}
-                            disabled={downloadingId === String(child.$primaryKey)}
-                            onClick={() => handleDownload(child)}
-                          >
-                            {downloadingId === String(child.$primaryKey) ? "Downloading…" : "Download"}
-                          </button>
-                        )}
-                      </li>
-                    ))}
-                  </React.Fragment>
+            {(() => {
+              const parsedNames = new Set(pkg?.parsedAttachmentFilenames ?? []);
+              const renderAttachmentRow = (att: Osdk.Instance<PendingRfqAttachments>, indented: boolean) => {
+                const isParsed = !!att.fileName && parsedNames.has(att.fileName);
+                const isZip = !att.sourceZipFilename && groupedAttachments.some(
+                  (g) => g.type === "zip" && String(g.zip.$primaryKey) === String(att.$primaryKey)
                 );
-              }
-              return (
-                <li key={item.att.$primaryKey} className={css.attachmentItem}>
-                  <span className={css.attachmentIcon}>📎</span>
-                  <span className={css.attachmentName}>
-                    {item.att.fileName ?? "Unnamed file"}
-                  </span>
-                  {item.att.filepath && (
-                    <button
-                      className={css.downloadButton}
-                      disabled={downloadingId === String(item.att.$primaryKey)}
-                      onClick={() => handleDownload(item.att)}
-                    >
-                      {downloadingId === String(item.att.$primaryKey) ? "Downloading…" : "Download"}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
+                return (
+                  <li
+                    key={att.$primaryKey}
+                    className={[
+                      css.attachmentItem,
+                      indented ? css.attachmentItemIndented : "",
+                    ].filter(Boolean).join(" ")}
+                  >
+                    <span className={css.attachmentIcon}>{isZip ? "🗜️" : "📎"}</span>
+                    <span className={css.attachmentName}>
+                      {att.fileName ?? "Unnamed file"}
+                    </span>
+                    {isParsed && (
+                      <span className={css.parsedBadge}>Parsed</span>
+                    )}
+                    {att.filepath && (
+                      <button
+                        className={css.downloadButton}
+                        disabled={downloadingId === String(att.$primaryKey)}
+                        onClick={() => handleDownload(att)}
+                      >
+                        {downloadingId === String(att.$primaryKey) ? "Downloading…" : "Download"}
+                      </button>
+                    )}
+                  </li>
+                );
+              };
+
+              return groupedAttachments.map((item) => {
+                if (item.type === "zip") {
+                  return (
+                    <React.Fragment key={item.zip.$primaryKey}>
+                      {renderAttachmentRow(item.zip, false)}
+                      {item.children.map((child) => renderAttachmentRow(child, true))}
+                    </React.Fragment>
+                  );
+                }
+                return renderAttachmentRow(item.att, false);
+              });
+            })()}
           </ul>
         ) : (
           <p className={css.emptyMessage}>No attachments found.</p>
