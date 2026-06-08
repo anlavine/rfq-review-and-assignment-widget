@@ -207,7 +207,7 @@ function ReviewPanel({
         if (cancelled) return;
         setAttachments(resolvedAttachments);
         setTools(
-          [...resolvedTools].sort((a, b) => compareToolNumber(a.customerToolNumber, b.customerToolNumber)),
+          [...resolvedTools].sort((a, b) => compareToolNumber(a.customerToolNumber, b.customerToolNumber, a.toolNumber, b.toolNumber)),
         );
         setCustomerName(resolvedCustomer);
 

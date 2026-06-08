@@ -171,7 +171,7 @@ function Home(): React.ReactElement {
         .pivotTo("pendingRfqPackageTools")
         .fetchPage({ $pageSize: 200 });
       const tools = [...toolPage.data].sort((a, b) =>
-        compareToolNumber(a.customerToolNumber, b.customerToolNumber),
+        compareToolNumber(a.customerToolNumber, b.customerToolNumber, a.toolNumber, b.toolNumber),
       );
       // Exclude removed tools
       const activeTools = tools.filter((t) => !t.removed);
