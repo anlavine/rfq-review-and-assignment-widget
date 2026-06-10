@@ -381,6 +381,7 @@ function Home(): React.ReactElement {
             onBulkSkipToggle={handleBulkSkipToggle}
             onBulkSkipSelectAll={handleBulkSkipSelectAll}
             onBulkSkipDeselectAll={handleBulkSkipDeselectAll}
+            onNewDataAvailable={() => setRefreshToken((t) => t + 1)}
           />
         </div>
 

@@ -20,6 +20,8 @@ const RECEIVED_MONTHS = 4;
 const FETCH_PAGE_SIZE = 50;
 /** Dataset RID backing PendingRfqPackage */
 const PENDING_PACKAGE_DATASET_RID = "ri.foundry.main.dataset.d1ca8ee5-fe27-46fa-9ef0-fef7be64799d";
+/** How often to poll for new data (ms) */
+const POLL_INTERVAL_MS = 60_000;
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
@@ -96,6 +98,8 @@ interface PendingRfqPackageListProps {
   onBulkSkipSelectAll?: (ids: string[]) => void;
   /** Deselect all packages for bulk skip */
   onBulkSkipDeselectAll?: () => void;
+  /** Called when a newer dataset transaction is detected; parent should increment refreshToken */
+  onNewDataAvailable?: () => void;
 }
 
 /** Resolve customer name, tool count, and attachment count for a single package */
@@ -247,7 +251,7 @@ function formatLastUpdated(iso: string): string {
   }
 }
 
-const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll }, ref) {
+const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll, onNewDataAvailable }, ref) {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -257,11 +261,51 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   const [currentPage, setCurrentPage] = useState(0);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
+  const [newDataAvailable, setNewDataAvailable] = useState(false);
+
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);
   /** Tracks whether we've already fired the auto-select for this load cycle */
   const autoSelectedRef = useRef(false);
+
+  // ── Auto-refresh polling: check for new dataset transactions every minute ──
+  // Only polls once the initial load is fully complete. Suppressed while any
+  // load is in progress. Fires onNewDataAvailable (and shows the banner) when
+  // a newer closedTime is detected.
+  const lastUpdatedRef = useRef<string | null>(null);
+  useEffect(() => {
+    lastUpdatedRef.current = lastUpdated;
+  }, [lastUpdated]);
+
+  useEffect(() => {
+    if (initialLoading || backgroundLoading) return;
+
+    const poll = async () => {
+      try {
+        const res = await Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
+          pageSize: 1,
+          preview: true,
+        });
+        const latest = res.data[0];
+        if (
+          latest?.closedTime &&
+          lastUpdatedRef.current &&
+          latest.closedTime > lastUpdatedRef.current
+        ) {
+          setNewDataAvailable(true);
+          onNewDataAvailable?.();
+        }
+      } catch {
+        // Non-critical — ignore poll failures
+      }
+    };
+
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [initialLoading, backgroundLoading, onNewDataAvailable]);
+  /** Tracks the closedTime of the most recently seen transaction for polling */
+  const lastTransactionTimeRef = useRef<string | null>(null);
 
   /** Optimistic overrides — keyed by packageId */
   const [overridesMap, setOverridesMap] = useState<Record<string, PackageOverrides>>({});
@@ -321,6 +365,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       setAllPackages([]);
       setMetaMap({});
       setOverridesMap({});
+      setNewDataAvailable(false);
       autoSelectedRef.current = false;
 
       // Fetch last updated timestamp from the dataset's latest transaction
@@ -332,6 +377,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         const latest = res.data[0];
         if (latest?.closedTime) {
           setLastUpdated(latest.closedTime);
+          lastTransactionTimeRef.current = latest.closedTime;
         }
       }).catch(() => { /* ignore — non-critical */ });
 
@@ -506,6 +552,36 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       cancelled = true;
     };
   }, [refreshToken]);
+
+  // ── Poll for new data every POLL_INTERVAL_MS ──
+  // Checks the latest dataset transaction; if newer than what we last saw,
+  // notifies the parent via onNewDataAvailable so it can increment refreshToken.
+  useEffect(() => {
+    if (!onNewDataAvailable) return;
+
+    const intervalId = setInterval(async () => {
+      try {
+        const res = await Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
+          pageSize: 1,
+          preview: true,
+        });
+        const latest = res.data[0];
+        if (
+          latest?.closedTime &&
+          lastTransactionTimeRef.current !== null &&
+          latest.closedTime > lastTransactionTimeRef.current
+        ) {
+          onNewDataAvailable();
+        }
+      } catch {
+        /* ignore — non-critical */
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [onNewDataAvailable]);
 
   // ── Build conversation lookup for sibling-based filtering ──
   // Groups packages by conversationId for efficient sibling checks.
@@ -688,6 +764,17 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
           <span className={css.lastUpdated}>Last updated: {formatLastUpdated(lastUpdated)}</span>
         )}
       </div>
+      {newDataAvailable && (
+        <div className={css.newDataBanner}>
+          <span>New packages are available.</span>
+          <button className={css.newDataRefreshBtn} onClick={() => onNewDataAvailable?.()}>
+            Refresh
+          </button>
+          <button className={css.newDataDismissBtn} onClick={() => setNewDataAvailable(false)} title="Dismiss">
+            ✕
+          </button>
+        </div>
+      )}
       {tabBar}
 
       {bulkSkipMode && (
