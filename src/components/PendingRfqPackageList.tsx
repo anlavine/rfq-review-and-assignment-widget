@@ -22,6 +22,9 @@ const FETCH_PAGE_SIZE = 50;
 const PENDING_PACKAGE_DATASET_RID = "ri.foundry.main.dataset.d1ca8ee5-fe27-46fa-9ef0-fef7be64799d";
 /** How often to poll for new data (ms) */
 const POLL_INTERVAL_MS = 60_000;
+/** Grace period after a new transaction is detected before showing the banner (ms).
+ *  Gives the ontology time to index the new packages before a refresh is useful. */
+const NEW_DATA_GRACE_PERIOD_MS = 120_000;
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
@@ -259,7 +262,15 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  // Derived: most recent receivedDatetime (or receivedDate) across all loaded packages
+  const lastUpdated = useMemo(() => {
+    let best: string | null = null;
+    for (const pkg of allPackages) {
+      const t = pkg.receivedDatetime ?? pkg.receivedDate ?? null;
+      if (t && (!best || t > best)) best = t;
+    }
+    return best;
+  }, [allPackages]);
 
   const [newDataAvailable, setNewDataAvailable] = useState(false);
 
@@ -269,41 +280,6 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   /** Tracks whether we've already fired the auto-select for this load cycle */
   const autoSelectedRef = useRef(false);
 
-  // ── Auto-refresh polling: check for new dataset transactions every minute ──
-  // Only polls once the initial load is fully complete. Suppressed while any
-  // load is in progress. Fires onNewDataAvailable (and shows the banner) when
-  // a newer closedTime is detected.
-  const lastUpdatedRef = useRef<string | null>(null);
-  useEffect(() => {
-    lastUpdatedRef.current = lastUpdated;
-  }, [lastUpdated]);
-
-  useEffect(() => {
-    if (initialLoading || backgroundLoading) return;
-
-    const poll = async () => {
-      try {
-        const res = await Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
-          pageSize: 1,
-          preview: true,
-        });
-        const latest = res.data[0];
-        if (
-          latest?.closedTime &&
-          lastUpdatedRef.current &&
-          latest.closedTime > lastUpdatedRef.current
-        ) {
-          setNewDataAvailable(true);
-          onNewDataAvailable?.();
-        }
-      } catch {
-        // Non-critical — ignore poll failures
-      }
-    };
-
-    const id = setInterval(poll, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [initialLoading, backgroundLoading, onNewDataAvailable]);
   /** Tracks the closedTime of the most recently seen transaction for polling */
   const lastTransactionTimeRef = useRef<string | null>(null);
 
@@ -368,18 +344,31 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       setNewDataAvailable(false);
       autoSelectedRef.current = false;
 
-      // Fetch last updated timestamp from the dataset's latest transaction
-      Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
-        pageSize: 1,
-        preview: true,
-      }).then((res) => {
-        if (cancelled || loadId !== loadIdRef.current) return;
-        const latest = res.data[0];
-        if (latest?.closedTime) {
-          setLastUpdated(latest.closedTime);
-          lastTransactionTimeRef.current = latest.closedTime;
+
+
+
+
+
+
+
+
+
+      // Fetch the latest transaction timestamp for polling purposes only.
+      // Awaited so that lastTransactionTimeRef is guaranteed to be set before
+      // backgroundLoading flips to false and the polling interval starts.
+      try {
+        const res = await Branches.transactions(client, PENDING_PACKAGE_DATASET_RID, "master", {
+          pageSize: 1,
+          preview: true,
+        });
+        if (!cancelled && loadId === loadIdRef.current) {
+          const latest = res.data[0];
+          if (latest?.closedTime) {
+            lastTransactionTimeRef.current = latest.closedTime;
+          }
         }
-      }).catch(() => { /* ignore — non-critical */ });
+
+      } catch { /* ignore — non-critical */ }
 
       try {
         // Build date cutoff: 4 months ago
@@ -554,10 +543,11 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   }, [refreshToken]);
 
   // ── Poll for new data every POLL_INTERVAL_MS ──
-  // Checks the latest dataset transaction; if newer than what we last saw,
-  // notifies the parent via onNewDataAvailable so it can increment refreshToken.
+  // Checks the latest dataset transaction. If newer than what we last saw,
+  // waits NEW_DATA_GRACE_PERIOD_MS for the ontology to finish indexing,
+  // then shows the banner. Does NOT auto-refresh — the user must click Refresh.
   useEffect(() => {
-    if (!onNewDataAvailable) return;
+    if (initialLoading || backgroundLoading) return;
 
     const intervalId = setInterval(async () => {
       try {
@@ -571,7 +561,12 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
           lastTransactionTimeRef.current !== null &&
           latest.closedTime > lastTransactionTimeRef.current
         ) {
-          onNewDataAvailable();
+          // Update the baseline so subsequent polls don't fire again for the same transaction
+          lastTransactionTimeRef.current = latest.closedTime;
+          // Wait for ontology indexing before surfacing the banner
+          setTimeout(() => {
+            setNewDataAvailable(true);
+          }, NEW_DATA_GRACE_PERIOD_MS);
         }
       } catch {
         /* ignore — non-critical */
@@ -581,7 +576,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
     return () => {
       clearInterval(intervalId);
     };
-  }, [onNewDataAvailable]);
+  }, [initialLoading, backgroundLoading]);
 
   // ── Build conversation lookup for sibling-based filtering ──
   // Groups packages by conversationId for efficient sibling checks.
@@ -761,7 +756,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       <div className={css.titleRow}>
         <h2 className={css.title}>Pending RFQ Packages</h2>
         {lastUpdated && (
-          <span className={css.lastUpdated}>Last updated: {formatLastUpdated(lastUpdated)}</span>
+          <span className={css.lastUpdated}>Most recent: {formatReceivedDatetime(lastUpdated)}</span>
         )}
       </div>
       {newDataAvailable && (
