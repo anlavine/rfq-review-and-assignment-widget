@@ -236,24 +236,6 @@ function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
   return "later";
 }
 
-/** Format an ISO timestamp as Eastern Time, e.g. "Apr 30, 2026 at 2:15 PM ET" */
-function formatLastUpdated(iso: string): string {
-  try {
-    const date = new Date(iso);
-    return date.toLocaleString("en-US", {
-      timeZone: "America/New_York",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }) + " ET";
-  } catch {
-    return iso;
-  }
-}
-
 const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll, onNewDataAvailable }, ref) {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
