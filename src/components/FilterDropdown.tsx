@@ -45,6 +45,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
     filters.subjectSearch !== "" ||
     filters.customerSearch !== "" ||
     filters.platformSearch !== "" ||
+    filters.senderSearch !== "" ||
     filters.selectedTags.length > 0 ||
     filters.hasParsedTools;
 
@@ -55,6 +56,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
     if (localFilters.subjectSearch) trackUsage(INTERACTION_KEYS.FILTER_SUBJECT);
     if (localFilters.customerSearch) trackUsage(INTERACTION_KEYS.FILTER_CUSTOMER);
     if (localFilters.platformSearch) trackUsage(INTERACTION_KEYS.FILTER_PLATFORM);
+    if (localFilters.senderSearch) trackUsage(INTERACTION_KEYS.FILTER_SENDER);
     if (localFilters.selectedTags.length > 0) trackUsage(INTERACTION_KEYS.FILTER_TAGS);
     if (localFilters.hasParsedTools) trackUsage(INTERACTION_KEYS.FILTER_HAS_PARSED_TOOLS);
     setOpen(false);
@@ -62,7 +64,7 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
 
   const handleClear = () => {
 
-    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", selectedTags: [], hasParsedTools: false };
+    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", senderSearch: "", selectedTags: [], hasParsedTools: false };
     setLocalFilters(cleared);
     onFiltersChange(cleared);
     setOpen(false);
@@ -134,6 +136,18 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
               placeholder="Search platform…"
               value={localFilters.platformSearch}
               onChange={(e) => setLocalFilters((f) => ({ ...f, platformSearch: e.target.value }))}
+            />
+          </div>
+
+          <div className={css.section}>
+            <label className={css.label} htmlFor="filter-sender">Sender</label>
+            <input
+              id="filter-sender"
+              type="text"
+              className={css.input}
+              placeholder="Search name or email…"
+              value={localFilters.senderSearch}
+              onChange={(e) => setLocalFilters((f) => ({ ...f, senderSearch: e.target.value }))}
             />
           </div>
 

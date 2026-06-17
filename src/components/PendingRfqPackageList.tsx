@@ -41,6 +41,7 @@ export interface Filters {
   subjectSearch: string;
   customerSearch: string;
   platformSearch: string;
+  senderSearch: string;
   selectedTags: string[];
   hasParsedTools: boolean;
 }
@@ -620,6 +621,12 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         if (!pkg.platform.toLowerCase().includes(filters.platformSearch.toLowerCase())) return false;
       }
 
+      // Sender search — matches against the "from" field (name and/or email address)
+      if (filters.senderSearch) {
+        const search = filters.senderSearch.toLowerCase();
+        if (!pkg.from?.toLowerCase().includes(search)) return false;
+      }
+
       // Tags filter — package must have ALL selected tags (uses effective tags)
       if (filters.selectedTags.length > 0) {
         if (!filters.selectedTags.some((t) => effectiveTags.includes(t))) return false;
@@ -674,7 +681,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   }, [filteredPackages, currentPage]);
 
   // Reset to page 0 when filters change
-  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}`;
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.senderSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}`;
   useEffect(() => {
     setCurrentPage(0);
   }, [filterKey]);
