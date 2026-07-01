@@ -14,6 +14,7 @@ import { compareToolNumber } from "./utils/sortTools";
 import EditTagsModal from "./components/EditTagsModal";
 import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
+import AssignmentPackageList from "./components/AssignmentPackageList";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
 import { trackUsage, INTERACTION_KEYS } from "./utils/trackUsage";
@@ -46,6 +47,9 @@ function Home(): React.ReactElement {
   const [bulkSkipMode, setBulkSkipMode] = useState<BulkSkipMode>(false);
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
+  const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
   const { theme, toggleTheme } = useTheme();
 
   /** Ref to PendingRfqPackageList for optimistic updates */
@@ -358,242 +362,288 @@ function Home(): React.ReactElement {
 
   return (
     <div className={css.home}>
-      <div className={css.panels}>
-        {/* List panel — slides out when in review mode */}
-        <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
-          <PendingRfqPackageList
-            ref={listRef}
-            onSelectPackage={handleSelectPackage}
-            onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
-            selectedPackageId={selectedPackageId}
-            onTabChange={setActiveTab}
-            refreshToken={refreshToken}
-            filters={filters}
-            mergeStep={mergeStep}
-            mergeSourceId={mergeSourceId}
-            onMergeSelect={handleMergeSelect}
-            splitStep={splitStep}
-            onSplitSelect={handleSplitSelect}
-            onFirstPackageReady={handleFirstPackageReady}
-            excludeFromAutoSelect={excludeFromAutoSelect}
-            bulkSkipMode={bulkSkipMode}
-            bulkSkipSelected={bulkSkipSelected}
-            onBulkSkipToggle={handleBulkSkipToggle}
-            onBulkSkipSelectAll={handleBulkSkipSelectAll}
-            onBulkSkipDeselectAll={handleBulkSkipDeselectAll}
-            onNewDataAvailable={() => setRefreshToken((t) => t + 1)}
-          />
+      <div className={css.modeToggleBar}>
+        <div className={css.modeToggle}>
+          <button
+            className={`${css.modeToggleOption} ${appMode === "ingestion" ? css.modeToggleActive : ""}`}
+            onClick={() => setAppMode("ingestion")}
+          >
+            Ingestion
+          </button>
+          <button
+            className={`${css.modeToggleOption} ${appMode === "assignment" ? css.modeToggleActive : ""}`}
+            onClick={() => setAppMode("assignment")}
+          >
+            Assignment
+          </button>
         </div>
+      </div>
 
-        {/* Detail + review column */}
-        <div className={css.detailColumn}>
-          {/* Header — switches between normal and review mode */}
-          {reviewMode ? (
-            <div className={css.headerBarReview}>
-              <div className={css.headerLeft}>
-                <button className={css.backButton} onClick={() => setReviewMode(false)}>
-                  &larr; Back to list
-                </button>
-              </div>
-              <div className={css.headerRight}>
-                <button
-                  className={css.createPackageButton}
-                  disabled={!selectedPackageId || createPackageLoading}
-                  onClick={handleCreatePackage}
-                >
-                  {createPackageLoading ? "Creating…" : "Create Package"}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className={css.headerBar}>
-              {mergeStep && (
-                <div className={css.modeBanner}>
-                  {mergeStep === "selectSource"
-                    ? "Select the SOURCE package (will be deleted)"
-                    : "Select the TARGET package (will receive tools)"}
-                </div>
-              )}
-              {splitStep && (
-                <div className={css.modeBanner}>
-                  Select a package to split
-                </div>
-              )}
-              {bulkSkipMode && (
-                <div className={css.modeBanner}>
-                  Select packages to skip
-                </div>
-              )}
-              <button
-                className={css.feedbackButton}
-                disabled={!selectedPackageId}
-                onClick={() => setShowFeedback(true)}
-                title="Submit feedback"
-              >
-                <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
-                </svg>
-              </button>
-              <button
-                className={css.themeToggle}
-                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
-                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {theme === "dark" ? "☀️" : "🌙"}
-              </button>
-              <FilterDropdown filters={filters} onFiltersChange={setFilters} />
-              {mergeStep ? (
-                <button
-                  className={css.headerButton}
-                  onClick={handleCancelMerge}
-                >
-                  Cancel Merge
-                </button>
-              ) : splitStep ? (
-                <button
-                  className={css.headerButton}
-                  onClick={handleCancelSplit}
-                >
-                  Cancel Split
-                </button>
-              ) : bulkSkipMode ? (
-                <>
-                  <button
-                    className={css.createPackageButton}
-                    disabled={bulkSkipSelected.length === 0}
-                    onClick={() => setShowBulkSkipConfirm(true)}
-                  >
-                    Skip Selected ({bulkSkipSelected.length})
-                  </button>
-                  <button
-                    className={css.headerButton}
-                    onClick={handleCancelBulkSkip}
-                  >
-                    Cancel
-                  </button>
-                </>
-              ) : (
-                <>
-                  {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
-                    <button
-                      className={css.headerButton}
-                      disabled={!selectedPackageId || actionLoading}
-                      onClick={handleUnskip}
-                    >
-                      {actionLoading ? "Unskipping…" : "Unskip"}
-                    </button>
-                  ) : (activeTab === "reviewed" || (activeTab === "all" && selectedPackageStatus === "Reviewed")) ? (
-                    <button
-                      className={css.headerButton}
-                      disabled={!selectedPackageId || actionLoading}
-                      onClick={handleMarkOutstanding}
-                    >
-                      {actionLoading ? "Marking…" : "Mark Outstanding"}
-                    </button>
-                  ) : (
-                    <button
-                      className={css.headerButton}
-                      disabled={!selectedPackageId || actionLoading}
-                      onClick={handleSkip}
-                    >
-                      {actionLoading ? "Skipping…" : "Skip"}
-                    </button>
-                  )}
-                  {(activeTab === "outstanding" || activeTab === "all") && (
-                    <button
-                      className={css.headerButton}
-                      onClick={handleStartBulkSkip}
-                    >
-                      Bulk Skip
-                    </button>
-                  )}
-                  <button
-                    className={css.headerButton}
-                    disabled={!selectedPackageId}
-                    onClick={() => setShowEditTags(true)}
-                  >
-                    Edit Tags
-                  </button>
-                  <button
-                    className={css.headerButtonWithInfo}
-                    onClick={handleStartMerge}
-                  >
-                    Merge
-                    <span className={css.infoIconWrap}>
-                      <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
-                      </svg>
-                      <span className={css.infoTooltip}>
-                        Combine two packages into one by moving all tools from a source package into a target package. The source package will be deleted.
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    className={css.headerButtonWithInfo}
-                    onClick={handleStartSplit}
-                  >
-                    Split
-                    <span className={css.infoIconWrap}>
-                      <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
-                      </svg>
-                      <span className={css.infoTooltip}>
-                        Split a package by selecting specific tools to move into a new package. The original package keeps the remaining tools.
-                      </span>
-                    </span>
-                  </button>
-                  <button
-                    className={css.headerButton}
-                    disabled={!selectedPackageId}
-                    onClick={() => setShowLinkToRfq(true)}
-                  >
-                    Update RFQ Link
-                  </button>
-                  <button
-                    className={css.createPackageButton}
-                    disabled={!selectedPackageId}
-                    onClick={() => setReviewMode(true)}
-                  >
-                    Review Package
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Detail + Review panels side by side */}
-          <div className={css.detailAndReview}>
+      {appMode === "assignment" ? (
+        <div className={css.panels}>
+          <div className={css.listPanel}>
+            <AssignmentPackageList
+              selectedId={selectedAssignmentId}
+              onSelect={(id, type) => {
+                setSelectedAssignmentId(id);
+                setSelectedAssignmentType(type);
+              }}
+            />
+          </div>
+          <div className={css.detailColumn}>
             <div className={css.detailPanel}>
-              {selectedPackageId ? (
-                <PackageDetail
-                  packageId={selectedPackageId}
-                  refreshToken={refreshToken}
-                  onDueDateChanged={() => setRefreshToken((t) => t + 1)}
-                  onSelectPackage={handleSelectPackage}
-                />
+              {selectedAssignmentId ? (
+                <div className={css.emptyDetail}>
+                  {/* Detail panel — coming soon */}
+                  Selected: {selectedAssignmentType} package {selectedAssignmentId}
+                </div>
               ) : (
                 <div className={css.emptyDetail}>
                   Select a package from the list to view its details.
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      ) : (
+        <div className={css.panels}>
+          {/* List panel — slides out when in review mode */}
+          <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
+            <PendingRfqPackageList
+              ref={listRef}
+              onSelectPackage={handleSelectPackage}
+              onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
+              selectedPackageId={selectedPackageId}
+              onTabChange={setActiveTab}
+              refreshToken={refreshToken}
+              filters={filters}
+              mergeStep={mergeStep}
+              mergeSourceId={mergeSourceId}
+              onMergeSelect={handleMergeSelect}
+              splitStep={splitStep}
+              onSplitSelect={handleSplitSelect}
+              onFirstPackageReady={handleFirstPackageReady}
+              excludeFromAutoSelect={excludeFromAutoSelect}
+              bulkSkipMode={bulkSkipMode}
+              bulkSkipSelected={bulkSkipSelected}
+              onBulkSkipToggle={handleBulkSkipToggle}
+              onBulkSkipSelectAll={handleBulkSkipSelectAll}
+              onBulkSkipDeselectAll={handleBulkSkipDeselectAll}
+              onNewDataAvailable={() => setRefreshToken((t) => t + 1)}
+            />
+          </div>
 
-            {/* Review panel — slides in from right */}
-            <div className={`${css.reviewPanel} ${reviewMode ? css.reviewPanelVisible : ""}`}>
-              {reviewMode && selectedPackageId ? (
-                <ReviewPanel
-                  packageId={selectedPackageId}
-                  refreshToken={refreshToken}
-                />
-              ) : (
-                <div className={css.reviewPanelContent}>
-                  Review panel
+          {/* Detail + review column */}
+          <div className={css.detailColumn}>
+            {/* Header — switches between normal and review mode */}
+            {reviewMode ? (
+              <div className={css.headerBarReview}>
+                <div className={css.headerLeft}>
+                  <button className={css.backButton} onClick={() => setReviewMode(false)}>
+                    &larr; Back to list
+                  </button>
                 </div>
-              )}
+                <div className={css.headerRight}>
+                  <button
+                    className={css.createPackageButton}
+                    disabled={!selectedPackageId || createPackageLoading}
+                    onClick={handleCreatePackage}
+                  >
+                    {createPackageLoading ? "Creating…" : "Create Package"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={css.headerBar}>
+                {mergeStep && (
+                  <div className={css.modeBanner}>
+                    {mergeStep === "selectSource"
+                      ? "Select the SOURCE package (will be deleted)"
+                      : "Select the TARGET package (will receive tools)"}
+                  </div>
+                )}
+                {splitStep && (
+                  <div className={css.modeBanner}>
+                    Select a package to split
+                  </div>
+                )}
+                {bulkSkipMode && (
+                  <div className={css.modeBanner}>
+                    Select packages to skip
+                  </div>
+                )}
+                <button
+                  className={css.feedbackButton}
+                  disabled={!selectedPackageId}
+                  onClick={() => setShowFeedback(true)}
+                  title="Submit feedback"
+                >
+                  <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
+                  </svg>
+                </button>
+                <button
+                  className={css.themeToggle}
+                  onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
+                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+                  {theme === "dark" ? "☀️" : "🌙"}
+                </button>
+                <FilterDropdown filters={filters} onFiltersChange={setFilters} />
+                {mergeStep ? (
+                  <button
+                    className={css.headerButton}
+                    onClick={handleCancelMerge}
+                  >
+                    Cancel Merge
+                  </button>
+                ) : splitStep ? (
+                  <button
+                    className={css.headerButton}
+                    onClick={handleCancelSplit}
+                  >
+                    Cancel Split
+                  </button>
+                ) : bulkSkipMode ? (
+                  <>
+                    <button
+                      className={css.createPackageButton}
+                      disabled={bulkSkipSelected.length === 0}
+                      onClick={() => setShowBulkSkipConfirm(true)}
+                    >
+                      Skip Selected ({bulkSkipSelected.length})
+                    </button>
+                    <button
+                      className={css.headerButton}
+                      onClick={handleCancelBulkSkip}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+                      <button
+                        className={css.headerButton}
+                        disabled={!selectedPackageId || actionLoading}
+                        onClick={handleUnskip}
+                      >
+                        {actionLoading ? "Unskipping…" : "Unskip"}
+                      </button>
+                    ) : (activeTab === "reviewed" || (activeTab === "all" && selectedPackageStatus === "Reviewed")) ? (
+                      <button
+                        className={css.headerButton}
+                        disabled={!selectedPackageId || actionLoading}
+                        onClick={handleMarkOutstanding}
+                      >
+                        {actionLoading ? "Marking…" : "Mark Outstanding"}
+                      </button>
+                    ) : (
+                      <button
+                        className={css.headerButton}
+                        disabled={!selectedPackageId || actionLoading}
+                        onClick={handleSkip}
+                      >
+                        {actionLoading ? "Skipping…" : "Skip"}
+                      </button>
+                    )}
+                    {(activeTab === "outstanding" || activeTab === "all") && (
+                      <button
+                        className={css.headerButton}
+                        onClick={handleStartBulkSkip}
+                      >
+                        Bulk Skip
+                      </button>
+                    )}
+                    <button
+                      className={css.headerButton}
+                      disabled={!selectedPackageId}
+                      onClick={() => setShowEditTags(true)}
+                    >
+                      Edit Tags
+                    </button>
+                    <button
+                      className={css.headerButtonWithInfo}
+                      onClick={handleStartMerge}
+                    >
+                      Merge
+                      <span className={css.infoIconWrap}>
+                        <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
+                        </svg>
+                        <span className={css.infoTooltip}>
+                          Combine two packages into one by moving all tools from a source package into a target package. The source package will be deleted.
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      className={css.headerButtonWithInfo}
+                      onClick={handleStartSplit}
+                    >
+                      Split
+                      <span className={css.infoIconWrap}>
+                        <svg className={css.infoIcon} viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.75 10.5h-1.5v-4h1.5v4Zm0-5.5h-1.5V4.5h1.5V6Z" />
+                        </svg>
+                        <span className={css.infoTooltip}>
+                          Split a package by selecting specific tools to move into a new package. The original package keeps the remaining tools.
+                        </span>
+                      </span>
+                    </button>
+                    <button
+                      className={css.headerButton}
+                      disabled={!selectedPackageId}
+                      onClick={() => setShowLinkToRfq(true)}
+                    >
+                      Update RFQ Link
+                    </button>
+                    <button
+                      className={css.createPackageButton}
+                      disabled={!selectedPackageId}
+                      onClick={() => setReviewMode(true)}
+                    >
+                      Review Package
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Detail + Review panels side by side */}
+            <div className={css.detailAndReview}>
+              <div className={css.detailPanel}>
+                {selectedPackageId ? (
+                  <PackageDetail
+                    packageId={selectedPackageId}
+                    refreshToken={refreshToken}
+                    onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                    onSelectPackage={handleSelectPackage}
+                  />
+                ) : (
+                  <div className={css.emptyDetail}>
+                    Select a package from the list to view its details.
+                  </div>
+                )}
+              </div>
+
+              {/* Review panel — slides in from right */}
+              <div className={`${css.reviewPanel} ${reviewMode ? css.reviewPanelVisible : ""}`}>
+                {reviewMode && selectedPackageId ? (
+                  <ReviewPanel
+                    packageId={selectedPackageId}
+                    refreshToken={refreshToken}
+                  />
+                ) : (
+                  <div className={css.reviewPanelContent}>
+                    Review panel
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
+
+      )}
 
       {showEditTags && selectedPackageId && (
         <EditTagsModal

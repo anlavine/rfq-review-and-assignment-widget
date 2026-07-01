@@ -122,6 +122,19 @@
   background: var(--bg-card-selected);
 }
 
+/* Priority score left-border tiers (Outstanding tab only) */
+.cardBorderGreen {
+  border-left: 4px solid #10b981;
+}
+
+.cardBorderYellowGreen {
+  border-left: 4px solid #a3e635;
+}
+
+.cardBorderYellow {
+  border-left: 4px solid #eab308;
+}
+
 .cardHeader {
   display: flex;
   align-items: center;

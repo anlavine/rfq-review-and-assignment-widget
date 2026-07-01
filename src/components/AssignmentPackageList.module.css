@@ -1,0 +1,175 @@
+.container {
+  width: 100%;
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.count {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.cardGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Base card */
+.card {
+  border: 2px solid var(--border-default);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-card);
+  transition: box-shadow 0.15s, border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-card);
+  border-color: var(--border-active);
+}
+
+.cardSelected {
+  border-color: var(--border-active);
+  background: var(--bg-card-selected);
+}
+
+/* Priority score left-border tiers */
+.cardBorderGreen {
+  border-left: 4px solid #10b981;
+}
+
+.cardBorderYellowGreen {
+  border-left: 4px solid #a3e635;
+}
+
+.cardBorderYellow {
+  border-left: 4px solid #eab308;
+}
+
+/* Work type icon in RFQ card header */
+.workTypeIcon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.cardTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.cardMeta {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  min-width: 0;
+}
+
+.cardMetaLeft {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+.cardMetaRight {
+  flex-shrink: 0;
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sep {
+  color: var(--separator);
+  margin: 0 5px;
+}
+
+/* "Not Ready" badge — amber */
+.notReadyBadge {
+  display: inline-block;
+  flex-shrink: 0;
+  background: var(--due-soon-bg);
+  color: var(--due-soon-fg);
+  border: 1px solid var(--due-soon-border);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+/* Tool count chip */
+.toolChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  background: var(--chip-bg);
+  color: var(--chip-fg);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 10px;
+  white-space: nowrap;
+  line-height: 16px;
+}
+
+.toolChipIcon {
+  width: 11px;
+  height: 11px;
+  color: var(--chip-icon);
+  flex-shrink: 0;
+}
+
+/* Empty / loading / error placeholder */
+.emptyCard {
+  border: 2px dashed var(--border-default);
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  min-height: 90px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.emptyCardError {
+  color: var(--error-fg);
+}
+

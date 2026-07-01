@@ -6,6 +6,49 @@
   overflow: hidden;
 }
 
+/* ── Mode toggle (Ingestion / Assignment) ── */
+.modeToggleBar {
+  display: flex;
+  align-items: center;
+  padding: 8px 0 10px;
+  flex-shrink: 0;
+}
+
+.modeToggle {
+  display: inline-flex;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.modeToggleOption {
+  padding: 5px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.modeToggleOption:hover:not(.modeToggleActive) {
+  background: var(--btn-hover-bg);
+  color: var(--text-primary);
+}
+
+.modeToggleActive {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+
+
 .headerBar {
   display: flex;
   align-items: center;

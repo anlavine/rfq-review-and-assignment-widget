@@ -9,6 +9,8 @@ import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { isMergedPackage } from "../utils/mergedFields";
 import { isInlineImage } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
+import { getPriorityColorClass } from "../utils/priorityColor";
+import { usePriorityScores } from "../hooks/usePriorityScores";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -258,6 +260,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   const [newDataAvailable, setNewDataAvailable] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
+  const priorityMap = usePriorityScores(refreshToken);
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);
   /** Tracks whether we've already fired the auto-select for this load cycle */
@@ -833,6 +836,8 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
               const isMergeSource = mergeStep === "selectTarget" && pkId === mergeSourceId;
               const inSpecialMode = !!mergeStep || !!splitStep;
               const isBulkChecked = bulkSkipMode && bulkSkipSelected?.includes(pkId);
+              // Only apply priority color on the Outstanding tab
+              const priorityScore = activeTab === "outstanding" ? priorityMap.get(pkId) ?? 0 : 0;
               elements.push(
                 <PackageCard
                   key={pkg.$primaryKey}
@@ -845,6 +850,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
                   hasSiblings={!!pkg.conversationId && (conversationMap.get(pkg.conversationId)?.length ?? 0) > 1}
                   showCheckbox={!!bulkSkipMode}
                   checked={!!isBulkChecked}
+                  priorityScore={priorityScore}
                   onClick={() => {
                     if (bulkSkipMode) {
                       onBulkSkipToggle?.(pkId);
@@ -1005,10 +1011,18 @@ interface PackageCardProps {
   hasSiblings?: boolean;
   showCheckbox?: boolean;
   checked?: boolean;
+  priorityScore?: number;
   onClick: () => void;
 }
 
-function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, onClick }: PackageCardProps): React.ReactElement {
+const CARD_PRIORITY_CLASSES = {
+  green: css.cardBorderGreen,
+  yellowGreen: css.cardBorderYellowGreen,
+  yellow: css.cardBorderYellow,
+};
+
+function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, priorityScore, onClick }: PackageCardProps): React.ReactElement {
+  const priorityBorderClass = getPriorityColorClass(priorityScore, CARD_PRIORITY_CLASSES);
   const customerName = meta?.customerName ?? null;
   const customerLoading = meta === undefined;
   const metaLoaded = meta !== undefined;
@@ -1027,7 +1041,7 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
   const moreRef = useRef<HTMLSpanElement | null>(null);
 
   return (
-    <div className={`${css.card} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
+    <div className={`${css.card} ${priorityBorderClass} ${isSelected ? css.cardSelected : ""} ${disabled ? css.cardDisabled : ""}`} onClick={disabled ? undefined : onClick} role="button" tabIndex={disabled ? -1 : 0} onKeyDown={(e) => { if (e.key === "Enter" && !disabled) onClick(); }}>
       <div className={css.cardHeader}>
         {showCheckbox && (
           <input
