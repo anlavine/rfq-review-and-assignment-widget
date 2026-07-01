@@ -47,7 +47,7 @@ function Home(): React.ReactElement {
   const [bulkSkipMode, setBulkSkipMode] = useState<BulkSkipMode>(false);
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
-  const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
+  const [appMode/*, setAppMode */] = useState<"ingestion" | "assignment">("ingestion");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
   const { theme, toggleTheme } = useTheme();
@@ -362,7 +362,7 @@ function Home(): React.ReactElement {
 
   return (
     <div className={css.home}>
-      <div className={css.modeToggleBar}>
+      {/* <div className={css.modeToggleBar}>
         <div className={css.modeToggle}>
           <button
             className={`${css.modeToggleOption} ${appMode === "ingestion" ? css.modeToggleActive : ""}`}
@@ -377,7 +377,7 @@ function Home(): React.ReactElement {
             Assignment
           </button>
         </div>
-      </div>
+      </div> */}
 
       {appMode === "assignment" ? (
         <div className={css.panels}>
