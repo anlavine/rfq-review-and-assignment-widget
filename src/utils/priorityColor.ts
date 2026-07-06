@@ -11,13 +11,13 @@
 export function getPriorityColorClass(
   score: number | null | undefined,
   classes: {
-    green: string;
-    yellowGreen: string;
+    orange: string;
     yellow: string;
+    gray: string;
   },
 ): string {
   if (score == null || score <= 0) return "";
-  if (score >= 0.6) return classes.green;
-  if (score >= 0.3) return classes.yellowGreen;
-  return classes.yellow;
+  if (score >= 0.6) return classes.orange;
+  if (score >= 0.3) return classes.yellow;
+  return classes.gray;
 }

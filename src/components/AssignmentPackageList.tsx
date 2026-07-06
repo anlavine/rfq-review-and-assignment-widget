@@ -37,9 +37,9 @@ function buildVehicleLine(oem?: string, platform?: string, modelYear?: string): 
 }
 
 const PRIORITY_CLASSES = {
-  green: css.cardBorderGreen,
-  yellowGreen: css.cardBorderYellowGreen,
+  orange: css.cardBorderOrange,
   yellow: css.cardBorderYellow,
+  gray: css.cardBorderGray,
 };
 
 /** Returns "New Build", "Eng Change", "Other", or null based on RfqPackage work type. */
