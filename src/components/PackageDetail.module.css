@@ -447,6 +447,12 @@
   border-color: #cdcdcd;
 }
 
+.priorityChipStar {
+  text-transform: none;
+  letter-spacing: normal;
+  margin-left: 2px;
+}
+
 /* ── Conversation section ── */
 .conversationSection {
   margin-bottom: 20px;

@@ -202,6 +202,7 @@ function PackageDetail({
   const [hasPackageError, setHasPackageError] = useState(false);
   const [hasToolError, setHasToolError] = useState(false);
   const [priorityScore, setPriorityScore] = useState<number | null>(null);
+  const [isNetNewCustomer, setIsNetNewCustomer] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDueDate, setEditingDueDate] = useState(false);
@@ -221,6 +222,7 @@ function PackageDetail({
     setHasPackageError(false);
     setHasToolError(false);
     setPriorityScore(null);
+    setIsNetNewCustomer(false);
     setLoading(true);
     setError(null);
 
@@ -341,14 +343,18 @@ function PackageDetail({
           }
         })();
 
-        const priorityPromise = (async (): Promise<number | null> => {
+        const priorityPromise = (async (): Promise<{ priorityScore: number | null; isNetNewCustomer: boolean }> => {
           try {
             const page = await client(PendingRfqPriority)
               .where({ packageId: { $eq: packageId } })
               .fetchPage({ $pageSize: 1 });
-            return page.data[0]?.priorityScore ?? null;
+            const row = page.data[0];
+            return {
+              priorityScore: row?.priorityScore ?? null,
+              isNetNewCustomer: row?.isNetNewCustomer === 1,
+            };
           } catch {
-            return null;
+            return { priorityScore: null, isNetNewCustomer: false };
           }
         })();
 
@@ -368,7 +374,8 @@ function PackageDetail({
         setConversationSiblings(resolvedSiblings);
         setHasPackageError(resolvedErrors.hasPackageError);
         setHasToolError(resolvedErrors.hasToolError);
-        setPriorityScore(resolvedPriority);
+        setPriorityScore(resolvedPriority.priorityScore);
+        setIsNetNewCustomer(resolvedPriority.isNetNewCustomer);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -544,12 +551,14 @@ function PackageDetail({
               tier === "high" ? css.priorityChipHigh
                 : tier === "medium" ? css.priorityChipMedium
                   : css.priorityChipLow;
+            const label = `${getPriorityLabel(tier)} Priority${isNetNewCustomer ? ": New Customer" : ""}`;
             return (
               <span
                 className={`${css.priorityChip} ${chipClass}`}
                 title={priorityScore != null ? `Priority score: ${priorityScore.toFixed(2)}` : undefined}
               >
-                {getPriorityLabel(tier)} Priority
+                {label}
+                {isNetNewCustomer && <span className={css.priorityChipStar}> ⭐</span>}
               </span>
             );
           })()}
