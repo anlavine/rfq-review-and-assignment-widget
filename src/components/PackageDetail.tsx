@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { PendingRfqPackage, PendingRfqAttachments, editDueDate, changeCustomer, RfqIngestionErrors } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, PendingRfqAttachments, PendingRfqPriority, editDueDate, changeCustomer, RfqIngestionErrors } from "@rfq-review-hub-widget-application/sdk";
 import CustomerPicker from "./CustomerPicker";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -11,6 +11,7 @@ import HtmlBodyContent from "./HtmlBodyContent";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { getPriorityTier, getPriorityLabel } from "../utils/priorityColor";
 
 interface PackageDetailProps {
   packageId: string;
@@ -200,6 +201,7 @@ function PackageDetail({
   const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
   const [hasPackageError, setHasPackageError] = useState(false);
   const [hasToolError, setHasToolError] = useState(false);
+  const [priorityScore, setPriorityScore] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingDueDate, setEditingDueDate] = useState(false);
@@ -218,6 +220,7 @@ function PackageDetail({
     setConversationSiblings([]);
     setHasPackageError(false);
     setHasToolError(false);
+    setPriorityScore(null);
     setLoading(true);
     setError(null);
 
@@ -338,12 +341,24 @@ function PackageDetail({
           }
         })();
 
-        const [resolvedCustomer, resolvedToolCount, resolvedAttachmentCount, resolvedSiblings, resolvedErrors] = await Promise.all([
+        const priorityPromise = (async (): Promise<number | null> => {
+          try {
+            const page = await client(PendingRfqPriority)
+              .where({ packageId: { $eq: packageId } })
+              .fetchPage({ $pageSize: 1 });
+            return page.data[0]?.priorityScore ?? null;
+          } catch {
+            return null;
+          }
+        })();
+
+        const [resolvedCustomer, resolvedToolCount, resolvedAttachmentCount, resolvedSiblings, resolvedErrors, resolvedPriority] = await Promise.all([
           customerPromise,
           toolCountPromise,
           attachmentCountPromise,
           conversationPromise,
           errorsPromise,
+          priorityPromise,
         ]);
 
         if (cancelled) return;
@@ -353,6 +368,7 @@ function PackageDetail({
         setConversationSiblings(resolvedSiblings);
         setHasPackageError(resolvedErrors.hasPackageError);
         setHasToolError(resolvedErrors.hasToolError);
+        setPriorityScore(resolvedPriority);
       } catch (e) {
         if (!cancelled) {
           setError(
@@ -521,6 +537,22 @@ function PackageDetail({
               </button>
             </div>
           )}
+          {(() => {
+            const tier = getPriorityTier(priorityScore);
+            if (tier === "none") return null;
+            const chipClass =
+              tier === "high" ? css.priorityChipHigh
+                : tier === "medium" ? css.priorityChipMedium
+                  : css.priorityChipLow;
+            return (
+              <span
+                className={`${css.priorityChip} ${chipClass}`}
+                title={priorityScore != null ? `Priority score: ${priorityScore.toFixed(2)}` : undefined}
+              >
+                {getPriorityLabel(tier)} Priority
+              </span>
+            );
+          })()}
           {(() => {
             const totalCount = attachmentCount ?? 0;
             const parsedCount = parsedAttachmentCount;

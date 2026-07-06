@@ -413,6 +413,40 @@
   font-weight: 700;
 }
 
+/* ── Priority tier chip (High / Medium / Low) ── */
+.priorityChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 10px;
+  line-height: 16px;
+  white-space: nowrap;
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+.priorityChipHigh {
+  color: #7a4a04;
+  background: #feebc7;
+  border-color: #ea9708;
+}
+
+.priorityChipMedium {
+  color: #6b6a10;
+  background: #fbf5c5;
+  border-color: #f3d22c;
+}
+
+.priorityChipLow {
+  color: #444;
+  background: #f3f3f3;
+  border-color: #cdcdcd;
+}
+
 /* ── Conversation section ── */
 .conversationSection {
   margin-bottom: 20px;
