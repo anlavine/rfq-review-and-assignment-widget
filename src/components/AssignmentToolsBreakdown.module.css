@@ -1,0 +1,102 @@
+.section {
+  margin-bottom: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+
+.countBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+}
+
+.emptyMessage {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.loading {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.tableWrap {
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.table th {
+  background: var(--bg-muted);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  text-align: left;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-default);
+  vertical-align: top;
+  line-height: 1.35;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.numeric {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.toolImage {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 4px;
+  background: var(--bg-muted);
+  border: 1px solid var(--border-default);
+}

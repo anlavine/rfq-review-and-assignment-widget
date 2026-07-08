@@ -15,6 +15,8 @@ import EditTagsModal from "./components/EditTagsModal";
 import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
 import AssignmentPackageList from "./components/AssignmentPackageList";
+import AssignmentPendingPackageDetail from "./components/AssignmentPendingPackageDetail";
+import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
 import { trackUsage, INTERACTION_KEYS } from "./utils/trackUsage";
@@ -47,7 +49,7 @@ function Home(): React.ReactElement {
   const [bulkSkipMode, setBulkSkipMode] = useState<BulkSkipMode>(false);
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
-  const [appMode/*, setAppMode */] = useState<"ingestion" | "assignment">("ingestion");
+  const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
   const { theme, toggleTheme } = useTheme();
@@ -362,7 +364,7 @@ function Home(): React.ReactElement {
 
   return (
     <div className={css.home}>
-      {/* <div className={css.modeToggleBar}>
+      {<div className={css.modeToggleBar}>
         <div className={css.modeToggle}>
           <button
             className={`${css.modeToggleOption} ${appMode === "ingestion" ? css.modeToggleActive : ""}`}
@@ -377,7 +379,7 @@ function Home(): React.ReactElement {
             Assignment
           </button>
         </div>
-      </div> */}
+      </div>}
 
       {appMode === "assignment" ? (
         <div className={css.panels}>
@@ -392,11 +394,24 @@ function Home(): React.ReactElement {
           </div>
           <div className={css.detailColumn}>
             <div className={css.detailPanel}>
-              {selectedAssignmentId ? (
-                <div className={css.emptyDetail}>
-                  {/* Detail panel — coming soon */}
-                  Selected: {selectedAssignmentType} package {selectedAssignmentId}
-                </div>
+              {selectedAssignmentId && selectedAssignmentType === "pending" ? (
+                <AssignmentPendingPackageDetail
+                  packageId={selectedAssignmentId}
+                  refreshToken={refreshToken}
+                  onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                  onSelectPackage={(id) => setSelectedAssignmentId(id)}
+                />
+              ) : selectedAssignmentId && selectedAssignmentType === "rfq" ? (
+                <AssignmentRfqPackageDetail
+                  packageId={selectedAssignmentId}
+                  refreshToken={refreshToken}
+                  onSelectPackage={(id) => {
+                    // Switching to a pending package sibling from the
+                    // conversation section — flip both selection fields.
+                    setSelectedAssignmentId(id);
+                    setSelectedAssignmentType("pending");
+                  }}
+                />
               ) : (
                 <div className={css.emptyDetail}>
                   Select a package from the list to view its details.

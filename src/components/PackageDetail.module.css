@@ -140,6 +140,14 @@
   margin-bottom: 20px;
 }
 
+/* Email fields — two columns, side-by-side */
+.emailFieldsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

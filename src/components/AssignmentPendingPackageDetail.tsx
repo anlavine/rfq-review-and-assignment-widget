@@ -9,27 +9,40 @@ import { usePendingPackageDetail } from "../hooks/usePendingPackageDetail";
 import PackageDetailHeader from "./PackageDetailHeader";
 import PackageEmailAddressFields from "./PackageEmailAddressFields";
 import PackageCustomerAndNameFields from "./PackageCustomerAndNameFields";
-import PackageParsedCountsGrid from "./PackageParsedCountsGrid";
 import PackageConversationSection from "./PackageConversationSection";
 import PackageBodyContent from "./PackageBodyContent";
+import AssignmentToolsBreakdown from "./AssignmentToolsBreakdown";
 
-interface PackageDetailProps {
+interface AssignmentPendingPackageDetailProps {
   packageId: string;
   refreshToken?: number;
   onDueDateChanged?: () => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
 }
 
-function PackageDetail({
+/**
+ * Detail view for a Pending RFQ Package in the assignment tab.
+ *
+ * Compared to the ingestion `PackageDetail` view:
+ *   - Adds an `AssignmentToolsBreakdown` table at the top listing every active tool
+ *     with its Tool #, Customer Tool #, Part Name(s), Commodity Category, and
+ *     Commodity Type.
+ *   - Shows only the "From" field (hides the "To" field).
+ *   - Hides the Number of Parsed Tools / Attachments grid.
+ *   - Hides the priority, attachment-parse-status, ingestion-error, and
+ *     overall-completion chips in the header.
+ *   - Keeps the merged badge, editable due date, editable customer, and body
+ *     content section.
+ */
+function AssignmentPendingPackageDetail({
   packageId,
   refreshToken,
   onDueDateChanged,
   onSelectPackage,
-}: PackageDetailProps): React.ReactElement {
+}: AssignmentPendingPackageDetailProps): React.ReactElement {
   const {
     pkg,
     customerName,
-    toolCount,
     attachmentCount,
     conversationSiblings,
     hasPackageError,
@@ -85,7 +98,6 @@ function PackageDetail({
     }
   };
 
-  // parsedAttachmentFilenames is the authoritative list of attachments that were actually parsed
   const parsedAttachmentCount = pkg.receivedDatetime && pkg.receivedDatetime > "2026-06-05T15:35:06Z"
     ? (pkg.parsedAttachmentFilenames ?? []).length
     : excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;
@@ -99,6 +111,19 @@ function PackageDetail({
 
   return (
     <div className={css.container}>
+
+       <PackageCustomerAndNameFields
+        pkg={pkg}
+        customerName={customerName}
+        layout="row"
+        onCustomerChanged={(newName) => {
+          setCustomerName(newName);
+          onDueDateChanged?.();
+        }}
+      />
+      
+      <AssignmentToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
+
       <PackageDetailHeader
         pkg={pkg}
         merged={merged}
@@ -108,6 +133,10 @@ function PackageDetail({
         hasToolError={hasToolError}
         priorityScore={priorityScore}
         isNetNewCustomer={isNetNewCustomer}
+        showPriorityChip={false}
+        showAttachmentChip={false}
+        showIngestionErrorChips={false}
+        showConfidenceChip={false}
         onSaveDueDate={handleDueDateSave}
         editingDueDate={editingDueDate}
         setEditingDueDate={setEditingDueDate}
@@ -121,21 +150,8 @@ function PackageDetail({
         subjectSegments={subjectSegments}
         rawFrom={pkg.from}
         rawTo={pkg.to}
-      />
-
-      <PackageCustomerAndNameFields
-        pkg={pkg}
-        customerName={customerName}
-        onCustomerChanged={(newName) => {
-          setCustomerName(newName);
-          onDueDateChanged?.(); // re-use callback to trigger list refresh
-        }}
-      />
-
-      <PackageParsedCountsGrid
-        toolCount={toolCount}
-        attachmentCount={attachmentCount}
-        parsedAttachmentCount={parsedAttachmentCount}
+        showFrom
+        showTo={false}
       />
 
       <PackageConversationSection
@@ -154,4 +170,4 @@ function PackageDetail({
   );
 }
 
-export default PackageDetail;
+export default AssignmentPendingPackageDetail;
