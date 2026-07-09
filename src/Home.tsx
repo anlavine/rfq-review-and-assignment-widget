@@ -17,6 +17,7 @@ import ReviewPanel from "./components/ReviewPanel";
 import AssignmentPackageList from "./components/AssignmentPackageList";
 import AssignmentPendingPackageDetail from "./components/AssignmentPendingPackageDetail";
 import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail";
+import AssignToModal from "./components/AssignToModal";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
 import { trackUsage, INTERACTION_KEYS } from "./utils/trackUsage";
@@ -52,6 +53,14 @@ function Home(): React.ReactElement {
   const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
+  const [showAssignTo, setShowAssignTo] = useState(false);
+  /**
+   * Session-local set of package IDs that were just assigned via the
+   * Assign To modal. These are hidden from the AssignmentPackageList
+   * without triggering a full refetch so users see the list update
+   * instantly; they'll fall off naturally on the next real refresh.
+   */
+  const [assignedInSession, setAssignedInSession] = useState<Set<string>>(new Set());
   const { theme, toggleTheme } = useTheme();
 
   /** Ref to PendingRfqPackageList for optimistic updates */
@@ -390,9 +399,19 @@ function Home(): React.ReactElement {
                 setSelectedAssignmentId(id);
                 setSelectedAssignmentType(type);
               }}
+              hiddenIds={assignedInSession}
             />
           </div>
           <div className={css.detailColumn}>
+            <div className={css.headerBar}>
+              <button
+                className={css.headerButton}
+                disabled={!selectedAssignmentId}
+                onClick={() => setShowAssignTo(true)}
+              >
+                Assign To
+              </button>
+            </div>
             <div className={css.detailPanel}>
               {selectedAssignmentId && selectedAssignmentType === "pending" ? (
                 <AssignmentPendingPackageDetail
@@ -718,6 +737,30 @@ function Home(): React.ReactElement {
           packageIds={bulkSkipSelected}
           onClose={() => setShowBulkSkipConfirm(false)}
           onSkipped={handleBulkSkipComplete}
+        />
+      )}
+
+      {showAssignTo && selectedAssignmentId && selectedAssignmentType && (
+        <AssignToModal
+          packageId={selectedAssignmentId}
+          packageType={selectedAssignmentType}
+          onClose={() => setShowAssignTo(false)}
+          onAssigned={() => {
+            const assignedId = selectedAssignmentId;
+            // Optimistically drop the assigned package from the list
+            // without a full refetch.
+            setAssignedInSession((prev) => {
+              const next = new Set(prev);
+              next.add(assignedId);
+              return next;
+            });
+            setShowAssignTo(false);
+            // Clear the current selection so the detail panel doesn't keep
+            // showing a package that's no longer in the list.
+            setSelectedAssignmentId(null);
+            setSelectedAssignmentType(null);
+            setRefreshToken((t) => t + 1);
+          }}
         />
       )}
     </div>

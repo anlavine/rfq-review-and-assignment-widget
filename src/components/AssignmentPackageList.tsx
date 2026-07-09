@@ -18,6 +18,12 @@ export type AssignmentItem =
 interface AssignmentPackageListProps {
   selectedId: string | null;
   onSelect: (id: string, type: "pending" | "rfq") => void;
+  /**
+   * Set of package IDs to hide from the rendered list. Used to remove
+   * packages that were just assigned in the current session without
+   * having to refetch the full list from the ontology.
+   */
+  hiddenIds?: Set<string>;
 }
 
 function formatDate(date: string | undefined): string {
@@ -51,7 +57,7 @@ function categorizeWorkType(workType: string | undefined): "new" | "engChange" |
   return "other";
 }
 
-function AssignmentPackageList({ selectedId, onSelect }: AssignmentPackageListProps): React.ReactElement {
+function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPackageListProps): React.ReactElement {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,28 +76,52 @@ function AssignmentPackageList({ selectedId, onSelect }: AssignmentPackageListPr
       try {
         // ── Fetch active pending + rfq packages in parallel ──
         const [pendingPages, rfqPages] = await Promise.all([
-          // Active PendingRfqPackages
+          // Active, unassigned PendingRfqPackages
           (async () => {
             const results: Osdk.Instance<PendingRfqPackage>[] = [];
             let token: string | undefined;
             do {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const page = await client(PendingRfqPackage).where({ completionStatus: { $eq: "Active" } } as any)
+              const page = await client(PendingRfqPackage)
+                .where({
+                  $and: [
+                    { completionStatus: { $eq: "Active" } },
+                    { assignedEstimator: { $isNull: true } },
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ] as any,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any)
                 .fetchPage({ $pageSize: FETCH_PAGE_SIZE, ...(token ? { $nextPageToken: token } : {}) });
-              results.push(...page.data);
+              // Defensive client-side filter — some rows may store empty
+              // strings rather than null for the assignee field.
+              for (const p of page.data) {
+                if (!p.assignedEstimator || p.assignedEstimator.trim() === "") {
+                  results.push(p);
+                }
+              }
               token = page.nextPageToken;
             } while (token && !cancelled);
             return results;
           })(),
-          // Active RfqPackages
+          // Active, unassigned RfqPackages
           (async () => {
             const results: Osdk.Instance<RfqPackage>[] = [];
             let token: string | undefined;
             do {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const page = await client(RfqPackage).where({ status: { $eq: "Active" } } as any)
+              const page = await client(RfqPackage)
+                .where({
+                  $and: [
+                    { status: { $eq: "Active" } },
+                    { assignedTo: { $isNull: true } },
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  ] as any,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                } as any)
                 .fetchPage({ $pageSize: FETCH_PAGE_SIZE, ...(token ? { $nextPageToken: token } : {}) });
-              results.push(...page.data);
+              for (const p of page.data) {
+                if (!p.assignedTo || p.assignedTo.trim() === "") {
+                  results.push(p);
+                }
+              }
               token = page.nextPageToken;
             } while (token && !cancelled);
             return results;
@@ -169,12 +199,17 @@ function AssignmentPackageList({ selectedId, onSelect }: AssignmentPackageListPr
     return () => { cancelled = true; };
   }, [priorityMap]);
 
+  const visibleItems = useMemo(() => {
+    if (!hiddenIds || hiddenIds.size === 0) return items;
+    return items.filter((item) => !hiddenIds.has(String(item.pkg.$primaryKey)));
+  }, [items, hiddenIds]);
+
   const content = useMemo(() => {
     if (loading) return <div className={css.emptyCard}>Fetching packages…</div>;
     if (error) return <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>;
-    if (items.length === 0) return <div className={css.emptyCard}>No active packages found.</div>;
+    if (visibleItems.length === 0) return <div className={css.emptyCard}>No active packages found.</div>;
 
-    return items.map((item) => {
+    return visibleItems.map((item) => {
       const id = String(item.pkg.$primaryKey);
       const isSelected = id === selectedId;
       const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
@@ -253,13 +288,13 @@ function AssignmentPackageList({ selectedId, onSelect }: AssignmentPackageListPr
         );
       }
     });
-  }, [items, selectedId, loading, error, onSelect]);
+  }, [visibleItems, selectedId, loading, error, onSelect]);
 
   return (
     <div className={css.container}>
       <div className={css.titleRow}>
-        <h2 className={css.title}>Packages</h2>
-        <span className={css.count}>{loading ? "" : `${items.length} active`}</span>
+        <h2 className={css.title}>Unassigned Packages</h2>
+        <span className={css.count}>{loading ? "" : `${visibleItems.length} active`}</span>
       </div>
       <div className={css.cardGrid}>
         {content}

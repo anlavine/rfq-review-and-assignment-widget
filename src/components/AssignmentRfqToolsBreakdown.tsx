@@ -17,25 +17,24 @@ interface RfqToolRow {
 }
 
 /**
- * Loads the tool image attachment (if present) and returns a blob URL that
- * can be used as an <img> src. Returns `null` on failure or when no image
- * is available.
+ * Loads the tool image (a media reference) and returns a blob URL that can
+ * be used as an <img> src. Returns `null` when no image is available or
+ * loading fails.
  */
 async function loadToolImageUrl(tool: Osdk.Instance<RfqTool>): Promise<string | null> {
   try {
-    const attachment = tool.toolImageAttachment;
-    if (attachment) {
-      const response = await attachment.fetchContents();
+    const media = tool.toolImage;
+    if (media) {
+      const response = await media.fetchContents();
       if (response.ok) {
         const blob = await response.blob();
         return URL.createObjectURL(blob);
       }
     }
-  } catch {
-    // Fall through to imageUrl fallback
+  } catch (e) {
+    console.warn("Failed to fetch tool image", { toolId: tool.toolId }, e);
   }
-  // Fallback to any raw image URL stored on the tool
-  return tool.imageUrl ?? null;
+  return null;
 }
 
 /**
@@ -80,13 +79,31 @@ function AssignmentRfqToolsBreakdown({
               loadToolImageUrl(tool),
               (async (): Promise<string[]> => {
                 try {
-                  const page = await tool.$link.rfqToolPart.fetchPage({ $pageSize: 200 });
-                  return page.data
+                  // Prefer the direct link on the tool
+                  const linkPage = await tool.$link.rfqToolPart.fetchPage({ $pageSize: 200 });
+                  const names = linkPage.data
                     .map((p: Osdk.Instance<RfqToolPart>) => (p.partName ?? "").trim())
                     .filter((n) => n.length > 0);
-                } catch {
-                  return [];
+                  if (names.length > 0) return names;
+                } catch (e) {
+                  console.warn("Failed to fetch parts via $link.rfqToolPart", { toolId: tool.toolId }, e);
                 }
+                // Fallback: query RfqToolPart directly by tool_id.
+                // Some data may not have the traversal link populated even
+                // though the tool_id foreign key is present.
+                try {
+                  const toolId = tool.toolId;
+                  if (!toolId) return [];
+                  const page = await client(RfqToolPart)
+                    .where({ toolId: { $eq: toolId } })
+                    .fetchPage({ $pageSize: 200 });
+                  return page.data
+                    .map((p) => (p.partName ?? "").trim())
+                    .filter((n) => n.length > 0);
+      } catch (e) {
+                  console.warn("Failed to fetch parts by tool_id", { toolId: tool.toolId }, e);
+                  return [];
+        }
               })(),
             ]);
             if (imageBlobUrl && imageBlobUrl.startsWith("blob:")) {
@@ -134,7 +151,7 @@ function AssignmentRfqToolsBreakdown({
         <p className={css.emptyMessage}>No tools found for this package.</p>
       ) : (
         <div className={css.tableWrap}>
-          <table className={css.table}>
+          <table className={`${css.table} ${css.centeredTable}`}>
             <thead>
               <tr>
                 <th>Image</th>
@@ -160,7 +177,7 @@ function AssignmentRfqToolsBreakdown({
                         <img
                           src={row.imageBlobUrl}
                           alt={`Tool ${t.customerToolNumber ?? t.toolId ?? ""}`}
-                          className={css.toolImage}
+                          className={css.toolImageLarge}
                           loading="lazy"
                         />
                       ) : (
