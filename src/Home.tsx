@@ -405,6 +405,23 @@ function Home(): React.ReactElement {
           <div className={css.detailColumn}>
             <div className={css.headerBar}>
               <button
+                className={css.feedbackButton}
+                disabled={!selectedAssignmentId}
+                onClick={() => setShowFeedback(true)}
+                title="Submit feedback"
+              >
+                <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
+                </svg>
+              </button>
+              <button
+                className={css.themeToggle}
+                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
+                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              >
+                {theme === "dark" ? "☀️" : "🌙"}
+              </button>
+              <button
                 className={css.headerButton}
                 disabled={!selectedAssignmentId}
                 onClick={() => setShowAssignTo(true)}
@@ -724,9 +741,9 @@ function Home(): React.ReactElement {
         />
       )}
 
-      {showFeedback && selectedPackageId && (
+      {showFeedback && (appMode === "assignment" ? selectedAssignmentId : selectedPackageId) && (
         <FeedbackModal
-          packageId={selectedPackageId}
+          packageId={(appMode === "assignment" ? selectedAssignmentId : selectedPackageId) as string}
           onClose={() => setShowFeedback(false)}
           onSubmitted={() => { trackUsage(INTERACTION_KEYS.FEEDBACK_SUBMIT); setShowFeedback(false); }}
         />

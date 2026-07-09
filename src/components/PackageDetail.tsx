@@ -36,6 +36,7 @@ function PackageDetail({
     hasToolError,
     priorityScore,
     isNetNewCustomer,
+    assignedEstimatorName,
     loading,
     error,
     setPkg,
@@ -108,6 +109,7 @@ function PackageDetail({
         hasToolError={hasToolError}
         priorityScore={priorityScore}
         isNetNewCustomer={isNetNewCustomer}
+        assignedEstimatorName={assignedEstimatorName}
         onSaveDueDate={handleDueDateSave}
         editingDueDate={editingDueDate}
         setEditingDueDate={setEditingDueDate}

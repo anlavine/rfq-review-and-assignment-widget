@@ -4,6 +4,7 @@ import {
   PendingRfqAttachments,
   PendingRfqPriority,
   RfqIngestionErrors,
+  Employee,
 } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -29,6 +30,12 @@ export interface PendingPackageDetailState {
   hasToolError: boolean;
   priorityScore: number | null;
   isNetNewCustomer: boolean;
+  /**
+   * Display name of the assigned estimator resolved via the
+   * `assignedEstimator` foreign key on PendingRfqPackage. `null` when
+   * no estimator is assigned or the lookup failed.
+   */
+  assignedEstimatorName: string | null;
   loading: boolean;
   error: string | null;
   /** Replace the loaded package instance in local state (e.g. after an action). */
@@ -55,6 +62,7 @@ export function usePendingPackageDetail(
   const [hasToolError, setHasToolError] = useState(false);
   const [priorityScore, setPriorityScore] = useState<number | null>(null);
   const [isNetNewCustomer, setIsNetNewCustomer] = useState<boolean>(false);
+  const [assignedEstimatorName, setAssignedEstimatorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,6 +78,7 @@ export function usePendingPackageDetail(
     setHasToolError(false);
     setPriorityScore(null);
     setIsNetNewCustomer(false);
+    setAssignedEstimatorName(null);
     setLoading(true);
     setError(null);
 
@@ -186,6 +195,23 @@ export function usePendingPackageDetail(
           }
         })();
 
+        const assignedEstimatorPromise = (async (): Promise<string | null> => {
+          const estimatorId = obj.assignedEstimator;
+          if (!estimatorId || estimatorId.trim() === "") return null;
+          try {
+            const emp = await client(Employee).fetchOne(estimatorId);
+            const fromDisplay = emp.displayName;
+            if (fromDisplay && fromDisplay.trim() !== "") return fromDisplay;
+            const fromParts = [emp.firstName, emp.lastName]
+              .filter(Boolean)
+              .join(" ")
+              .trim();
+            return fromParts !== "" ? fromParts : null;
+          } catch {
+            return null;
+          }
+        })();
+
         const priorityPromise = (async (): Promise<{ priorityScore: number | null; isNetNewCustomer: boolean }> => {
           try {
             const page = await client(PendingRfqPriority)
@@ -208,6 +234,7 @@ export function usePendingPackageDetail(
           resolvedSiblings,
           resolvedErrors,
           resolvedPriority,
+          resolvedEstimatorName,
         ] = await Promise.all([
           customerPromise,
           toolCountPromise,
@@ -215,6 +242,7 @@ export function usePendingPackageDetail(
           conversationPromise,
           errorsPromise,
           priorityPromise,
+          assignedEstimatorPromise,
         ]);
 
         if (cancelled) return;
@@ -226,6 +254,7 @@ export function usePendingPackageDetail(
         setHasToolError(resolvedErrors.hasToolError);
         setPriorityScore(resolvedPriority.priorityScore);
         setIsNetNewCustomer(resolvedPriority.isNetNewCustomer);
+        setAssignedEstimatorName(resolvedEstimatorName);
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "Failed to load package details");
@@ -252,6 +281,7 @@ export function usePendingPackageDetail(
     hasToolError,
     priorityScore,
     isNetNewCustomer,
+    assignedEstimatorName,
     loading,
     error,
     setPkg,

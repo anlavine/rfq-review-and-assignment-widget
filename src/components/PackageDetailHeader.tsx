@@ -16,6 +16,11 @@ interface PackageDetailHeaderProps {
   hasToolError: boolean;
   priorityScore: number | null;
   isNetNewCustomer: boolean;
+  /**
+   * Display name of the assigned estimator, if any. When provided,
+   * renders an "Assigned to: <name>" line under the due date.
+   */
+  assignedEstimatorName?: string | null;
 
   /** Whether the priority tier badge should be rendered. Defaults to true. */
   showPriorityChip?: boolean;
@@ -68,6 +73,7 @@ function PackageDetailHeader({
   hasToolError,
   priorityScore,
   isNetNewCustomer,
+  assignedEstimatorName,
   showPriorityChip = true,
   showAttachmentChip = true,
   showIngestionErrorChips = true,
@@ -115,6 +121,11 @@ function PackageDetailHeader({
         {pkg.automatedDueDate === "true" && (
           <span className={css.autoLabel} title="This due date was auto-generated">
             🤖 Auto-generated
+          </span>
+        )}
+        {assignedEstimatorName && (
+          <span className={css.dateCompact} title="Assigned estimator">
+            Assigned to: <strong>{assignedEstimatorName}</strong>
           </span>
         )}
         {editableDueDate && editingDueDate && (
