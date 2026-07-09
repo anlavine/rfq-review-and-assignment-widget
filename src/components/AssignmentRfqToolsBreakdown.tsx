@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { RfqPackage, RfqTool } from "@rfq-review-hub-widget-application/sdk";
+import { RfqPackage, RfqTool, RfqToolPart } from "@rfq-review-hub-widget-application/sdk";
 import type { Osdk } from "@osdk/client";
 import client from "../client";
 import css from "./AssignmentToolsBreakdown.module.css";
@@ -13,6 +13,7 @@ interface AssignmentRfqToolsBreakdownProps {
 interface RfqToolRow {
   tool: Osdk.Instance<RfqTool>;
   imageBlobUrl: string | null;
+  partNames: string[];
 }
 
 /**
@@ -72,14 +73,26 @@ function AssignmentRfqToolsBreakdown({
           compareToolNumber(a.customerToolNumber, b.customerToolNumber, undefined, undefined),
         );
 
-        // Resolve tool images in parallel
+        // Resolve tool image and linked parts in parallel
         const results = await Promise.all(
           sorted.map(async (tool): Promise<RfqToolRow> => {
-            const imageBlobUrl = await loadToolImageUrl(tool);
+            const [imageBlobUrl, partNames] = await Promise.all([
+              loadToolImageUrl(tool),
+              (async (): Promise<string[]> => {
+                try {
+                  const page = await tool.$link.rfqToolPart.fetchPage({ $pageSize: 200 });
+                  return page.data
+                    .map((p: Osdk.Instance<RfqToolPart>) => (p.partName ?? "").trim())
+                    .filter((n) => n.length > 0);
+                } catch {
+                  return [];
+                }
+              })(),
+            ]);
             if (imageBlobUrl && imageBlobUrl.startsWith("blob:")) {
               createdBlobUrls.push(imageBlobUrl);
             }
-            return { tool, imageBlobUrl };
+            return { tool, imageBlobUrl, partNames };
           }),
         );
 
@@ -126,18 +139,9 @@ function AssignmentRfqToolsBreakdown({
               <tr>
                 <th>Image</th>
                 <th>Customer Tool #</th>
-                <th>Tool Status</th>
-                <th>Won Status</th>
+                <th>Part Name(s)</th>
                 <th>Commodity Category</th>
                 <th>Commodity Type</th>
-                <th>Mold Type</th>
-                <th>Cavitation</th>
-                <th>Est. Kick Off</th>
-                <th>Est. T1</th>
-                <th>Target Price</th>
-                <th>Client Currency Price</th>
-                <th>Client Currency</th>
-                <th>Customer Note</th>
               </tr>
             </thead>
             <tbody>
@@ -145,6 +149,9 @@ function AssignmentRfqToolsBreakdown({
                 const t = row.tool;
                 const renderCell = (v: string | number | null | undefined) =>
                   v == null || v === "" ? <span className={css.muted}>—</span> : String(v);
+                const partNames = row.partNames.length > 0
+                  ? row.partNames.join(" | ")
+                  : null;
 
                 return (
                   <tr key={String(t.$primaryKey)}>
@@ -161,18 +168,9 @@ function AssignmentRfqToolsBreakdown({
                       )}
                     </td>
                     <td>{renderCell(t.customerToolNumber)}</td>
-                    <td>{renderCell(t.toolStatus)}</td>
-                    <td>{renderCell(t.toolWonStatus)}</td>
+                    <td>{partNames ?? <span className={css.muted}>—</span>}</td>
                     <td>{renderCell(t.commodityCategory)}</td>
                     <td>{renderCell(t.commodityType)}</td>
-                    <td>{renderCell(t.moldType)}</td>
-                    <td>{renderCell(t.cavitation)}</td>
-                    <td className={css.numeric}>{renderCell(t.estimatedKickOffDate)}</td>
-                    <td className={css.numeric}>{renderCell(t.estimatedT1Date)}</td>
-                    <td className={css.numeric}>{renderCell(t.targetPrice)}</td>
-                    <td className={css.numeric}>{renderCell(t.clientCurrencyPrice)}</td>
-                    <td>{renderCell(t.clientCurrency)}</td>
-                    <td>{renderCell(t.customerNote)}</td>
                   </tr>
                 );
               })}
@@ -185,3 +183,4 @@ function AssignmentRfqToolsBreakdown({
 }
 
 export default AssignmentRfqToolsBreakdown;
+

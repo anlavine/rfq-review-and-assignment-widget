@@ -90,6 +90,8 @@ function AssignmentRfqPackageDetail({
         layout="row"
       />
 
+      <AssignmentRfqToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
+
       <div className={css.header}>
         <div className={css.headerLeft}>
           <h2 className={css.title}>
@@ -118,8 +120,6 @@ function AssignmentRfqPackageDetail({
           </span>
         </div>
       </div>
-
-      <AssignmentRfqToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
 
       {pendingPkg && (
         <>

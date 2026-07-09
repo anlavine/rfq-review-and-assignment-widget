@@ -20,7 +20,7 @@
     "@osdk/oauth": "^1.12.0",
     "@osdk/react": "^0.7.0",
     "@osdk/workshop-iframe-custom-widget": "^1.1.1",
-    "@rfq-review-hub-widget-application/sdk": "^0.33.0",
+    "@rfq-review-hub-widget-application/sdk": "^0.34.0",
     "dompurify": "^3.4.1",
     "react": "^18",
     "react-dom": "^18",
