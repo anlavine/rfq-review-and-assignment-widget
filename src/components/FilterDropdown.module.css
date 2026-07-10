@@ -38,6 +38,19 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* Cap the popup height so it can't run off the viewport. The sections list
+     scrolls independently so the action buttons stay pinned at the bottom. */
+  max-height: calc(100vh - 120px);
+}
+
+.sections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  /* Give a bit of breathing room on the right so the scrollbar doesn't overlap
+     the multi-select trigger buttons. */
+  padding-right: 2px;
 }
 
 .section {

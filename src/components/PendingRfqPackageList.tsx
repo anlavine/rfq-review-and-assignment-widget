@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import ReactDOM from "react-dom";
-import { PendingRfqPackage, PendingRfqAttachments } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, PendingRfqAttachments, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import { Branches } from "@osdk/foundry.datasets";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -46,7 +46,17 @@ export interface Filters {
   senderSearch: string;
   selectedTags: string[];
   hasParsedTools: boolean;
+  /**
+   * Employee primary keys (RfqPackage.assignedTo values). A package matches
+   * the filter if the RFQ Package it's linked to has `assignedTo` in this set.
+   * The special value `"__unassigned__"` matches packages with no linked
+   * RFQ Package or a linked RFQ Package with a null/empty `assignedTo`.
+   */
+  assignedToIds: string[];
 }
+
+/** Sentinel value inserted into `assignedToIds` to represent "unassigned". */
+export const ASSIGNED_TO_UNASSIGNED = "__unassigned__";
 
 /** Package IDs to exclude from auto-selection (e.g. just-skipped packages) */
 export type ExcludeFromAutoSelect = string[];
@@ -56,6 +66,12 @@ interface PackageMeta {
   customerName: string | null;
   toolCount: number;
   attachmentCount: number;
+  /**
+   * The `assignedTo` value from the linked RFQ Package (an Employee primary
+   * key). `null` means there is no linked RFQ Package or the linked package
+   * has no assignee set. Used for the "Assigned To" filter.
+   */
+  rfqAssignedTo: string | null;
 }
 
 export type MergeStep = "selectSource" | "selectTarget" | null;
@@ -111,7 +127,7 @@ interface PendingRfqPackageListProps {
 /** Resolve customer name, tool count, and attachment count for a single package */
 async function resolvePackageMeta(pkg: Osdk.Instance<PendingRfqPackage>): Promise<PackageMeta> {
   const pkId = String(pkg.$primaryKey);
-  const [customerName, toolCount, attachmentCount] = await Promise.all([
+  const [customerName, toolCount, attachmentCount, rfqAssignedTo] = await Promise.all([
     (async () => {
       try {
         const page = await client(PendingRfqPackage)
@@ -157,8 +173,24 @@ async function resolvePackageMeta(pkg: Osdk.Instance<PendingRfqPackage>): Promis
         return 0;
       }
     })(),
+    // Resolve linked RFQ Package assignee (Employee primary key). We use the
+    // RFQ Package rather than the PendingRfqPackage's own assignedEstimator
+    // because it may have been changed downstream during ingestion.
+    (async () => {
+      const rfqId = pkg.rfqPackageId;
+      if (!rfqId) return null;
+      try {
+        const rfq = await client(RfqPackage).fetchOne(rfqId);
+        const raw = rfq.assignedTo ?? null;
+        if (raw === null) return null;
+        const trimmed = String(raw).trim();
+        return trimmed === "" ? null : trimmed;
+      } catch {
+        return null;
+      }
+    })(),
   ]);
-  return { customerName, toolCount, attachmentCount };
+  return { customerName, toolCount, attachmentCount, rfqAssignedTo };
 }
 
 /** Resolve metadata for a batch with concurrency control, calling onBatch after each chunk */
@@ -640,6 +672,19 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         if (meta.toolCount === 0) return false;
       }
 
+      // Assigned-to filter — matches on the linked RFQ Package's assignedTo.
+      // Skip when metadata is still resolving; once resolved, apply the filter.
+      if (filters.assignedToIds.length > 0) {
+        if (!meta) return false; // hide until metadata is loaded so we don't leak wrong matches
+        const wantsUnassigned = filters.assignedToIds.includes(ASSIGNED_TO_UNASSIGNED);
+        const otherIds = filters.assignedToIds.filter((v) => v !== ASSIGNED_TO_UNASSIGNED);
+        const rfqAssignee = meta.rfqAssignedTo;
+        const isUnassigned = rfqAssignee === null;
+        const matchesUnassigned = wantsUnassigned && isUnassigned;
+        const matchesSelected = !isUnassigned && otherIds.includes(rfqAssignee!);
+        if (!matchesUnassigned && !matchesSelected) return false;
+      }
+
       return true;
     });
 
@@ -684,7 +729,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   }, [filteredPackages, currentPage]);
 
   // Reset to page 0 when filters change
-  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.senderSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}`;
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.senderSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}|${filters.assignedToIds.join(",")}`;
   useEffect(() => {
     setCurrentPage(0);
   }, [filterKey]);

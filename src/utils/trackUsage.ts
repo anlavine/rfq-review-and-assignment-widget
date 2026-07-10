@@ -12,6 +12,7 @@ export const INTERACTION_KEYS = {
   FILTER_TAGS: "filter.tags",
   FILTER_HAS_PARSED_TOOLS: "filter.hasParsedTools",
   FILTER_SENDER: "filter.sender",
+  FILTER_ASSIGNED_TO: "filter.assignedTo",
   // Package actions
   PACKAGE_SKIP: "package.skip",
   PACKAGE_UNSKIP: "package.unskip",
