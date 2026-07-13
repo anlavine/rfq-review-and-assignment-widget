@@ -51,16 +51,22 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
+  const [assignmentTab, setAssignmentTab] = useState<"unassigned" | "assigned">("unassigned");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
   const [showAssignTo, setShowAssignTo] = useState(false);
   /**
    * Session-local set of package IDs that were just assigned via the
-   * Assign To modal. These are hidden from the AssignmentPackageList
-   * without triggering a full refetch so users see the list update
-   * instantly; they'll fall off naturally on the next real refresh.
+   * Assign To modal from the Unassigned tab. Hides them from the
+   * Unassigned list without a full refetch.
    */
   const [assignedInSession, setAssignedInSession] = useState<Set<string>>(new Set());
+  /**
+   * Session-local overrides for `assigneeId` on the Assigned tab.
+   * When a package is reassigned it should stay in the list but reflect
+   * the new assignee. Keyed by package primary key.
+   */
+  const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
   const { theme, toggleTheme } = useTheme();
 
   /** Ref to PendingRfqPackageList for optimistic updates */
@@ -393,13 +399,40 @@ function Home(): React.ReactElement {
       {appMode === "assignment" ? (
         <div className={css.panels}>
           <div className={css.listPanel}>
+            <div className={css.assignmentTabBar}>
+              <button
+                className={`${css.assignmentTab} ${assignmentTab === "unassigned" ? css.assignmentTabActive : ""}`}
+                onClick={() => {
+                  if (assignmentTab === "unassigned") return;
+                  setAssignmentTab("unassigned");
+                  setSelectedAssignmentId(null);
+                  setSelectedAssignmentType(null);
+                }}
+              >
+                Unassigned
+              </button>
+              <button
+                className={`${css.assignmentTab} ${assignmentTab === "assigned" ? css.assignmentTabActive : ""}`}
+                onClick={() => {
+                  if (assignmentTab === "assigned") return;
+                  setAssignmentTab("assigned");
+                  setSelectedAssignmentId(null);
+                  setSelectedAssignmentType(null);
+                }}
+              >
+                Assigned
+              </button>
+            </div>
             <AssignmentPackageList
+              mode={assignmentTab}
               selectedId={selectedAssignmentId}
               onSelect={(id, type) => {
                 setSelectedAssignmentId(id);
                 setSelectedAssignmentType(type);
               }}
-              hiddenIds={assignedInSession}
+              hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
+              assigneeOverrides={assignmentTab === "assigned" ? assigneeOverrides : undefined}
+              refreshToken={refreshToken}
             />
           </div>
           <div className={css.detailColumn}>
@@ -426,7 +459,7 @@ function Home(): React.ReactElement {
                 disabled={!selectedAssignmentId}
                 onClick={() => setShowAssignTo(true)}
               >
-                Assign To
+                {assignmentTab === "assigned" ? "Reassign" : "Assign To"}
               </button>
             </div>
             <div className={css.detailPanel}>
@@ -762,20 +795,27 @@ function Home(): React.ReactElement {
           packageId={selectedAssignmentId}
           packageType={selectedAssignmentType}
           onClose={() => setShowAssignTo(false)}
-          onAssigned={() => {
+          onAssigned={(assignedEmployeeId) => {
             const assignedId = selectedAssignmentId;
-            // Optimistically drop the assigned package from the list
-            // without a full refetch.
-            setAssignedInSession((prev) => {
-              const next = new Set(prev);
-              next.add(assignedId);
-              return next;
-            });
+            if (assignmentTab === "unassigned") {
+              // First-time assignment: hide the package from the Unassigned
+              // list without a full refetch.
+              setAssignedInSession((prev) => {
+                const next = new Set(prev);
+                next.add(assignedId);
+                return next;
+              });
+              setSelectedAssignmentId(null);
+              setSelectedAssignmentType(null);
+            } else {
+              // Reassignment: keep the package in the Assigned list but
+              // reflect the new assignee optimistically.
+              setAssigneeOverrides((prev) => ({
+                ...prev,
+                [assignedId]: assignedEmployeeId,
+              }));
+            }
             setShowAssignTo(false);
-            // Clear the current selection so the detail panel doesn't keep
-            // showing a package that's no longer in the list.
-            setSelectedAssignmentId(null);
-            setSelectedAssignmentType(null);
             setRefreshToken((t) => t + 1);
           }}
         />

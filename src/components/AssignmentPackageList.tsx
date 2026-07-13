@@ -6,24 +6,44 @@ import css from "./AssignmentPackageList.module.css";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getPriorityColorClass } from "../utils/priorityColor";
 import { usePriorityScores } from "../hooks/usePriorityScores";
+import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
+import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 
 const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */
 const LINK_BATCH_SIZE = 20;
 
+export type AssignmentMode = "unassigned" | "assigned";
+
 export type AssignmentItem =
-  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null };
+
+
+  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null }
+  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
   onSelect: (id: string, type: "pending" | "rfq") => void;
+  /**
+   * Which flavor of list to render:
+   *   - "unassigned" — Active packages without an estimator (default)
+   *   - "assigned"   — Active packages that already have an estimator
+   */
+  mode: AssignmentMode;
   /**
    * Set of package IDs to hide from the rendered list. Used to remove
    * packages that were just assigned in the current session without
    * having to refetch the full list from the ontology.
    */
   hiddenIds?: Set<string>;
+  /**
+   * Optional override map for `assigneeId`. When a package is reassigned
+   * from the detail view, we update this map so the card reflects the
+   * new assignee without a full refetch.
+   */
+  assigneeOverrides?: Record<string, string | null>;
+  /** Bumping this value forces a full refetch */
+  refreshToken?: number;
 }
 
 function formatDate(date: string | undefined): string {
@@ -48,6 +68,9 @@ const PRIORITY_CLASSES = {
   gray: css.cardBorderGray,
 };
 
+/** Sentinel for the "Unknown" / "no name resolved" assignee filter option */
+const UNKNOWN_ASSIGNEE = "__unknown__";
+
 /** Returns "New Build", "Eng Change", "Other", or null based on RfqPackage work type. */
 function categorizeWorkType(workType: string | undefined): "new" | "engChange" | "other" | null {
   if (!workType) return null;
@@ -57,12 +80,21 @@ function categorizeWorkType(workType: string | undefined): "new" | "engChange" |
   return "other";
 }
 
-function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPackageListProps): React.ReactElement {
+
+function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken }: AssignmentPackageListProps): React.ReactElement {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
   const loadIdRef = useRef(0);
   const priorityMap = usePriorityScores();
+  const { estimators } = useEligibleEstimators();
+
+  // Reset the assignee filter whenever we switch modes — it isn't meaningful
+  // on the "Unassigned" tab and could otherwise leak between tab switches.
+  useEffect(() => {
+    setAssigneeFilter([]);
+  }, [mode]);
 
   useEffect(() => {
     const loadId = ++loadIdRef.current;
@@ -75,6 +107,12 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
 
       try {
         // ── Fetch active pending + rfq packages in parallel ──
+        // For "assigned" mode we still filter by `assignedEstimator` / `assignedTo` on
+        // the client because the OSDK filter set doesn't include a "$notNull" operator
+        // for strings. We use the same server predicate ($isNull true/false) and
+        // then filter locally to be safe against empty-string values.
+        const wantsAssigned = mode === "assigned";
+
         const [pendingPages, rfqPages] = await Promise.all([
           // Active, unassigned PendingRfqPackages
           (async () => {
@@ -85,7 +123,7 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 .where({
                   $and: [
                     { completionStatus: { $eq: "Active" } },
-                    { assignedEstimator: { $isNull: true } },
+
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ] as any,
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -94,8 +132,16 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
               // Defensive client-side filter — some rows may store empty
               // strings rather than null for the assignee field.
               for (const p of page.data) {
-                if (!p.assignedEstimator || p.assignedEstimator.trim() === "") {
-                  results.push(p);
+
+
+                const hasAssignee = !!p.assignedEstimator && p.assignedEstimator.trim() !== "";
+                // Assigned tab also excludes anything already linked to an RFQ Package
+                // (those are essentially "Reviewed" and shouldn't appear as work items).
+                const hasRfqLink = !!p.rfqPackageId && p.rfqPackageId.trim() !== "";
+                if (wantsAssigned) {
+                  if (hasAssignee && !hasRfqLink) results.push(p);
+                } else {
+                  if (!hasAssignee) results.push(p);
                 }
               }
               token = page.nextPageToken;
@@ -111,15 +157,20 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 .where({
                   $and: [
                     { status: { $eq: "Active" } },
-                    { assignedTo: { $isNull: true } },
+
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   ] as any,
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 } as any)
                 .fetchPage({ $pageSize: FETCH_PAGE_SIZE, ...(token ? { $nextPageToken: token } : {}) });
               for (const p of page.data) {
-                if (!p.assignedTo || p.assignedTo.trim() === "") {
-                  results.push(p);
+
+
+                const hasAssignee = !!p.assignedTo && p.assignedTo.trim() !== "";
+                if (wantsAssigned) {
+                  if (hasAssignee) results.push(p);
+                } else {
+                  if (!hasAssignee) results.push(p);
                 }
               }
               token = page.nextPageToken;
@@ -143,7 +194,11 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 const page = await pkg.$link.pendingRfqPackageTools.fetchPage({ $pageSize: 200 });
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
-              return { type: "pending", pkg, priorityScore, toolCount };
+
+              const assigneeId = pkg.assignedEstimator && pkg.assignedEstimator.trim() !== ""
+                ? pkg.assignedEstimator.trim()
+                : null;
+              return { type: "pending", pkg, priorityScore, toolCount, assigneeId };
             }),
           );
           pendingItems.push(...results);
@@ -172,7 +227,11 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
 
-              return { type: "rfq", pkg: rfqPkg, priorityScore, toolCount };
+
+              const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
+                ? rfqPkg.assignedTo.trim()
+                : null;
+              return { type: "rfq", pkg: rfqPkg, priorityScore, toolCount, assigneeId };
             }),
           );
           rfqItems.push(...results);
@@ -197,12 +256,72 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
     })();
 
     return () => { cancelled = true; };
-  }, [priorityMap]);
+
+  }, [priorityMap, mode, refreshToken]);
+
+  // Resolve employee id -> display name
+  const estimatorNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const e of estimators) map.set(e.id, e.name);
+    return map;
+  }, [estimators]);
+
+  const resolveAssigneeName = (id: string | null | undefined): string | null => {
+    if (!id) return null;
+    return estimatorNameById.get(id) ?? null;
+  };
 
   const visibleItems = useMemo(() => {
-    if (!hiddenIds || hiddenIds.size === 0) return items;
-    return items.filter((item) => !hiddenIds.has(String(item.pkg.$primaryKey)));
-  }, [items, hiddenIds]);
+
+
+
+    let filtered = items;
+
+    // Apply session-local assignee overrides so reassigned packages reflect
+    // their new assignee without a refetch.
+    if (assigneeOverrides && Object.keys(assigneeOverrides).length > 0) {
+      filtered = filtered.map((item) => {
+      const id = String(item.pkg.$primaryKey);
+        if (Object.prototype.hasOwnProperty.call(assigneeOverrides, id)) {
+          return { ...item, assigneeId: assigneeOverrides[id] };
+        }
+        return item;
+      });
+    }
+
+    if (hiddenIds && hiddenIds.size > 0) {
+      filtered = filtered.filter((item) => !hiddenIds.has(String(item.pkg.$primaryKey)));
+    }
+
+    // Client-side assignee filter (only meaningful in "assigned" mode)
+    if (mode === "assigned" && assigneeFilter.length > 0) {
+      const wantsUnknown = assigneeFilter.includes(UNKNOWN_ASSIGNEE);
+      const otherIds = new Set(assigneeFilter.filter((v) => v !== UNKNOWN_ASSIGNEE));
+      filtered = filtered.filter((item) => {
+        const id = item.assigneeId;
+        if (!id) return false;
+        if (otherIds.has(id)) return true;
+        // "Unknown" bucket = has an id, but no display name resolved
+        if (wantsUnknown && !estimatorNameById.has(id)) return true;
+        return false;
+      });
+    }
+
+    return filtered;
+  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById]);
+
+  // Options for the assignee filter — built from the eligible estimator list
+  // plus any assignee IDs currently on cards that don't resolve to a name.
+  const assigneeFilterOptions = useMemo<MultiSelectOption[]>(() => {
+    const opts: MultiSelectOption[] = estimators.map((e) => ({ value: e.id, label: e.name }));
+    // If any card has an assigneeId that isn't in the eligible list, expose a
+    // catch-all "Unknown" option so the user can still filter to it.
+    const hasUnknown = items.some((item) => item.assigneeId && !estimatorNameById.has(item.assigneeId));
+    if (hasUnknown) {
+      opts.push({ value: UNKNOWN_ASSIGNEE, label: "Unknown assignee" });
+    }
+    return opts;
+  }, [estimators, items, estimatorNameById]);
 
   const content = useMemo(() => {
     if (loading) return <div className={css.emptyCard}>Fetching packages…</div>;
@@ -213,6 +332,7 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
       const id = String(item.pkg.$primaryKey);
       const isSelected = id === selectedId;
       const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
+      const assigneeName = resolveAssigneeName(item.assigneeId);
 
       const toolChip = (
         <span className={css.toolChip} title="Tool count">
@@ -222,6 +342,39 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
           {item.toolCount ?? "…"}
         </span>
       );
+
+      // On the Assigned tab, the "Received" text on the right is replaced
+      // with the resolved assignee name (falling back to a shortened id).
+      const rightSlot = mode === "assigned" ? (
+        <>
+          <span
+            className={css.assigneeLabel}
+            title={
+              assigneeName
+                ? `Assigned to ${assigneeName}`
+                : item.assigneeId
+                  ? `Assigned to ${item.assigneeId}`
+                  : "Assigned"
+            }
+          >
+            Assigned to: {assigneeName ?? item.assigneeId ?? "—"}
+              </span>
+          <span className={css.sep}>·</span>
+          <span>Due: {formatDate(item.pkg.dueDate)}</span>
+        </>
+      ) : item.type === "pending" ? (
+        <>
+          <span>Received: {formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)}</span>
+                <span className={css.sep}>·</span>
+          <span>Due: {formatDate(item.pkg.dueDate)}</span>
+        </>
+      ) : (
+        <>
+          <span>Received: {formatDate(item.pkg.dateReceived)}</span>
+          <span className={css.sep}>·</span>
+          <span>Due: {formatDate(item.pkg.dueDate)}</span>
+        </>
+        );
 
       if (item.type === "pending") {
         const pkg = item.pkg;
@@ -244,13 +397,17 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
               </span>
               <span className={css.cardMetaRight}>
-                <span>Received: {formatReceivedDatetime(pkg.receivedDatetime, pkg.receivedDate)}</span>
-                <span className={css.sep}>·</span>
-                <span>Due: {formatDate(pkg.dueDate)}</span>
+
+
+
+                {rightSlot}
               </span>
-            </div>
-          </div>
-        );
+
+
+
+      </div>
+    </div>
+  );
       } else {
         const pkg = item.pkg;
         const workCategory = categorizeWorkType(pkg.workType);
@@ -279,23 +436,45 @@ function AssignmentPackageList({ selectedId, onSelect, hiddenIds }: AssignmentPa
                 {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
               </span>
               <span className={css.cardMetaRight}>
-                <span>Received: {formatDate(pkg.dateReceived)}</span>
-                <span className={css.sep}>·</span>
-                <span>Due: {formatDate(pkg.dueDate)}</span>
+
+
+
+                {rightSlot}
               </span>
             </div>
           </div>
         );
       }
     });
-  }, [visibleItems, selectedId, loading, error, onSelect]);
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById]);
+
+  const title = mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
 
   return (
     <div className={css.container}>
       <div className={css.titleRow}>
-        <h2 className={css.title}>Unassigned Packages</h2>
+
+        <h2 className={css.title}>{title}</h2>
         <span className={css.count}>{loading ? "" : `${visibleItems.length} active`}</span>
       </div>
+
+      {mode === "assigned" && (
+        <div className={css.filterRow}>
+          <span className={css.filterLabel}>Filter by assignee:</span>
+          <div className={css.filterControl}>
+            <MultiSelectDropdown
+              options={assigneeFilterOptions}
+              selectedValues={assigneeFilter}
+              onChange={setAssigneeFilter}
+              placeholder="All assignees"
+              searchable
+            />
+          </div>
+        </div>
+      )}
+
       <div className={css.cardGrid}>
         {content}
       </div>

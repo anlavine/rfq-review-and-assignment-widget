@@ -40,7 +40,7 @@ interface AssignToModalProps {
   packageId: string;
   packageType: "pending" | "rfq";
   onClose: () => void;
-  onAssigned: () => void;
+  onAssigned: (assignedEmployeeId: string) => void;
 }
 
 /**
@@ -146,7 +146,7 @@ function AssignToModal({
         } as unknown as any;
         await client(editRfqPackagePrivilegedFields).applyAction(args, { $returnEdits: true });
       }
-      onAssigned();
+      onAssigned(String(selectedEmployee.$primaryKey));
     } catch (e) {
       console.error("Failed to assign package:", e);
       setError(e instanceof Error ? e.message : "Failed to assign package");
