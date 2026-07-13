@@ -344,11 +344,13 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
       );
 
       // On the Assigned tab, the "Received" text on the right is replaced
-      // with the resolved assignee name (falling back to a shortened id).
+
+      // with a badge showing the resolved assignee name (falling back to id).
       const rightSlot = mode === "assigned" ? (
         <>
           <span
-            className={css.assigneeLabel}
+
+            className={css.assigneeBadge}
             title={
               assigneeName
                 ? `Assigned to ${assigneeName}`
@@ -357,8 +359,10 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
                   : "Assigned"
             }
           >
-            Assigned to: {assigneeName ?? item.assigneeId ?? "—"}
-              </span>
+
+
+            {assigneeName ?? item.assigneeId ?? "—"}
+          </span>
           <span className={css.sep}>·</span>
           <span>Due: {formatDate(item.pkg.dueDate)}</span>
         </>
