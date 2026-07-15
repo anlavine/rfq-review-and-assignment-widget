@@ -88,6 +88,7 @@ function AssignmentRfqPackageDetail({
         pkg={rfqPkg}
         customerName={customerName}
         layout="row"
+        showCreatedOn
       />
 
       <AssignmentRfqToolsBreakdown packageId={packageId} refreshToken={refreshToken} />

@@ -158,7 +158,6 @@ function PackageDetailHeader({
         )}
         {showPriorityChip && (() => {
           const tier = getPriorityTier(priorityScore);
-          if (tier === "none") return null;
           const chipClass =
             tier === "high" ? css.priorityChipHigh
               : tier === "medium" ? css.priorityChipMedium
