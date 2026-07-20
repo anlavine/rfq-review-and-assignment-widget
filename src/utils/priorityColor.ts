@@ -15,8 +15,8 @@
 export type PriorityTier = "high" | "medium" | "low";
 
 export function getPriorityTier(score: number | null | undefined): PriorityTier {
-  if (score != null && score >= 0.6) return "high";
-  if (score != null && score >= 0.3) return "medium";
+  if (score != null && score >= 0.25) return "high";
+  if (score != null && score >= 1/12) return "medium";
   return "low";
 }
 
