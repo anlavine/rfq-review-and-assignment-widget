@@ -24,12 +24,12 @@ export interface PriorityFactors {
 
 /** Human-readable labels for each priority factor. Keyed by factor id. */
 export const PRIORITY_FACTOR_LABELS: Record<keyof PriorityFactors, string> = {
-  capacityAtV1: "Capacity at V1",
-  unmetTarget: "Unmet Target",
-  winRateCustomerOem: "Win Rate Customer OEM",
-  isLiveProgram: "Is Live Program",
-  hasProgramIncumbency: "Has Program Incumbency",
-  hasProgramCustomerIncumbency: "Has Program Customer Incumbency",
+  capacityAtV1: "There's production capacity at the V1 date.",
+  unmetTarget: "Customer has an unmet target.",
+  winRateCustomerOem: "OEM/Customer combination has a high historical win rate.",
+  isLiveProgram: "The program is live.",
+  hasProgramIncumbency: "Integrity's worked on this program before.",
+  hasProgramCustomerIncumbency: "Integrity's worked on this program with this customer before.",
 };
 
 /**
