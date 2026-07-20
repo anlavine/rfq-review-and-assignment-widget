@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useState } from "react";
 import type { PendingRfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import type { Osdk } from "@osdk/client";
 import css from "./PackageDetail.module.css";
@@ -6,6 +6,11 @@ import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { getPriorityTier, getPriorityLabel } from "../utils/priorityColor";
+import {
+  type PriorityFactors,
+  PRIORITY_FACTOR_LABELS,
+  getPresentPriorityFactors,
+} from "../hooks/usePriorityScores";
 
 interface PackageDetailHeaderProps {
   pkg: Osdk.Instance<PendingRfqPackage>;
@@ -16,6 +21,12 @@ interface PackageDetailHeaderProps {
   hasToolError: boolean;
   priorityScore: number | null;
   isNetNewCustomer: boolean;
+  /**
+   * The six factors that contributed to the priority score. When provided
+   * and the priority chip is shown, hovering the chip reveals a tooltip
+   * listing which factors are currently present.
+   */
+  priorityFactors?: PriorityFactors | null;
   /**
    * Display name of the assigned estimator, if any. When provided,
    * renders an "Assigned to: <name>" line under the due date.
@@ -73,6 +84,7 @@ function PackageDetailHeader({
   hasToolError,
   priorityScore,
   isNetNewCustomer,
+  priorityFactors,
   assignedEstimatorName,
   showPriorityChip = true,
   showAttachmentChip = true,
@@ -85,6 +97,7 @@ function PackageDetailHeader({
   savingDueDate,
 }: PackageDetailHeaderProps): React.ReactElement {
   const dateInputRef = useRef<HTMLInputElement | null>(null);
+  const [showPriorityTooltip, setShowPriorityTooltip] = useState(false);
   const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
 
   return (
@@ -163,13 +176,42 @@ function PackageDetailHeader({
               : tier === "medium" ? css.priorityChipMedium
                 : css.priorityChipLow;
           const label = `${getPriorityLabel(tier)} Priority${isNetNewCustomer ? ": New Customer" : ""}`;
+          const presentFactors = getPresentPriorityFactors(priorityFactors);
+          const tooltipTitle =
+            priorityScore != null ? `Priority score: ${priorityScore.toFixed(2)}` : undefined;
           return (
             <span
-              className={`${css.priorityChip} ${chipClass}`}
-              title={priorityScore != null ? `Priority score: ${priorityScore.toFixed(2)}` : undefined}
+              className={css.priorityChipWrapper}
+              onMouseEnter={() => setShowPriorityTooltip(true)}
+              onMouseLeave={() => setShowPriorityTooltip(false)}
+              onFocus={() => setShowPriorityTooltip(true)}
+              onBlur={() => setShowPriorityTooltip(false)}
             >
-              {label}
-              {isNetNewCustomer && <span className={css.priorityChipStar}> ⭐</span>}
+              <span
+                className={`${css.priorityChip} ${chipClass}`}
+                title={tooltipTitle}
+              >
+                {label}
+                {isNetNewCustomer && <span className={css.priorityChipStar}> ⭐</span>}
+              </span>
+              {showPriorityTooltip && (
+                <div
+                  className={css.priorityFactorsTooltip}
+                  role="tooltip"
+                  aria-label="Priority factors"
+                >
+                  <div className={css.priorityFactorsHeader}>Priority factors</div>
+                  {presentFactors.length === 0 ? (
+                    <div className={css.priorityFactorsEmpty}>No factors apply</div>
+                  ) : (
+                    <ul className={css.priorityFactorsList}>
+                      {presentFactors.map((key) => (
+                        <li key={key}>{PRIORITY_FACTOR_LABELS[key]}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
             </span>
           );
         })()}

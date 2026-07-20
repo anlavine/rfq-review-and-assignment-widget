@@ -463,6 +463,57 @@
   margin-left: 2px;
 }
 
+/* Wrapper for the chip + its hover tooltip. Positioned relative so the
+   tooltip can be absolutely anchored to the chip. */
+.priorityChipWrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.priorityFactorsTooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 300;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  box-shadow: var(--shadow-dropdown);
+  padding: 8px 10px;
+  min-width: 200px;
+  max-width: 280px;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+}
+
+.priorityFactorsHeader {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 4px;
+}
+
+.priorityFactorsList {
+  list-style: disc;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--text-primary);
+}
+
+.priorityFactorsList li {
+  margin: 1px 0;
+}
+
+.priorityFactorsEmpty {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
 /* ── Conversation section ── */
 .conversationSection {
   margin-bottom: 20px;

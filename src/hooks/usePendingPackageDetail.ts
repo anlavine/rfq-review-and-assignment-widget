@@ -9,6 +9,7 @@ import {
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import { isInlineImage } from "../utils/attachments";
+import type { PriorityFactors } from "./usePriorityScores";
 
 export interface ConversationSibling {
   packageId: string;
@@ -30,6 +31,11 @@ export interface PendingPackageDetailState {
   hasToolError: boolean;
   priorityScore: number | null;
   isNetNewCustomer: boolean;
+  /**
+   * The six factors that inform the priority score for this package, or
+   * `null` if there is no `PendingRfqPriority` row for the package.
+   */
+  priorityFactors: PriorityFactors | null;
   /**
    * Display name of the assigned estimator resolved via the
    * `assignedEstimator` foreign key on PendingRfqPackage. `null` when
@@ -62,6 +68,7 @@ export function usePendingPackageDetail(
   const [hasToolError, setHasToolError] = useState(false);
   const [priorityScore, setPriorityScore] = useState<number | null>(null);
   const [isNetNewCustomer, setIsNetNewCustomer] = useState<boolean>(false);
+  const [priorityFactors, setPriorityFactors] = useState<PriorityFactors | null>(null);
   const [assignedEstimatorName, setAssignedEstimatorName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,6 +85,7 @@ export function usePendingPackageDetail(
     setHasToolError(false);
     setPriorityScore(null);
     setIsNetNewCustomer(false);
+    setPriorityFactors(null);
     setAssignedEstimatorName(null);
     setLoading(true);
     setError(null);
@@ -212,7 +220,11 @@ export function usePendingPackageDetail(
           }
         })();
 
-        const priorityPromise = (async (): Promise<{ priorityScore: number | null; isNetNewCustomer: boolean }> => {
+        const priorityPromise = (async (): Promise<{
+          priorityScore: number | null;
+          isNetNewCustomer: boolean;
+          priorityFactors: PriorityFactors | null;
+        }> => {
           try {
             const page = await client(PendingRfqPriority)
               .where({ packageId: { $eq: packageId } })
@@ -221,9 +233,19 @@ export function usePendingPackageDetail(
             return {
               priorityScore: row?.priorityScore ?? null,
               isNetNewCustomer: row?.isNetNewCustomer === 1,
+              priorityFactors: row
+                ? {
+                  capacityAtV1: row.capacityAtV1 ?? null,
+                  unmetTarget: row.unmetTarget ?? null,
+                  winRateCustomerOem: row.winRateCustomerOem ?? null,
+                  isLiveProgram: row.isLiveProgram ?? null,
+                  hasProgramIncumbency: row.hasProgramIncumbency ?? null,
+                  hasProgramCustomerIncumbency: row.hasProgramCustomerIncumbency ?? null,
+                }
+                : null,
             };
           } catch {
-            return { priorityScore: null, isNetNewCustomer: false };
+            return { priorityScore: null, isNetNewCustomer: false, priorityFactors: null };
           }
         })();
 
@@ -254,6 +276,7 @@ export function usePendingPackageDetail(
         setHasToolError(resolvedErrors.hasToolError);
         setPriorityScore(resolvedPriority.priorityScore);
         setIsNetNewCustomer(resolvedPriority.isNetNewCustomer);
+        setPriorityFactors(resolvedPriority.priorityFactors);
         setAssignedEstimatorName(resolvedEstimatorName);
       } catch (e) {
         if (!cancelled) {
@@ -281,6 +304,7 @@ export function usePendingPackageDetail(
     hasToolError,
     priorityScore,
     isNetNewCustomer,
+    priorityFactors,
     assignedEstimatorName,
     loading,
     error,

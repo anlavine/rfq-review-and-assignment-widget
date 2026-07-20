@@ -292,6 +292,12 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   const [newDataAvailable, setNewDataAvailable] = useState(false);
 
   const [activeTab, setActiveTab] = useState<TabKey>("outstanding");
+  /**
+   * Sort mode for the Outstanding tab. Defaults to "priority" per product
+   * request; session-only (no persistence). On other tabs this state exists
+   * but has no effect on the rendered list.
+   */
+  const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
   const priorityMap = usePriorityScores(refreshToken);
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);
@@ -688,9 +694,35 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       return true;
     });
 
-    // Sort: Outstanding tab → ascending due date (server default order)
-    //       All other tabs → descending received datetime
-    if (activeTab !== "outstanding") {
+    // Sort:
+    //  - Outstanding tab, sort=priority → priority score desc, then due date asc,
+    //    then received datetime asc (stable tiebreakers).
+    //  - Outstanding tab, sort=dueDate  → leave in server order (asc due date),
+    //    render step will further bucket by due-date group.
+    //  - All other tabs → descending received datetime.
+    if (activeTab === "outstanding") {
+      if (outstandingSort === "priority") {
+        filtered.sort((a, b) => {
+          const aScore = priorityMap.get(String(a.$primaryKey)) ?? 0;
+          const bScore = priorityMap.get(String(b.$primaryKey)) ?? 0;
+          if (aScore !== bScore) return bScore - aScore; // desc
+          const aDue = a.dueDate ?? "";
+          const bDue = b.dueDate ?? "";
+          if (aDue !== bDue) {
+            // Missing due dates sort to the end
+            if (!aDue) return 1;
+            if (!bDue) return -1;
+            return aDue < bDue ? -1 : 1;
+          }
+          const aRcv = a.receivedDatetime ?? a.receivedDate ?? "";
+          const bRcv = b.receivedDatetime ?? b.receivedDate ?? "";
+          if (aRcv === bRcv) return 0;
+          if (!aRcv) return 1;
+          if (!bRcv) return -1;
+          return aRcv < bRcv ? -1 : 1;
+        });
+      }
+    } else {
       filtered.sort((a, b) => {
         const aDate = a.receivedDatetime ?? a.receivedDate ?? "";
         const bDate = b.receivedDatetime ?? b.receivedDate ?? "";
@@ -703,7 +735,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
     return filtered;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allPackages, metaMap, activeStatus, activeTab, filters, overridesMap]);
+  }, [allPackages, metaMap, activeStatus, activeTab, filters, overridesMap, outstandingSort, priorityMap]);
 
   // ── Auto-select first package after all pages have loaded ──
   // We wait for initialLoading to be false so the
@@ -728,8 +760,8 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
     return filteredPackages.slice(start, start + PAGE_SIZE);
   }, [filteredPackages, currentPage]);
 
-  // Reset to page 0 when filters change
-  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.senderSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}|${filters.assignedToIds.join(",")}`;
+  // Reset to page 0 when filters or the outstanding sort mode change
+  const filterKey = `${activeStatus}|${filters.dueDateStart}|${filters.dueDateEnd}|${filters.subjectSearch}|${filters.customerSearch}|${filters.platformSearch}|${filters.senderSearch}|${filters.selectedTags.join(",")}|${filters.hasParsedTools}|${filters.assignedToIds.join(",")}|${outstandingSort}`;
   useEffect(() => {
     setCurrentPage(0);
   }, [filterKey]);
@@ -788,6 +820,34 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
     </div>
   );
 
+  // Small segmented control below the tab bar for choosing the Outstanding
+  // sort mode. Only rendered on the Outstanding tab.
+  const sortToggle = activeTab === "outstanding" ? (
+    <div className={css.sortToggleRow}>
+      <span className={css.sortToggleLabel}>Sort by:</span>
+      <div className={css.sortToggle} role="tablist" aria-label="Sort outstanding packages by">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={outstandingSort === "priority"}
+          className={`${css.sortToggleOption} ${outstandingSort === "priority" ? css.sortToggleActive : ""}`}
+          onClick={() => setOutstandingSort("priority")}
+        >
+          Priority
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={outstandingSort === "dueDate"}
+          className={`${css.sortToggleOption} ${outstandingSort === "dueDate" ? css.sortToggleActive : ""}`}
+          onClick={() => setOutstandingSort("dueDate")}
+        >
+          Due Date
+        </button>
+      </div>
+    </div>
+  ) : null;
+
   return (
     <div className={css.container}>
       <div className={css.titleRow}>
@@ -808,6 +868,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         </div>
       )}
       {tabBar}
+      {sortToggle}
 
       {bulkSkipMode && (
         <div className={css.bulkSkipBar}>
@@ -845,8 +906,13 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
             const elements: React.ReactElement[] = [];
             let lastBucket: DueDateBucket | null = null;
 
-            // For the outstanding tab, sort by bucket order first, then due date within each bucket
-            const sortedForDisplay = activeTab === "outstanding"
+            // Bucketing + due-date grouping only applies on the Outstanding
+            // tab when sorted by due date. When sorted by priority we render
+            // a flat list already ordered by the parent `filteredPackages`
+            // memo (priority desc, due date asc, received asc).
+            const useBuckets = activeTab === "outstanding" && outstandingSort === "dueDate";
+
+            const sortedForDisplay = useBuckets
               ? [...pagePackages].sort((a, b) => {
                 const bucketA = getDueDateBucket(a.dueDate);
                 const bucketB = getDueDateBucket(b.dueDate);
@@ -865,8 +931,8 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
             for (const pkg of sortedForDisplay) {
               const pkId = String(pkg.$primaryKey);
 
-              // Insert section divider on the Outstanding tab
-              if (activeTab === "outstanding") {
+              // Insert section divider only when bucketing is on
+              if (useBuckets) {
                 const bucket = getDueDateBucket(pkg.dueDate);
                 if (bucket !== lastBucket) {
                   lastBucket = bucket;
