@@ -4,6 +4,7 @@
  * Used by both the Assign To modal and the Ingestion tab's "Assigned To"
  * filter so that only relevant employees show up in either UI.
  */
+/* Ross does not show up because his employee record is not Active */
 export const ELIGIBLE_ESTIMATOR_EMAILS = [
   "cgulisano@teamintegrity.com",
   "cparete@teamintegrity.com",
@@ -20,9 +21,9 @@ export const ELIGIBLE_ESTIMATOR_EMAILS = [
   "jparker@integritytn.com",
   "bwatson@integritytn.com",
   "dreiss@integritytn.com",
+  "rmittontn@integritytn.com",
   "skenley@integritytn.com",
   "cgunter@integritytn.com",
-  "rmitton@integritytn.com",
 ];
 
 export const ELIGIBLE_ESTIMATOR_EMAIL_SET = new Set(
