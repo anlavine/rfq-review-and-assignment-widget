@@ -13,7 +13,7 @@ import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
 import { isInlineImage } from "../utils/attachments";
 import { getConfidenceColor } from "../utils/confidenceColor";
-import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 
 const ATTACHMENT_DATASET_RID =
   "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
@@ -21,6 +21,8 @@ const ATTACHMENT_DATASET_RID =
 interface ReviewPanelProps {
   packageId: string;
   refreshToken?: number;
+  /** Workspace identifier for usage tracking inside the review panel. */
+  workspace?: Workspace | null;
 }
 
 /**
@@ -109,6 +111,7 @@ function formatDate(date: string | undefined): string {
 function ReviewPanel({
   packageId,
   refreshToken,
+  workspace,
 }: ReviewPanelProps): React.ReactElement {
   const [pkg, setPkg] = useState<Osdk.Instance<PendingRfqPackage> | null>(null);
   const [customerName, setCustomerName] = useState<string | null>(null);
@@ -377,7 +380,7 @@ function ReviewPanel({
       anchor.click();
       document.body.removeChild(anchor);
       URL.revokeObjectURL(objectUrl);
-      trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD);
+      trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD, workspace);
     } catch (e) {
       console.error("Download failed:", e);
       setDownloadError(
@@ -400,7 +403,7 @@ function ReviewPanel({
         { pending_rfqpackage_tool: tool, removed: true },
         { $returnEdits: true },
       );
-      trackUsage(INTERACTION_KEYS.TOOL_REMOVE);
+      trackUsage(INTERACTION_KEYS.TOOL_REMOVE, workspace);
       // Update local state so tool immediately moves to "Removed Tools"
       setTools((prev) =>
         prev.map((t) =>
@@ -424,7 +427,7 @@ function ReviewPanel({
         { pending_rfqpackage_tool: tool, removed: false },
         { $returnEdits: true },
       );
-      trackUsage(INTERACTION_KEYS.TOOL_UNREMOVE);
+      trackUsage(INTERACTION_KEYS.TOOL_UNREMOVE, workspace);
       // Update local state so tool immediately moves back to "Tools"
       setTools((prev) =>
         prev.map((t) =>

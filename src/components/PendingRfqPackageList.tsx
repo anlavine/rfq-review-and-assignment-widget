@@ -99,6 +99,14 @@ interface PendingRfqPackageListProps {
   onDeselectPackage: () => void;
   selectedPackageId: string | null;
   onTabChange?: (tab: TabKey) => void;
+  /**
+   * Called whenever the Outstanding-tab sort mode changes (and once on
+   * mount with the current default). Consumers use this to know whether
+   * the user is viewing packages sorted by "priority" or "dueDate" —
+   * which drives the `workspace` field on usage tracking
+   * (`ingestion.priority` vs `ingestion.date`).
+   */
+  onOutstandingSortChange?: (sort: "dueDate" | "priority") => void;
   refreshToken?: number;
   filters: Filters;
   mergeStep: MergeStep;
@@ -271,7 +279,7 @@ function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
   return "later";
 }
 
-const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll, onNewDataAvailable }, ref) {
+const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, onOutstandingSortChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll, onNewDataAvailable }, ref) {
   // All packages fetched from server (last 4 months) — grows incrementally
   const [allPackages, setAllPackages] = useState<Osdk.Instance<PendingRfqPackage>[]>([]);
   const [metaMap, setMetaMap] = useState<Record<string, PackageMeta>>({});
@@ -298,6 +306,11 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
    * but has no effect on the rendered list.
    */
   const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
+  // Notify parent whenever the outstanding sort changes (and on mount, so
+  // the initial "priority" default is broadcast).
+  useEffect(() => {
+    onOutstandingSortChange?.(outstandingSort);
+  }, [outstandingSort, onOutstandingSortChange]);
   const priorityMap = usePriorityScores(refreshToken);
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);

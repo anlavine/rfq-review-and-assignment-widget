@@ -4,7 +4,7 @@ import client from "../client";
 import css from "./PackageDetail.module.css";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
 import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
-import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import { usePendingPackageDetail } from "../hooks/usePendingPackageDetail";
 import PackageDetailHeader from "./PackageDetailHeader";
 import PackageEmailAddressFields from "./PackageEmailAddressFields";
@@ -18,6 +18,12 @@ interface PackageDetailProps {
   refreshToken?: number;
   onDueDateChanged?: () => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
+  /**
+   * Workspace identifier for usage tracking. Interactions inside the detail
+   * view (edit due date, edit customer, etc.) will be logged under this
+   * workspace. When omitted, tracking calls omit the workspace field.
+   */
+  workspace?: Workspace | null;
 }
 
 function PackageDetail({
@@ -25,6 +31,7 @@ function PackageDetail({
   refreshToken,
   onDueDateChanged,
   onSelectPackage,
+  workspace,
 }: PackageDetailProps): React.ReactElement {
   const {
     pkg,
@@ -78,7 +85,7 @@ function PackageDetail({
       const updated = await client(PendingRfqPackage).fetchOne(packageId);
       setPkg(updated);
       setEditingDueDate(false);
-      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE);
+      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE, workspace);
       onDueDateChanged?.();
     } catch (e) {
       console.error("Failed to update due date:", e);
@@ -130,6 +137,7 @@ function PackageDetail({
       <PackageCustomerAndNameFields
         pkg={pkg}
         customerName={customerName}
+        workspace={workspace}
         onCustomerChanged={(newName) => {
           setCustomerName(newName);
           onDueDateChanged?.(); // re-use callback to trigger list refresh

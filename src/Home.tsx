@@ -20,7 +20,7 @@ import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail"
 import AssignToModal from "./components/AssignToModal";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
-import { trackUsage, INTERACTION_KEYS } from "./utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, WORKSPACES, type Workspace } from "./utils/trackUsage";
 
 import { isAsyncValue_Loaded } from "@osdk/workshop-iframe-custom-widget";
 
@@ -51,6 +51,14 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const [appMode, /*setAppMode*/] = useState<"ingestion" | "assignment">("ingestion");
+  /**
+   * Current sort mode of the Outstanding tab in the Ingestion list. Kept in
+   * sync with the child `PendingRfqPackageList` via its
+   * `onOutstandingSortChange` callback so we can pass the correct
+   * `workspace` value to usage-tracking calls made from the Ingestion view.
+   * Defaults to "priority" to match the child's default.
+   */
+  const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
   const [assignmentTab, setAssignmentTab] = useState<"unassigned" | "assigned">("unassigned");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
@@ -71,6 +79,28 @@ function Home(): React.ReactElement {
 
   /** Ref to PendingRfqPackageList for optimistic updates */
   const listRef = useRef<PendingRfqPackageListHandle>(null);
+
+  /**
+   * Workspace identifier for usage tracking. Ingestion view value depends on
+   * the currently-active sort tab of the Outstanding list; assignment view is
+   * a fixed value. Any interaction — whether initiated from the list, the
+   * header buttons, or the package detail — inherits whichever value is
+   * current at the moment `trackUsage` runs.
+   *
+   * A ref is kept in sync so `useCallback`-wrapped handlers can read the
+   * latest value without needing `currentWorkspace` in their dependency
+   * arrays.
+   */
+  const currentWorkspace: Workspace =
+    appMode === "assignment"
+      ? WORKSPACES.ASSIGNMENT
+      : outstandingSort === "dueDate"
+        ? WORKSPACES.INGESTION_DATE
+        : WORKSPACES.INGESTION_PRIORITY;
+  const workspaceRef = useRef<Workspace>(currentWorkspace);
+  useEffect(() => {
+    workspaceRef.current = currentWorkspace;
+  }, [currentWorkspace]);
 
   // Workshop integration — hook is always called, but context is only
   // meaningful when the app is embedded as a Bidirectional Iframe widget.
@@ -124,7 +154,7 @@ function Home(): React.ReactElement {
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
-      trackUsage(INTERACTION_KEYS.PACKAGE_SKIP);
+      trackUsage(INTERACTION_KEYS.PACKAGE_SKIP, workspaceRef.current);
       // Optimistic update: move package to "Skipped" in local state
       listRef.current?.updatePackageStatus(skippedId, "Skipped");
       setExcludeFromAutoSelect((prev) => [...prev, skippedId]);
@@ -145,7 +175,7 @@ function Home(): React.ReactElement {
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
-      trackUsage(INTERACTION_KEYS.PACKAGE_UNSKIP);
+      trackUsage(INTERACTION_KEYS.PACKAGE_UNSKIP, workspaceRef.current);
       // Optimistic update: move package to "Active" in local state
       listRef.current?.updatePackageStatus(selectedPackageId, "Active");
       setSelectedPackageId(null);
@@ -165,7 +195,7 @@ function Home(): React.ReactElement {
         { pending_rfq_package: pkg },
         { $returnEdits: true },
       );
-      trackUsage(INTERACTION_KEYS.PACKAGE_MARK_OUTSTANDING);
+      trackUsage(INTERACTION_KEYS.PACKAGE_MARK_OUTSTANDING, workspaceRef.current);
       // Optimistic update: move package to "Active" in local state
       listRef.current?.updatePackageStatus(selectedPackageId, "Active");
       setSelectedPackageId(null);
@@ -242,7 +272,7 @@ function Home(): React.ReactElement {
         workshopContext.selectedManifoldIds.setLoadedValue(manifoldIds);
         // Fire the Workshop event
         workshopContext.createPackageEvent.executeEvent(undefined);
-        trackUsage(INTERACTION_KEYS.PACKAGE_CREATE);
+        trackUsage(INTERACTION_KEYS.PACKAGE_CREATE, workspaceRef.current);
       } else {
         // Not inside Workshop — log for debugging
         console.log("Create Package (standalone mode):", {
@@ -287,7 +317,7 @@ function Home(): React.ReactElement {
 
   const handleBulkSkipComplete = useCallback(() => {
     setShowBulkSkipConfirm(false);
-    trackUsage(INTERACTION_KEYS.PACKAGE_BULK_SKIP);
+    trackUsage(INTERACTION_KEYS.PACKAGE_BULK_SKIP, workspaceRef.current);
     // Optimistic update: mark all selected packages as "Skipped"
     for (const pkgId of bulkSkipSelected) {
       listRef.current?.updatePackageStatus(pkgId, "Skipped");
@@ -327,7 +357,7 @@ function Home(): React.ReactElement {
   }, [mergeStep]);
 
   const handleMergeComplete = useCallback(() => {
-    trackUsage(INTERACTION_KEYS.PACKAGE_MERGE);
+    trackUsage(INTERACTION_KEYS.PACKAGE_MERGE, workspaceRef.current);
     handleCancelMerge();
     setSelectedPackageId(null);
     setSelectedPackageStatus(null);
@@ -368,7 +398,7 @@ function Home(): React.ReactElement {
   }, []);
 
   const handleSplitComplete = useCallback(() => {
-    trackUsage(INTERACTION_KEYS.PACKAGE_SPLIT);
+    trackUsage(INTERACTION_KEYS.PACKAGE_SPLIT, workspaceRef.current);
     handleCancelSplit();
     setSelectedPackageId(null);
     setSelectedPackageStatus(null);
@@ -449,7 +479,7 @@ function Home(): React.ReactElement {
               </button>
               <button
                 className={css.themeToggle}
-                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
+                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME, workspaceRef.current); }}
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {theme === "dark" ? "☀️" : "🌙"}
@@ -469,6 +499,7 @@ function Home(): React.ReactElement {
                   refreshToken={refreshToken}
                   onDueDateChanged={() => setRefreshToken((t) => t + 1)}
                   onSelectPackage={(id) => setSelectedAssignmentId(id)}
+                  workspace={WORKSPACES.ASSIGNMENT}
                 />
               ) : selectedAssignmentId && selectedAssignmentType === "rfq" ? (
                 <AssignmentRfqPackageDetail
@@ -499,6 +530,7 @@ function Home(): React.ReactElement {
               onDeselectPackage={() => { setSelectedPackageId(null); setSelectedPackageStatus(null); }}
               selectedPackageId={selectedPackageId}
               onTabChange={setActiveTab}
+              onOutstandingSortChange={setOutstandingSort}
               refreshToken={refreshToken}
               filters={filters}
               mergeStep={mergeStep}
@@ -568,12 +600,12 @@ function Home(): React.ReactElement {
                 </button>
                 <button
                   className={css.themeToggle}
-                  onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME); }}
+                  onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME, workspaceRef.current); }}
                   title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                 >
                   {theme === "dark" ? "☀️" : "🌙"}
                 </button>
-                <FilterDropdown filters={filters} onFiltersChange={setFilters} />
+                <FilterDropdown filters={filters} onFiltersChange={setFilters} workspace={currentWorkspace} />
                 {mergeStep ? (
                   <button
                     className={css.headerButton}
@@ -702,6 +734,7 @@ function Home(): React.ReactElement {
                     refreshToken={refreshToken}
                     onDueDateChanged={() => setRefreshToken((t) => t + 1)}
                     onSelectPackage={handleSelectPackage}
+                    workspace={currentWorkspace}
                   />
                 ) : (
                   <div className={css.emptyDetail}>
@@ -716,6 +749,7 @@ function Home(): React.ReactElement {
                   <ReviewPanel
                     packageId={selectedPackageId}
                     refreshToken={refreshToken}
+                    workspace={currentWorkspace}
                   />
                 ) : (
                   <div className={css.reviewPanelContent}>
@@ -734,7 +768,7 @@ function Home(): React.ReactElement {
           packageId={selectedPackageId}
           onClose={() => setShowEditTags(false)}
           onSaved={(newTags) => {
-            trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS);
+            trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);
             setShowEditTags(false);
             // Optimistic update: update tags in local state
             listRef.current?.updatePackageTags(selectedPackageId, newTags);
@@ -767,7 +801,7 @@ function Home(): React.ReactElement {
           pendingPackageId={selectedPackageId}
           onClose={() => setShowLinkToRfq(false)}
           onLinked={() => {
-            trackUsage(INTERACTION_KEYS.PACKAGE_LINK_TO_RFQ);
+            trackUsage(INTERACTION_KEYS.PACKAGE_LINK_TO_RFQ, workspaceRef.current);
             setShowLinkToRfq(false);
             setRefreshToken((t) => t + 1);
           }}
@@ -778,7 +812,7 @@ function Home(): React.ReactElement {
         <FeedbackModal
           packageId={(appMode === "assignment" ? selectedAssignmentId : selectedPackageId) as string}
           onClose={() => setShowFeedback(false)}
-          onSubmitted={() => { trackUsage(INTERACTION_KEYS.FEEDBACK_SUBMIT); setShowFeedback(false); }}
+          onSubmitted={() => { trackUsage(INTERACTION_KEYS.FEEDBACK_SUBMIT, workspaceRef.current); setShowFeedback(false); }}
         />
       )}
 

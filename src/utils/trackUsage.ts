@@ -36,6 +36,19 @@ export const INTERACTION_KEYS = {
 
 export type InteractionKey = (typeof INTERACTION_KEYS)[keyof typeof INTERACTION_KEYS];
 
+/**
+ * Workspace identifiers for the "workspace" field on RfqIngestionUsageMetric.
+ * The string values are what get persisted — keep them stable, they are used
+ * for downstream analytics.
+ */
+export const WORKSPACES = {
+  INGESTION_PRIORITY: "ingestion.priority",
+  INGESTION_DATE: "ingestion.date",
+  ASSIGNMENT: "assignment",
+} as const;
+
+export type Workspace = (typeof WORKSPACES)[keyof typeof WORKSPACES];
+
 /** Cached user ID — fetched once on first usage */
 let cachedUserId: string | null = null;
 let userIdPromise: Promise<string | null> | null = null;
@@ -60,8 +73,13 @@ async function getCurrentUserId(): Promise<string | null> {
 
 /**
  * Logs a usage metric. Fire-and-forget — errors are silently swallowed.
+ *
+ * @param interactionKey The interaction being tracked.
+ * @param workspace Optional workspace identifier for the current view. When
+ *   omitted, the metric is logged without a workspace (the parameter is
+ *   optional on the action).
  */
-export function trackUsage(interactionKey: InteractionKey): void {
+export function trackUsage(interactionKey: InteractionKey, workspace?: Workspace | null): void {
   (async () => {
     try {
       const userId = await getCurrentUserId();
@@ -71,6 +89,7 @@ export function trackUsage(interactionKey: InteractionKey): void {
         interactionTimestamp: new Date().toISOString(),
         usageMinutes: null,
         userId: userId ?? null,
+        workspace: workspace ?? null,
       });
     } catch {
       // Silently swallow — tracking should never block the user

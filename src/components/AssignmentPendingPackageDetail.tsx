@@ -4,7 +4,7 @@ import client from "../client";
 import css from "./PackageDetail.module.css";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
 import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
-import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import { usePendingPackageDetail } from "../hooks/usePendingPackageDetail";
 import PackageDetailHeader from "./PackageDetailHeader";
 import PackageEmailAddressFields from "./PackageEmailAddressFields";
@@ -18,6 +18,8 @@ interface AssignmentPendingPackageDetailProps {
   refreshToken?: number;
   onDueDateChanged?: () => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
+  /** Workspace identifier for usage tracking inside the detail view. */
+  workspace?: Workspace | null;
 }
 
 /**
@@ -39,6 +41,7 @@ function AssignmentPendingPackageDetail({
   refreshToken,
   onDueDateChanged,
   onSelectPackage,
+  workspace,
 }: AssignmentPendingPackageDetailProps): React.ReactElement {
   const {
     pkg,
@@ -89,7 +92,7 @@ function AssignmentPendingPackageDetail({
       const updated = await client(PendingRfqPackage).fetchOne(packageId);
       setPkg(updated);
       setEditingDueDate(false);
-      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE);
+      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE, workspace);
       onDueDateChanged?.();
     } catch (e) {
       console.error("Failed to update due date:", e);
@@ -116,6 +119,7 @@ function AssignmentPendingPackageDetail({
         pkg={pkg}
         customerName={customerName}
         layout="row"
+        workspace={workspace}
         onCustomerChanged={(newName) => {
           setCustomerName(newName);
           onDueDateChanged?.();

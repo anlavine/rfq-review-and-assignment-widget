@@ -4,7 +4,7 @@ import type { Osdk } from "@osdk/client";
 import client from "../client";
 import css from "./PackageDetail.module.css";
 import CustomerPicker from "./CustomerPicker";
-import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 
 interface PackageCustomerAndNameFieldsProps {
   pkg: Osdk.Instance<PendingRfqPackage>;
@@ -19,6 +19,8 @@ interface PackageCustomerAndNameFieldsProps {
    *   - "row": Package Name on the left, Customer on the right (two columns).
    */
   layout?: "stacked" | "row";
+  /** Workspace identifier passed to usage tracking on customer edits. */
+  workspace?: Workspace | null;
 }
 
 /**
@@ -31,6 +33,7 @@ function PackageCustomerAndNameFields({
   onCustomerChanged,
   editable = true,
   layout = "stacked",
+  workspace,
 }: PackageCustomerAndNameFieldsProps): React.ReactElement {
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -50,7 +53,7 @@ function PackageCustomerAndNameFields({
         { $returnEdits: true },
       );
       setEditingCustomer(false);
-      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_CUSTOMER);
+      trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_CUSTOMER, workspace);
       onCustomerChanged?.(newCustomerName);
     } catch (e) {
       console.error("Failed to change customer:", e);

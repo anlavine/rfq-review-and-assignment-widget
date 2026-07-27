@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import css from "./FilterDropdown.module.css";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./PendingRfqPackageList";
-import { trackUsage, INTERACTION_KEYS } from "../utils/trackUsage";
+import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 
@@ -19,9 +19,11 @@ const TAG_OPTIONS: MultiSelectOption[] = AVAILABLE_TAGS.map((t) => ({ value: t, 
 interface FilterDropdownProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
+  /** Workspace identifier for usage tracking on filter application. */
+  workspace?: Workspace | null;
 }
 
-function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): React.ReactElement {
+function FilterDropdown({ filters, onFiltersChange, workspace }: FilterDropdownProps): React.ReactElement {
   const [open, setOpen] = useState(false);
   const [localFilters, setLocalFilters] = useState<Filters>(filters);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -66,14 +68,14 @@ function FilterDropdown({ filters, onFiltersChange }: FilterDropdownProps): Reac
   const handleApply = () => {
     onFiltersChange(localFilters);
     // Track which filters were applied
-    if (localFilters.dueDateStart || localFilters.dueDateEnd) trackUsage(INTERACTION_KEYS.FILTER_DUE_DATE);
-    if (localFilters.subjectSearch) trackUsage(INTERACTION_KEYS.FILTER_SUBJECT);
-    if (localFilters.customerSearch) trackUsage(INTERACTION_KEYS.FILTER_CUSTOMER);
-    if (localFilters.platformSearch) trackUsage(INTERACTION_KEYS.FILTER_PLATFORM);
-    if (localFilters.senderSearch) trackUsage(INTERACTION_KEYS.FILTER_SENDER);
-    if (localFilters.selectedTags.length > 0) trackUsage(INTERACTION_KEYS.FILTER_TAGS);
-    if (localFilters.hasParsedTools) trackUsage(INTERACTION_KEYS.FILTER_HAS_PARSED_TOOLS);
-    if (localFilters.assignedToIds.length > 0) trackUsage(INTERACTION_KEYS.FILTER_ASSIGNED_TO);
+    if (localFilters.dueDateStart || localFilters.dueDateEnd) trackUsage(INTERACTION_KEYS.FILTER_DUE_DATE, workspace);
+    if (localFilters.subjectSearch) trackUsage(INTERACTION_KEYS.FILTER_SUBJECT, workspace);
+    if (localFilters.customerSearch) trackUsage(INTERACTION_KEYS.FILTER_CUSTOMER, workspace);
+    if (localFilters.platformSearch) trackUsage(INTERACTION_KEYS.FILTER_PLATFORM, workspace);
+    if (localFilters.senderSearch) trackUsage(INTERACTION_KEYS.FILTER_SENDER, workspace);
+    if (localFilters.selectedTags.length > 0) trackUsage(INTERACTION_KEYS.FILTER_TAGS, workspace);
+    if (localFilters.hasParsedTools) trackUsage(INTERACTION_KEYS.FILTER_HAS_PARSED_TOOLS, workspace);
+    if (localFilters.assignedToIds.length > 0) trackUsage(INTERACTION_KEYS.FILTER_ASSIGNED_TO, workspace);
     setOpen(false);
   };
 
