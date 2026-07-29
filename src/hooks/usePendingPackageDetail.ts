@@ -9,7 +9,7 @@ import {
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import { isInlineImage } from "../utils/attachments";
-import type { PriorityFactors } from "./usePriorityScores";
+import { resolvePriorityForRow, type PriorityFactors } from "./usePriorityScores";
 
 export interface ConversationSibling {
   packageId: string;
@@ -226,23 +226,25 @@ export function usePendingPackageDetail(
           priorityFactors: PriorityFactors | null;
         }> => {
           try {
+            // `packageId1` — not `packageId` — is the join key back to the
+            // `PendingRfqPackage.$primaryKey`. The row's own `packageId`
+            // is a combined pending+rfq id and would not match the bare
+            // pending id passed in here.
             const page = await client(PendingRfqPriority)
-              .where({ packageId: { $eq: packageId } })
+              .where({ packageId1: { $eq: packageId } })
               .fetchPage({ $pageSize: 1 });
             const row = page.data[0];
+            if (!row) {
+              return { priorityScore: null, isNetNewCustomer: false, priorityFactors: null };
+            }
+            // `resolvePriorityForRow` picks the pending-vs-rfq variant based
+            // on whether the row is linked to an RFQ Package (strict — no
+            // fallback between variants).
+            const resolved = resolvePriorityForRow(row);
             return {
-              priorityScore: row?.priorityScore ?? null,
-              isNetNewCustomer: row?.isNetNewCustomer === 1,
-              priorityFactors: row
-                ? {
-                  capacityAtV1: row.capacityAtV1 ?? null,
-                  unmetTarget: row.unmetTarget ?? null,
-                  winRateCustomerOem: row.winRateCustomerOem ?? null,
-                  isLiveProgram: row.isLiveProgram ?? null,
-                  hasProgramIncumbency: row.hasProgramIncumbency ?? null,
-                  hasProgramCustomerIncumbency: row.hasProgramCustomerIncumbency ?? null,
-                }
-                : null,
+              priorityScore: resolved.score,
+              isNetNewCustomer: resolved.isNetNewCustomer,
+              priorityFactors: resolved.factors,
             };
           } catch {
             return { priorityScore: null, isNetNewCustomer: false, priorityFactors: null };

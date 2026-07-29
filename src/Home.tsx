@@ -50,7 +50,8 @@ function Home(): React.ReactElement {
   const [bulkSkipMode, setBulkSkipMode] = useState<BulkSkipMode>(false);
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
-  const [appMode, /*setAppMode*/] = useState<"ingestion" | "assignment">("ingestion");
+  const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
+  const showAssignmentTab = false;
   /**
    * Current sort mode of the Outstanding tab in the Ingestion list. Kept in
    * sync with the child `PendingRfqPackageList` via its
@@ -408,10 +409,11 @@ function Home(): React.ReactElement {
   const showMergeConfirm = mergeSourceId !== null && mergeTargetId !== null;
 
   return (
-    <div className={css.home}>
-      {<div className={css.modeToggleBar}>
+      <div className={css.home}>
+      {showAssignmentTab ?
+      <div className={css.modeToggleBar}>
         <div className={css.modeToggle}>
-          {/* <button
+          <button
             className={`${css.modeToggleOption} ${appMode === "ingestion" ? css.modeToggleActive : ""}`}
             onClick={() => setAppMode("ingestion")}
           >
@@ -422,10 +424,9 @@ function Home(): React.ReactElement {
             onClick={() => setAppMode("assignment")}
           >
             Assignment
-          </button> */}
+          </button>
         </div>
-      </div>}
-
+      </div> : null}
       {appMode === "assignment" ? (
         <div className={css.panels}>
           <div className={css.listPanel}>

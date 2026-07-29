@@ -5,7 +5,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./AssignmentPackageList.module.css";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getPriorityColorClass } from "../utils/priorityColor";
-import { usePriorityScores } from "../hooks/usePriorityScores";
+import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 
@@ -87,7 +87,6 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
   const [error, setError] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
   const loadIdRef = useRef(0);
-  const priorityMap = usePriorityScores();
   const { estimators } = useEligibleEstimators();
 
   // Reset the assignee filter whenever we switch modes — it isn't meaningful
@@ -182,13 +181,28 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
         if (cancelled || loadId !== loadIdRef.current) return;
 
         // ── Resolve pending package items with tool counts in batches ──
-        const pendingItems: AssignmentItem[] = [];
+        // We also resolve, per-RFQ-item, the linked PendingRfqPackage id
+        // so we can then fetch priorities for all pending ids
+        // (both direct and RFQ-linked) in a single scoped batch — much
+        // faster than fetching every priority row in the ontology.
+        interface PendingItemPartial {
+          pkg: Osdk.Instance<PendingRfqPackage>;
+          toolCount: number | null;
+          assigneeId: string | null;
+        }
+        interface RfqItemPartial {
+          pkg: Osdk.Instance<RfqPackage>;
+          toolCount: number | null;
+          assigneeId: string | null;
+          /** id of the linked PendingRfqPackage, if any */
+          pendingPackageId: string | null;
+        }
+
+        const pendingPartials: PendingItemPartial[] = [];
         for (let i = 0; i < pendingPages.length && !cancelled; i += LINK_BATCH_SIZE) {
           const batch = pendingPages.slice(i, i + LINK_BATCH_SIZE);
           const results = await Promise.all(
-            batch.map(async (pkg): Promise<AssignmentItem> => {
-              const pkId = String(pkg.$primaryKey);
-              const priorityScore = priorityMap.get(pkId) ?? 0;
+            batch.map(async (pkg): Promise<PendingItemPartial> => {
               let toolCount: number | null = null;
               try {
                 const page = await pkg.$link.pendingRfqPackageTools.fetchPage({ $pageSize: 200 });
@@ -198,27 +212,24 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
               const assigneeId = pkg.assignedEstimator && pkg.assignedEstimator.trim() !== ""
                 ? pkg.assignedEstimator.trim()
                 : null;
-              return { type: "pending", pkg, priorityScore, toolCount, assigneeId };
+              return { pkg, toolCount, assigneeId };
             }),
           );
-          pendingItems.push(...results);
+          pendingPartials.push(...results);
         }
         if (cancelled || loadId !== loadIdRef.current) return;
 
-        // ── Resolve RFQ package items: get linked pending package (for priority score)
-        //    and tool count in one batch pass ──
-        const rfqItems: AssignmentItem[] = [];
+        const rfqPartials: RfqItemPartial[] = [];
         for (let i = 0; i < rfqPages.length && !cancelled; i += LINK_BATCH_SIZE) {
           const batch = rfqPages.slice(i, i + LINK_BATCH_SIZE);
           const results = await Promise.all(
-            batch.map(async (rfqPkg): Promise<AssignmentItem> => {
-              // Resolve priority score via linked PendingRfqPackage
-              let priorityScore = 0;
+            batch.map(async (rfqPkg): Promise<RfqItemPartial> => {
+              // Resolve the linked PendingRfqPackage id (for priority lookup).
+              let pendingPackageId: string | null = null;
               try {
                 const linked = await rfqPkg.$link.pendingRfqPackage.fetchOne();
-                const pendingPackageId = String(linked.$primaryKey);
-                priorityScore = priorityMap.get(pendingPackageId) ?? 0;
-              } catch { /* no linked pending package — score stays 0 */ }
+                pendingPackageId = String(linked.$primaryKey);
+              } catch { /* no linked pending package */ }
 
               // Resolve tool count via rfqTool link
               let toolCount: number | null = null;
@@ -227,17 +238,45 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
 
-
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { type: "rfq", pkg: rfqPkg, priorityScore, toolCount, assigneeId };
+              return { pkg: rfqPkg, toolCount, assigneeId, pendingPackageId };
             }),
           );
-          rfqItems.push(...results);
+          rfqPartials.push(...results);
         }
 
         if (cancelled || loadId !== loadIdRef.current) return;
+
+        // Collect every Pending package id we need a priority for, then
+        // fetch them in a single scoped batch (chunked + parallel).
+        const pendingIdsForPriority = new Set<string>();
+        for (const it of pendingPartials) pendingIdsForPriority.add(String(it.pkg.$primaryKey));
+        for (const it of rfqPartials) {
+          if (it.pendingPackageId) pendingIdsForPriority.add(it.pendingPackageId);
+        }
+        const priorityData = await fetchPriorityData(Array.from(pendingIdsForPriority));
+
+        if (cancelled || loadId !== loadIdRef.current) return;
+
+        // Assemble the final items with their priority scores.
+        const pendingItems: AssignmentItem[] = pendingPartials.map((p) => ({
+          type: "pending",
+          pkg: p.pkg,
+          priorityScore: priorityData.scores.get(String(p.pkg.$primaryKey)) ?? 0,
+          toolCount: p.toolCount,
+          assigneeId: p.assigneeId,
+        }));
+        const rfqItems: AssignmentItem[] = rfqPartials.map((r) => ({
+          type: "rfq",
+          pkg: r.pkg,
+          priorityScore: r.pendingPackageId
+            ? priorityData.scores.get(r.pendingPackageId) ?? 0
+            : 0,
+          toolCount: r.toolCount,
+          assigneeId: r.assigneeId,
+        }));
 
         // Build the interleaved list
         const combined: AssignmentItem[] = [...pendingItems, ...rfqItems];
@@ -257,7 +296,7 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
 
     return () => { cancelled = true; };
 
-  }, [priorityMap, mode, refreshToken]);
+  }, [mode, refreshToken]);
 
   // Resolve employee id -> display name
   const estimatorNameById = useMemo(() => {

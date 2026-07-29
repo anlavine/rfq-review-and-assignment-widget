@@ -10,7 +10,7 @@ import { isMergedPackage } from "../utils/mergedFields";
 import { isInlineImage } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getPriorityColorClass } from "../utils/priorityColor";
-import { usePriorityScores } from "../hooks/usePriorityScores";
+import { fetchPriorityData } from "../hooks/usePriorityScores";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -311,7 +311,13 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   useEffect(() => {
     onOutstandingSortChange?.(outstandingSort);
   }, [outstandingSort, onOutstandingSortChange]);
-  const priorityMap = usePriorityScores(refreshToken);
+  /**
+   * Priority scores keyed by Pending package id. Populated in phases
+   * alongside the package load so cards render with their correct
+   * priority color and sort position on first paint — no post-load
+   * reshuffle. See the phase-1/2/3 load below.
+   */
+  const [priorityMap, setPriorityMap] = useState<Map<string, number>>(new Map());
   const loadIdRef = useRef(0);
   const paginationRef = useRef<HTMLDivElement | null>(null);
   /** Tracks whether we've already fired the auto-select for this load cycle */
@@ -377,9 +383,22 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       setError(null);
       setAllPackages([]);
       setMetaMap({});
+      setPriorityMap(new Map());
       setOverridesMap({});
       setNewDataAvailable(false);
       autoSelectedRef.current = false;
+
+      // Helper: merge additional priority entries into `priorityMap` state.
+      const mergePriorityData = (data: {
+        scores: Map<string, number>;
+      }) => {
+        if (data.scores.size === 0) return;
+        setPriorityMap((prev) => {
+          const next = new Map(prev);
+          for (const [k, v] of data.scores) next.set(k, v);
+          return next;
+        });
+      };
 
 
 
@@ -426,9 +445,15 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
         // ── Phase 1: Load Outstanding (Active) packages first ──
         // Since the user lands on the Outstanding tab, prioritize these.
+        // We paginate the packages themselves, then — before setting them
+        // into state — fetch their priority scores so the Outstanding tab
+        // renders already-sorted and already-colored (no post-load
+        // reshuffle). Metadata resolution kicks off after each page but
+        // does not block the priority fetch.
         let token: string | undefined;
         let hasMore = true;
         const phase1Packages: Osdk.Instance<PendingRfqPackage>[] = [];
+        const phase1MetaPromises: Promise<void>[] = [];
 
         while (hasMore && !cancelled) {
           const page = await client(PendingRfqPackage)
@@ -444,22 +469,36 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
           const newPackages = page.data;
           phase1Packages.push(...newPackages);
-          setAllPackages((prev) => [...prev, ...newPackages]);
 
-          // Resolve metadata in the background
-          resolveMetaStreaming(
-            newPackages,
-            (batch) => {
-              if (loadId === loadIdRef.current) {
-                setMetaMap((prev) => ({ ...prev, ...batch }));
-              }
-            },
-            () => cancelled || loadId !== loadIdRef.current,
+          // Kick off metadata resolution but do not block on it.
+          phase1MetaPromises.push(
+            resolveMetaStreaming(
+              newPackages,
+              (batch) => {
+                if (loadId === loadIdRef.current) {
+                  setMetaMap((prev) => ({ ...prev, ...batch }));
+                }
+              },
+              () => cancelled || loadId !== loadIdRef.current,
+            ),
           );
 
           token = page.nextPageToken;
           hasMore = !!token;
         }
+
+        if (cancelled || loadId !== loadIdRef.current) return;
+
+        // Fetch priorities for the Outstanding packages, then commit both
+        // packages and priorities in one shot so the very first paint
+        // shows the correct sort order and color bands.
+        const phase1Ids = phase1Packages
+          .map((p) => String(p.$primaryKey))
+          .filter(Boolean);
+        const phase1Priority = await fetchPriorityData(phase1Ids);
+        if (cancelled || loadId !== loadIdRef.current) return;
+        mergePriorityData(phase1Priority);
+        setAllPackages((prev) => [...prev, ...phase1Packages]);
 
         if (cancelled || loadId !== loadIdRef.current) return;
 
@@ -502,6 +541,16 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
               const sibPackages = sibPage.data;
               appendDeduped(sibPackages);
 
+              // Fetch priorities for the new siblings in parallel with meta.
+              const sibIds = sibPackages
+                .map((p) => String(p.$primaryKey))
+                .filter(Boolean);
+              fetchPriorityData(sibIds).then((data) => {
+                if (loadId === loadIdRef.current && !cancelled) {
+                  mergePriorityData(data);
+                }
+              });
+
               resolveMetaStreaming(
                 sibPackages,
                 (metaBatch) => {
@@ -537,6 +586,16 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
             const newPackages3 = page3.data;
             appendDeduped(newPackages3);
+
+            // Fetch priorities for these packages in parallel with meta.
+            const phase3Ids = newPackages3
+              .map((p) => String(p.$primaryKey))
+              .filter(Boolean);
+            fetchPriorityData(phase3Ids).then((data) => {
+              if (loadId === loadIdRef.current && !cancelled) {
+                mergePriorityData(data);
+              }
+            });
 
             resolveMetaStreaming(
               newPackages3,
