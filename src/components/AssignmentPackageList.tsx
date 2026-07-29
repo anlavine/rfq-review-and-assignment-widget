@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
+import ReactDOM from "react-dom";
 import { PendingRfqPackage, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -8,6 +9,9 @@ import { getPriorityColorClass } from "../utils/priorityColor";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
+
+/** Max number of inline tag chips before overflowing into a "+N" popover. */
+const MAX_VISIBLE_TAGS = 2;
 
 const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */
@@ -80,14 +84,119 @@ function categorizeWorkType(workType: string | undefined): "new" | "engChange" |
   return "other";
 }
 
+/** Map a tag string to its color class in this stylesheet. */
+function getTagClass(tag: string): string {
+  switch (tag) {
+    case "Targets": return css.tagTargets;
+    case "Waiting for Data": return css.tagWaitingForData;
+    case "Repeat Request": return css.tagRepeatRequest;
+    case "Duplicate": return css.tagDuplicate;
+    case "Update Quote": return css.tagUpdateQuote;
+    case "No Quote": return css.tagNoQuote;
+    default: return "";
+  }
+}
 
-function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken }: AssignmentPackageListProps): React.ReactElement {
+/**
+ * Compact popover used to show the full list of tags on hover over the
+ * "+N" overflow trigger in a card header. Rendered via a portal so it can
+ * escape the card's `overflow` clipping.
+ */
+function TagsPopover({
+  tags,
+  triggerRef,
+}: {
+  tags: string[];
+  triggerRef: React.RefObject<HTMLElement | null>;
+}): React.ReactElement | null {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.top - 4, left: rect.left + rect.width / 2 });
+    }
+  }, [triggerRef]);
+
+  if (!pos) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className={css.moreTagsPopover}
+      style={{ top: pos.top, left: pos.left, transform: "translate(-50%, -100%)" }}
+    >
+      {tags.map((tag, i) => (
+        <span key={i} className={css.popoverTag}>{tag}</span>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
+/** Renders the inline tag chips (with +N overflow) used in card headers. */
+function CardTags({ tags }: { tags: string[] }): React.ReactElement | null {
+  const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
+  const overflowTags = tags.slice(MAX_VISIBLE_TAGS);
+  const [showPopover, setShowPopover] = useState(false);
+  const moreRef = useRef<HTMLSpanElement | null>(null);
+
+  if (tags.length === 0) return null;
+
+  return (
+    <div className={css.tagsInline}>
+      {visibleTags.map((tag, i) => (
+        <span key={i} className={`${css.tag} ${getTagClass(tag)}`}>{tag}</span>
+      ))}
+      {overflowTags.length > 0 && (
+        <div className={css.moreTagsWrapper}>
+          <span
+            ref={moreRef}
+            className={css.moreTagsTrigger}
+            onMouseEnter={() => setShowPopover(true)}
+            onMouseLeave={() => setShowPopover(false)}
+          >
+            +{overflowTags.length}
+          </span>
+          {showPopover && <TagsPopover tags={tags} triggerRef={moreRef} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Imperative handle exposed to the parent for optimistic tag updates. */
+export interface AssignmentPackageListHandle {
+  /**
+   * Optimistically update a pending package's tags in local state so the
+   * card reflects the change without a full refetch. No-op for RFQ items
+   * (they don't render tags).
+   */
+  updatePackageTags: (packageId: string, newTags: string[]) => void;
+}
+
+
+const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, AssignmentPackageListProps>(
+  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken }, ref) {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
+  /**
+   * Session-local overrides for a pending package's `tags` field. Applied
+   * on top of the loaded package data so a save from the Edit Tags modal
+   * reflects immediately in the card without a full refetch. Keyed by
+   * pending package primary key.
+   */
+  const [tagOverrides, setTagOverrides] = useState<Record<string, string[]>>({});
   const loadIdRef = useRef(0);
   const { estimators } = useEligibleEstimators();
+
+  // ── Expose imperative handle for optimistic updates ──
+  useImperativeHandle(ref, () => ({
+    updatePackageTags(packageId: string, newTags: string[]) {
+      setTagOverrides((prev) => ({ ...prev, [packageId]: newTags }));
+    },
+  }));
 
   // Reset the assignee filter whenever we switch modes — it isn't meaningful
   // on the "Unassigned" tab and could otherwise leak between tab switches.
@@ -421,6 +530,8 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
 
       if (item.type === "pending") {
         const pkg = item.pkg;
+        // Apply any local tag override (set optimistically by Edit Tags).
+        const tags = tagOverrides[id] ?? pkg.tags ?? [];
         return (
           <div
             key={id}
@@ -432,7 +543,15 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
           >
             <div className={css.cardHeader}>
               <div className={css.cardTitle}>{pkg.subject ?? pkg.packageName ?? "[Unnamed Package]"}</div>
-              <span className={css.notReadyBadge}>Not Ready</span>
+              <span
+                className={css.notReadyIcon}
+                title="Not Ready — this package hasn't been linked to an RFQ Package yet"
+                aria-label="Not Ready"
+                role="img"
+              >
+                ⏳
+              </span>
+              <CardTags tags={tags} />
               {toolChip}
             </div>
             <div className={css.cardMeta}>
@@ -491,7 +610,7 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
     });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById]);
+  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, tagOverrides]);
 
   const title = mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
 
@@ -523,7 +642,7 @@ function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assignee
       </div>
     </div>
   );
-}
+});
 
 export type { AssignmentPackageListProps };
 export default AssignmentPackageList;

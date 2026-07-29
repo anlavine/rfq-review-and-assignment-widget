@@ -216,6 +216,99 @@
   white-space: nowrap;
 }
 
+/*
+ * Compact hourglass icon used in the card header to indicate that the
+ * pending package is not yet ready (i.e. not yet linked to an RFQ
+ * Package). Replaces the "Not Ready" text badge to reclaim horizontal
+ * room for inline tag chips. Static — no animation.
+ */
+.notReadyIcon {
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1;
+  cursor: default;
+}
+
+/* Inline tag chips in the card header — mirrors ingestion list styling */
+.tagsInline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tag {
+  display: inline-block;
+  border-radius: 3px;
+  font-size: 11px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background: var(--tag-default-bg);
+  color: var(--tag-default-fg);
+}
+
+.tagTargets {
+  background: var(--tag-targets-bg);
+  color: var(--tag-targets-fg);
+}
+.tagWaitingForData {
+  background: var(--tag-waiting-bg);
+  color: var(--tag-waiting-fg);
+}
+.tagRepeatRequest {
+  background: var(--tag-repeat-bg);
+  color: var(--tag-repeat-fg);
+}
+.tagDuplicate {
+  background: var(--tag-duplicate-bg);
+  color: var(--tag-duplicate-fg);
+}
+.tagUpdateQuote {
+  background: var(--tag-update-bg);
+  color: var(--tag-update-fg);
+}
+.tagNoQuote {
+  background: var(--tag-noquote-bg);
+  color: var(--tag-noquote-fg);
+}
+
+.moreTagsWrapper {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.moreTagsTrigger {
+  font-size: 11px;
+  color: var(--more-tags-fg);
+  cursor: default;
+  white-space: nowrap;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--more-tags-bg);
+}
+
+.moreTagsPopover {
+  position: fixed;
+  background: var(--popover-bg);
+  color: var(--popover-fg);
+  border-radius: 4px;
+  padding: 8px 12px;
+  z-index: 9999;
+  white-space: nowrap;
+  box-shadow: var(--shadow-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+}
+
+.popoverTag {
+  font-size: 11px;
+  padding: 2px 0;
+}
+
 /* Tool count chip */
 .toolChip {
   display: inline-flex;

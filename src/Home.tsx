@@ -15,6 +15,7 @@ import EditTagsModal from "./components/EditTagsModal";
 import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
 import AssignmentPackageList from "./components/AssignmentPackageList";
+import type { AssignmentPackageListHandle } from "./components/AssignmentPackageList";
 import AssignmentPendingPackageDetail from "./components/AssignmentPendingPackageDetail";
 import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail";
 import AssignToModal from "./components/AssignToModal";
@@ -51,7 +52,7 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
-  const showAssignmentTab = false;
+  const showAssignmentTab = true;
   /**
    * Current sort mode of the Outstanding tab in the Ingestion list. Kept in
    * sync with the child `PendingRfqPackageList` via its
@@ -80,6 +81,9 @@ function Home(): React.ReactElement {
 
   /** Ref to PendingRfqPackageList for optimistic updates */
   const listRef = useRef<PendingRfqPackageListHandle>(null);
+
+  /** Ref to AssignmentPackageList for optimistic tag updates */
+  const assignmentListRef = useRef<AssignmentPackageListHandle>(null);
 
   /**
    * Workspace identifier for usage tracking. Ingestion view value depends on
@@ -455,6 +459,7 @@ function Home(): React.ReactElement {
               </button>
             </div>
             <AssignmentPackageList
+              ref={assignmentListRef}
               mode={assignmentTab}
               selectedId={selectedAssignmentId}
               onSelect={(id, type) => {
@@ -484,6 +489,18 @@ function Home(): React.ReactElement {
                 title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
               >
                 {theme === "dark" ? "☀️" : "🌙"}
+              </button>
+              <button
+                className={css.headerButton}
+                disabled={!selectedAssignmentId || selectedAssignmentType !== "pending"}
+                onClick={() => setShowEditTags(true)}
+                title={
+                  selectedAssignmentType === "pending"
+                    ? "Edit tags on the selected package"
+                    : "Edit Tags is only available on Pending RFQ Package selections"
+                }
+              >
+                Edit Tags
               </button>
               <button
                 className={css.headerButton}
@@ -764,7 +781,27 @@ function Home(): React.ReactElement {
 
       )}
 
-      {showEditTags && selectedPackageId && (
+      {/*
+        The Edit Tags modal is shared between Ingestion and Assignment views.
+        In Ingestion it operates on `selectedPackageId` and drives an
+        optimistic update on `listRef` (the PendingRfqPackageList). In
+        Assignment it operates on `selectedAssignmentId` (guarded to
+        pending selections by the toolbar button) and drives an optimistic
+        update on `assignmentListRef` instead. Either way, only one is
+        rendered at a time based on the current `appMode`.
+      */}
+      {showEditTags && appMode === "assignment" && selectedAssignmentId && selectedAssignmentType === "pending" && (
+        <EditTagsModal
+          packageId={selectedAssignmentId}
+          onClose={() => setShowEditTags(false)}
+          onSaved={(newTags) => {
+            trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);
+            setShowEditTags(false);
+            assignmentListRef.current?.updatePackageTags(selectedAssignmentId, newTags);
+          }}
+        />
+      )}
+      {showEditTags && appMode !== "assignment" && selectedPackageId && (
         <EditTagsModal
           packageId={selectedPackageId}
           onClose={() => setShowEditTags(false)}
