@@ -25,6 +25,13 @@
   gap: 8px;
 }
 
+.sectionHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 /* ── Attachments ── */
 .attachmentList {
   list-style: none;
@@ -100,6 +107,12 @@
 .downloadButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.downloadAllButton {
+  margin-left: 0;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .downloadError {

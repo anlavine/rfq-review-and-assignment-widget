@@ -204,14 +204,14 @@ export function useRfqPackageDetail(
             }
           })();
 
-          const [resolvedAttachments, resolvedSiblings, resolvedErrors] = await Promise.all([
+          const [resolvedAttachmentCount, resolvedSiblings, resolvedErrors] = await Promise.all([
             attachmentPromise,
             conversationPromise,
             errorsPromise,
           ]);
 
           if (cancelled) return;
-          setAttachmentCount(resolvedAttachments);
+          setAttachmentCount(resolvedAttachmentCount);
           setConversationSiblings(resolvedSiblings);
           setHasPackageError(resolvedErrors.hasPackageError);
           setHasToolError(resolvedErrors.hasToolError);

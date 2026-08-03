@@ -11,12 +11,10 @@ import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
-import { isInlineImage } from "../utils/attachments";
+import { isInlineImage, excludeZipArchives } from "../utils/attachments";
+import { downloadAttachment } from "../utils/attachmentDownload";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
-
-const ATTACHMENT_DATASET_RID =
-  "ri.foundry.main.dataset.1be7ce80-f8d5-411c-94c3-6fe46371a15b";
 
 interface ReviewPanelProps {
   packageId: string;
@@ -127,6 +125,7 @@ function ReviewPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [removingToolId, setRemovingToolId] = useState<string | null>(null);
 
@@ -364,22 +363,10 @@ function ReviewPanel({
 
   const handleDownload = async (att: Osdk.Instance<PendingRfqAttachments>) => {
     const attId = String(att.$primaryKey);
-    const displayName = att.fileName ?? att.filepath ?? "download";
     setDownloadError(null);
     setDownloadingId(attId);
     try {
-      const url = `https://integrity.palantirfoundry.com/foundry-data-proxy/api/web/dataproxy/datasets/${ATTACHMENT_DATASET_RID}/views/master/${att.filepath}`;
-      const response = await fetch(url, { credentials: "include" });
-      if (!response.ok) throw new Error(`Download failed (${response.status})`);
-      const blob = await response.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = displayName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(objectUrl);
+      await downloadAttachment(att);
       trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD, workspace);
     } catch (e) {
       console.error("Download failed:", e);
@@ -389,6 +376,22 @@ function ReviewPanel({
     } finally {
       setDownloadingId(null);
     }
+  };
+
+  // Every attachment that isn't itself a zip archive — extracted children of
+  // a zip are included, only the zip container is excluded.
+  const downloadableAttachments = useMemo(
+    () => excludeZipArchives(attachments),
+    [attachments],
+  );
+
+  const handleDownloadAll = async () => {
+    setDownloadingAll(true);
+    for (const att of downloadableAttachments) {
+      if (!att.filepath) continue;
+      await handleDownload(att);
+    }
+    setDownloadingAll(false);
   };
 
   // Separate tools into active and removed
@@ -463,7 +466,18 @@ function ReviewPanel({
     <div className={css.container}>
       {/* ── Attachments Section ── */}
       <section className={css.section}>
-        <h3 className={css.sectionTitle}>Attachments</h3>
+        <div className={css.sectionHeaderRow}>
+          <h3 className={css.sectionTitle}>Attachments</h3>
+          {downloadableAttachments.length > 0 && (
+            <button
+              className={`${css.downloadButton} ${css.downloadAllButton}`}
+              disabled={downloadingAll || downloadingId !== null}
+              onClick={handleDownloadAll}
+            >
+              {downloadingAll ? "Downloading All…" : "Download All"}
+            </button>
+          )}
+        </div>
         {attachments.length > 0 ? (
           <ul className={css.attachmentList}>
             {(() => {
@@ -491,7 +505,7 @@ function ReviewPanel({
                     {att.filepath && (
                       <button
                         className={css.downloadButton}
-                        disabled={downloadingId === String(att.$primaryKey)}
+                        disabled={downloadingId === String(att.$primaryKey) || downloadingAll}
                         onClick={() => handleDownload(att)}
                       >
                         {downloadingId === String(att.$primaryKey) ? "Downloading…" : "Download"}

@@ -3,6 +3,8 @@ import ReactDOM from "react-dom";
 import css from "./AssignmentPackageCard.module.css";
 import { getPriorityColorClass } from "../utils/priorityColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
+import { excludeZipArchives } from "../utils/attachments";
+import { downloadAttachment } from "../utils/attachmentDownload";
 import type { AssignmentItem, AssignmentMode } from "./AssignmentPackageList";
 
 function formatDate(date: string | undefined): string {
@@ -98,6 +100,42 @@ function TagsPopover({
   );
 }
 
+/**
+ * Popover listing the files a click on the download icon will download.
+ * Rendered via a portal so it can escape the row's `overflow` clipping.
+ */
+function FileListPopover({
+  fileNames,
+  triggerRef,
+}: {
+  fileNames: string[];
+  triggerRef: React.RefObject<HTMLElement | null>;
+}): React.ReactElement | null {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.top - 4, left: rect.left + rect.width / 2 });
+    }
+  }, [triggerRef]);
+
+  if (!pos) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className={css.filesPopover}
+      style={{ top: pos.top, left: pos.left, transform: "translate(-50%, -100%)" }}
+    >
+      <div className={css.filesPopoverTitle}>Files to download</div>
+      {fileNames.map((name, i) => (
+        <span key={i} className={css.popoverFileRow}>{name}</span>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 export interface AssignmentPackageCardProps {
   item: AssignmentItem;
   isSelected: boolean;
@@ -130,8 +168,27 @@ export default function AssignmentPackageCard({
     .concat(tags.filter((t) => !(TAG_ORDER as readonly string[]).includes(t)));
   const [showTagsPopover, setShowTagsPopover] = useState(false);
   const tagsRef = useRef<HTMLDivElement | null>(null);
+  const downloadableAttachments = excludeZipArchives(item.attachments);
+  const [showDownloadPopover, setShowDownloadPopover] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const downloadRef = useRef<HTMLSpanElement | null>(null);
   const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
   const isPending = item.type === "pending";
+
+  const handleDownloadAll = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    try {
+      for (const att of downloadableAttachments) {
+        if (!att.filepath) continue;
+        await downloadAttachment(att);
+      }
+    } catch (err) {
+      console.error("Download all failed:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const title = isPending
     ? item.pkg.subject ?? item.pkg.packageName ?? "[Unnamed Package]"
@@ -179,7 +236,43 @@ export default function AssignmentPackageCard({
       <div className={css.colAssignee} title={assigneeName ?? undefined}>
         {mode === "assigned" ? assigneeName ?? item.assigneeId ?? "" : ""}
       </div>
-      <div className={css.colIcons}>{icon}</div>
+      <div className={css.colIcons}>
+        {downloadableAttachments.length > 0 && (
+          <span
+            ref={downloadRef}
+            className={`${css.downloadIcon} ${isDownloading ? css.downloadIconDisabled : ""}`}
+            title={isDownloading ? "Downloading…" : "Download all attachments"}
+            aria-label="Download all attachments"
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); handleDownloadAll(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation();
+                e.preventDefault();
+                handleDownloadAll();
+              }
+            }}
+            onMouseEnter={() => setShowDownloadPopover(true)}
+            onMouseLeave={() => setShowDownloadPopover(false)}
+          >
+            {isDownloading ? (
+              "⏳"
+            ) : (
+              <svg className={css.downloadIconSvg} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+              </svg>
+            )}
+          </span>
+        )}
+        {showDownloadPopover && !isDownloading && (
+          <FileListPopover
+            fileNames={downloadableAttachments.map((att) => att.fileName ?? att.filepath ?? "Unnamed file")}
+            triggerRef={downloadRef}
+          />
+        )}
+        {icon}
+      </div>
       <div
         ref={tagsRef}
         className={css.colTags}

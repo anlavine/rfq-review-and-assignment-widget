@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
-import { PendingRfqPackage, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, RfqPackage, PendingRfqAttachments } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./AssignmentPackageList.module.css";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
+import { isInlineImage } from "../utils/attachments";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 
@@ -17,8 +18,8 @@ export type AssignmentMode = "unassigned" | "assigned";
 export type AssignmentItem =
 
 
-  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null };
+  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[] }
+  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[] };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
@@ -183,14 +184,38 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           toolCount: number | null;
           assigneeId: string | null;
           customerName: string | null;
+          attachments: Osdk.Instance<PendingRfqAttachments>[];
         }
         interface RfqItemPartial {
           pkg: Osdk.Instance<RfqPackage>;
           toolCount: number | null;
           assigneeId: string | null;
           customerName: string | null;
+          attachments: Osdk.Instance<PendingRfqAttachments>[];
           /** id of the linked PendingRfqPackage, if any */
           pendingPackageId: string | null;
+        }
+
+        /** Resolves the attachment rows for an email (excluding inline images). */
+        async function fetchAttachments(
+          emailId: string | undefined,
+          fileNamesRaw: string[] | undefined,
+        ): Promise<Osdk.Instance<PendingRfqAttachments>[]> {
+          const fileNames = (fileNamesRaw ?? []).filter((n) => !isInlineImage(n));
+          if (!emailId || fileNames.length === 0) return [];
+          try {
+            const page = await client(PendingRfqAttachments)
+              .where({
+                $and: [
+                  { fileName: { $in: fileNames } },
+                  { emailId: { $eq: emailId } },
+                ],
+              })
+              .fetchPage({ $pageSize: 200 });
+            return page.data;
+          } catch {
+            return [];
+          }
         }
 
         const pendingPartials: PendingItemPartial[] = [];
@@ -210,10 +235,12 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
                 customerName = cv2.customerName ?? null;
               } catch { /* non-critical */ }
 
+              const attachments = await fetchAttachments(pkg.emailId, pkg.attachmentFileNames);
+
               const assigneeId = pkg.assignedEstimator && pkg.assignedEstimator.trim() !== ""
                 ? pkg.assignedEstimator.trim()
                 : null;
-              return { pkg, toolCount, assigneeId, customerName };
+              return { pkg, toolCount, assigneeId, customerName, attachments };
             }),
           );
           pendingPartials.push(...results);
@@ -225,11 +252,16 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           const batch = rfqPages.slice(i, i + LINK_BATCH_SIZE);
           const results = await Promise.all(
             batch.map(async (rfqPkg): Promise<RfqItemPartial> => {
-              // Resolve the linked PendingRfqPackage id (for priority lookup).
+              // Resolve the linked PendingRfqPackage id (for priority lookup),
+              // reusing the same fetch to resolve attachments — the linked
+              // pending package carries the emailId/attachmentFileNames that
+              // RfqPackage itself doesn't have.
               let pendingPackageId: string | null = null;
+              let attachments: Osdk.Instance<PendingRfqAttachments>[] = [];
               try {
                 const linked = await rfqPkg.$link.pendingRfqPackage.fetchOne();
                 pendingPackageId = String(linked.$primaryKey);
+                attachments = await fetchAttachments(linked.emailId, linked.attachmentFileNames);
               } catch { /* no linked pending package */ }
 
               // Resolve tool count via rfqTool link
@@ -255,7 +287,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { pkg: rfqPkg, toolCount, assigneeId, customerName, pendingPackageId };
+              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId };
             }),
           );
           rfqPartials.push(...results);
@@ -282,6 +314,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           toolCount: p.toolCount,
           assigneeId: p.assigneeId,
           customerName: p.customerName,
+          attachments: p.attachments,
         }));
         const rfqItems: AssignmentItem[] = rfqPartials.map((r) => ({
           type: "rfq",
@@ -292,6 +325,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           toolCount: r.toolCount,
           assigneeId: r.assigneeId,
           customerName: r.customerName,
+          attachments: r.attachments,
         }));
 
         // Build the interleaved list

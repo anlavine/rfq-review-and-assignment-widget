@@ -28,3 +28,53 @@ export function isParsedAttachment(fileName: string): boolean {
 export function excludeInlineImages(fileNames: string[]): string[] {
   return fileNames.filter((name) => !isInlineImage(name));
 }
+
+export interface ZipGroupableAttachment {
+  readonly fileName?: string;
+  readonly filepath?: string;
+  readonly sourceZipFilename?: string;
+}
+
+/**
+ * Filters a list of attachments down to every file that is not itself a zip
+ * archive. An attachment is treated as a zip archive when at least one other
+ * attachment in the list references it via `sourceZipFilename` — the zip's
+ * extracted children are still included, only the archive itself is dropped.
+ *
+ * A zip with no captured children (nothing in the dataset references it)
+ * is not detected as a zip and is left in the result — there's no
+ * extension/content-type fallback, only this structural check.
+ *
+ * Mirrors the de-dup rule used when rendering the attachment list: duplicate
+ * rows sharing the same `fileName` are collapsed to one survivor before the
+ * zip check runs, so a child whose `sourceZipFilename` points at a removed
+ * duplicate still resolves to the correct surviving zip.
+ */
+export function excludeZipArchives<T extends ZipGroupableAttachment>(attachments: T[]): T[] {
+  const deduped = attachments.filter((att, idx, arr) => {
+    const name = att.fileName ?? "";
+    return arr.findIndex((a) => (a.fileName ?? "") === name) === idx;
+  });
+
+  const zipFilepathToSurvivor = new Map<string, string>();
+  for (const att of attachments) {
+    if (!att.filepath) continue;
+    const survivor = deduped.find((d) => (d.fileName ?? "") === (att.fileName ?? ""));
+    if (survivor && survivor.filepath && survivor.filepath !== att.filepath) {
+      zipFilepathToSurvivor.set(att.filepath, survivor.filepath);
+    }
+  }
+
+  const zipParentPaths = new Set<string>();
+  const seenChildNames = new Set<string>();
+  for (const att of attachments) {
+    const srcZip = att.sourceZipFilename;
+    if (!srcZip) continue;
+    const childName = att.fileName ?? "";
+    if (seenChildNames.has(childName)) continue;
+    seenChildNames.add(childName);
+    zipParentPaths.add(zipFilepathToSurvivor.get(srcZip) ?? srcZip);
+  }
+
+  return deduped.filter((att) => !zipParentPaths.has(att.filepath ?? ""));
+}
