@@ -52,6 +52,7 @@
 
 .table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
   color: var(--text-primary);
@@ -67,7 +68,6 @@
   text-align: left;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-default);
-  white-space: nowrap;
 }
 
 .table td {
@@ -75,6 +75,7 @@
   border-bottom: 1px solid var(--border-default);
   vertical-align: top;
   line-height: 1.35;
+  overflow-wrap: break-word;
 }
 
 .table tr:last-child td {
@@ -91,21 +92,11 @@
   color: var(--text-muted);
 }
 
-.toolImage {
+/* Used in the RFQ Tools breakdown: rendered tool image + centered cells. */
+.toolImageLarge {
   display: block;
   width: 72px;
   height: 72px;
-  object-fit: contain;
-  border-radius: 4px;
-  background: var(--bg-muted);
-  border: 1px solid var(--border-default);
-}
-
-/* Variant used in the RFQ Tools breakdown: larger image + centered cells. */
-.toolImageLarge {
-  display: block;
-  width: 140px;
-  height: 140px;
   object-fit: contain;
   border-radius: 4px;
   background: var(--bg-muted);

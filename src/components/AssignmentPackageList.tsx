@@ -1,17 +1,12 @@
-import React, { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
-import ReactDOM from "react-dom";
+import { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
 import { PendingRfqPackage, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
 import css from "./AssignmentPackageList.module.css";
-import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
-import { getPriorityColorClass } from "../utils/priorityColor";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
-
-/** Max number of inline tag chips before overflowing into a "+N" popover. */
-const MAX_VISIBLE_TAGS = 2;
+import AssignmentPackageCard from "./AssignmentPackageCard";
 
 const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */
@@ -22,8 +17,8 @@ export type AssignmentMode = "unassigned" | "assigned";
 export type AssignmentItem =
 
 
-  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null };
+  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null }
+  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
@@ -50,119 +45,8 @@ interface AssignmentPackageListProps {
   refreshToken?: number;
 }
 
-function formatDate(date: string | undefined): string {
-  if (!date) return "—";
-  try {
-    const parts = date.split("T")[0].split("-");
-    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    return local.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return date;
-  }
-}
-
-function buildVehicleLine(oem?: string, platform?: string, modelYear?: string): string {
-  const parts = [oem, platform, modelYear].filter(Boolean);
-  return parts.length > 0 ? parts.join(" · ") : "—";
-}
-
-const PRIORITY_CLASSES = {
-  orange: css.cardBorderOrange,
-  yellow: css.cardBorderYellow,
-  gray: css.cardBorderGray,
-};
-
 /** Sentinel for the "Unknown" / "no name resolved" assignee filter option */
 const UNKNOWN_ASSIGNEE = "__unknown__";
-
-/** Returns "New Build", "Eng Change", "Other", or null based on RfqPackage work type. */
-function categorizeWorkType(workType: string | undefined): "new" | "engChange" | "other" | null {
-  if (!workType) return null;
-  const lower = workType.toLowerCase();
-  if (lower.includes("new build") || lower.includes("new_build") || lower === "new") return "new";
-  if (lower.includes("eng change") || lower.includes("engineering change") || lower.includes("eng_change")) return "engChange";
-  return "other";
-}
-
-/** Map a tag string to its color class in this stylesheet. */
-function getTagClass(tag: string): string {
-  switch (tag) {
-    case "Targets": return css.tagTargets;
-    case "Waiting for Data": return css.tagWaitingForData;
-    case "Repeat Request": return css.tagRepeatRequest;
-    case "Duplicate": return css.tagDuplicate;
-    case "Update Quote": return css.tagUpdateQuote;
-    case "No Quote": return css.tagNoQuote;
-    default: return "";
-  }
-}
-
-/**
- * Compact popover used to show the full list of tags on hover over the
- * "+N" overflow trigger in a card header. Rendered via a portal so it can
- * escape the card's `overflow` clipping.
- */
-function TagsPopover({
-  tags,
-  triggerRef,
-}: {
-  tags: string[];
-  triggerRef: React.RefObject<HTMLElement | null>;
-}): React.ReactElement | null {
-  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-
-  useEffect(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ top: rect.top - 4, left: rect.left + rect.width / 2 });
-    }
-  }, [triggerRef]);
-
-  if (!pos) return null;
-
-  return ReactDOM.createPortal(
-    <div
-      className={css.moreTagsPopover}
-      style={{ top: pos.top, left: pos.left, transform: "translate(-50%, -100%)" }}
-    >
-      {tags.map((tag, i) => (
-        <span key={i} className={css.popoverTag}>{tag}</span>
-      ))}
-    </div>,
-    document.body,
-  );
-}
-
-/** Renders the inline tag chips (with +N overflow) used in card headers. */
-function CardTags({ tags }: { tags: string[] }): React.ReactElement | null {
-  const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
-  const overflowTags = tags.slice(MAX_VISIBLE_TAGS);
-  const [showPopover, setShowPopover] = useState(false);
-  const moreRef = useRef<HTMLSpanElement | null>(null);
-
-  if (tags.length === 0) return null;
-
-  return (
-    <div className={css.tagsInline}>
-      {visibleTags.map((tag, i) => (
-        <span key={i} className={`${css.tag} ${getTagClass(tag)}`}>{tag}</span>
-      ))}
-      {overflowTags.length > 0 && (
-        <div className={css.moreTagsWrapper}>
-          <span
-            ref={moreRef}
-            className={css.moreTagsTrigger}
-            onMouseEnter={() => setShowPopover(true)}
-            onMouseLeave={() => setShowPopover(false)}
-          >
-            +{overflowTags.length}
-          </span>
-          {showPopover && <TagsPopover tags={tags} triggerRef={moreRef} />}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** Imperative handle exposed to the parent for optimistic tag updates. */
 export interface AssignmentPackageListHandle {
@@ -298,11 +182,13 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           pkg: Osdk.Instance<PendingRfqPackage>;
           toolCount: number | null;
           assigneeId: string | null;
+          customerName: string | null;
         }
         interface RfqItemPartial {
           pkg: Osdk.Instance<RfqPackage>;
           toolCount: number | null;
           assigneeId: string | null;
+          customerName: string | null;
           /** id of the linked PendingRfqPackage, if any */
           pendingPackageId: string | null;
         }
@@ -318,10 +204,16 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
 
+              let customerName: string | null = null;
+              try {
+                const cv2 = await pkg.$link.betaAdécustomer.fetchOne();
+                customerName = cv2.customerName ?? null;
+              } catch { /* non-critical */ }
+
               const assigneeId = pkg.assignedEstimator && pkg.assignedEstimator.trim() !== ""
                 ? pkg.assignedEstimator.trim()
                 : null;
-              return { pkg, toolCount, assigneeId };
+              return { pkg, toolCount, assigneeId, customerName };
             }),
           );
           pendingPartials.push(...results);
@@ -347,10 +239,23 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
 
+              // Resolve customer name via: RfqPackage → Customer → CustomerV2,
+              // falling back to the Source Customer Record's company name.
+              let customerName: string | null = null;
+              try {
+                const sourceCustomer = await rfqPkg.$link.customer.fetchOne();
+                try {
+                  const cv2Page = await sourceCustomer.$link.betaAdécustomers.fetchPage({ $pageSize: 1 });
+                  customerName = cv2Page.data[0]?.customerName ?? sourceCustomer.companyName ?? null;
+                } catch {
+                  customerName = sourceCustomer.companyName ?? null;
+                }
+              } catch { /* non-critical */ }
+
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { pkg: rfqPkg, toolCount, assigneeId, pendingPackageId };
+              return { pkg: rfqPkg, toolCount, assigneeId, customerName, pendingPackageId };
             }),
           );
           rfqPartials.push(...results);
@@ -376,6 +281,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           priorityScore: priorityData.scores.get(String(p.pkg.$primaryKey)) ?? 0,
           toolCount: p.toolCount,
           assigneeId: p.assigneeId,
+          customerName: p.customerName,
         }));
         const rfqItems: AssignmentItem[] = rfqPartials.map((r) => ({
           type: "rfq",
@@ -385,6 +291,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
             : 0,
           toolCount: r.toolCount,
           assigneeId: r.assigneeId,
+          customerName: r.customerName,
         }));
 
         // Build the interleaved list
@@ -479,134 +386,23 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     return visibleItems.map((item) => {
       const id = String(item.pkg.$primaryKey);
       const isSelected = id === selectedId;
-      const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
       const assigneeName = resolveAssigneeName(item.assigneeId);
+      // Apply any local tag override (set optimistically by Edit Tags). RFQ
+      // items don't carry a `tags` field, so they always get an empty list.
+      const tags = item.type === "pending" ? tagOverrides[id] ?? item.pkg.tags ?? [] : [];
 
-      const toolChip = (
-        <span className={css.toolChip} title="Tool count">
-          <svg className={css.toolChipIcon} viewBox="0 0 16 16" fill="currentColor">
-            <path d="M11.92 1.08a3.5 3.5 0 0 0-4.56 4.03L2.04 10.4a1.5 1.5 0 0 0 0 2.12l1.42 1.42a1.5 1.5 0 0 0 2.12 0l5.3-5.32a3.5 3.5 0 0 0 4.03-4.56l-2.1 2.1-1.42-.01-.7-.7-.01-1.42 2.1-2.1Z" />
-          </svg>
-          {item.toolCount ?? "…"}
-        </span>
+      return (
+        <AssignmentPackageCard
+          key={id}
+          item={item}
+          isSelected={isSelected}
+          onSelect={onSelect}
+          mode={mode}
+          tags={tags}
+          assigneeName={assigneeName}
+          customerName={item.customerName}
+        />
       );
-
-      // On the Assigned tab, the "Received" text on the right is replaced
-
-      // with a badge showing the resolved assignee name (falling back to id).
-      const rightSlot = mode === "assigned" ? (
-        <>
-          <span
-
-            className={css.assigneeBadge}
-            title={
-              assigneeName
-                ? `Assigned to ${assigneeName}`
-                : item.assigneeId
-                  ? `Assigned to ${item.assigneeId}`
-                  : "Assigned"
-            }
-          >
-
-
-            {assigneeName ?? item.assigneeId ?? "—"}
-          </span>
-          <span className={css.sep}>·</span>
-          <span>Due: {formatDate(item.pkg.dueDate)}</span>
-        </>
-      ) : item.type === "pending" ? (
-        <>
-          <span>Received: {formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)}</span>
-                <span className={css.sep}>·</span>
-          <span>Due: {formatDate(item.pkg.dueDate)}</span>
-        </>
-      ) : (
-        <>
-          <span>Received: {formatDate(item.pkg.dateReceived)}</span>
-          <span className={css.sep}>·</span>
-          <span>Due: {formatDate(item.pkg.dueDate)}</span>
-        </>
-        );
-
-      if (item.type === "pending") {
-        const pkg = item.pkg;
-        // Apply any local tag override (set optimistically by Edit Tags).
-        const tags = tagOverrides[id] ?? pkg.tags ?? [];
-        return (
-          <div
-            key={id}
-            className={`${css.card} ${priorityBorderClass} ${isSelected ? css.cardSelected : ""}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect(id, "pending")}
-            onKeyDown={(e) => { if (e.key === "Enter") onSelect(id, "pending"); }}
-          >
-            <div className={css.cardHeader}>
-              <div className={css.cardTitle}>{pkg.subject ?? pkg.packageName ?? "[Unnamed Package]"}</div>
-              <span
-                className={css.notReadyIcon}
-                title="Not Ready — this package hasn't been linked to an RFQ Package yet"
-                aria-label="Not Ready"
-                role="img"
-              >
-                ⏳
-              </span>
-              <CardTags tags={tags} />
-              {toolChip}
-            </div>
-            <div className={css.cardMeta}>
-              <span className={css.cardMetaLeft}>
-                {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
-              </span>
-              <span className={css.cardMetaRight}>
-
-
-
-                {rightSlot}
-              </span>
-
-
-
-      </div>
-    </div>
-  );
-      } else {
-        const pkg = item.pkg;
-        const workCategory = categorizeWorkType(pkg.workType);
-        const workIcon = workCategory === "new" ? (
-          <span className={css.workTypeIcon} title={`Work Type: ${pkg.workType}`} aria-label="New Build">✨</span>
-        ) : workCategory === "engChange" ? (
-          <span className={css.workTypeIcon} title={`Work Type: ${pkg.workType}`} aria-label="Engineering Change">🔄</span>
-        ) : null;
-
-        return (
-          <div
-            key={id}
-            className={`${css.card} ${priorityBorderClass} ${isSelected ? css.cardSelected : ""}`}
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect(id, "rfq")}
-            onKeyDown={(e) => { if (e.key === "Enter") onSelect(id, "rfq"); }}
-          >
-            <div className={css.cardHeader}>
-              {workIcon}
-              <div className={css.cardTitle}>{pkg.packageName ?? "[Unnamed Package]"}</div>
-              {toolChip}
-            </div>
-            <div className={css.cardMeta}>
-              <span className={css.cardMetaLeft}>
-                {buildVehicleLine(pkg.oem, pkg.platform, pkg.modelYear)}
-              </span>
-              <span className={css.cardMetaRight}>
-
-
-
-                {rightSlot}
-              </span>
-            </div>
-          </div>
-        );
-      }
     });
 
     // eslint-disable-next-line react-hooks/exhaustive-deps

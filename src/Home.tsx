@@ -433,7 +433,7 @@ function Home(): React.ReactElement {
       </div> : null}
       {appMode === "assignment" ? (
         <div className={css.panels}>
-          <div className={css.listPanel}>
+          <div className={`${css.listPanel} ${css.listPanelWide}`}>
             <div className={css.assignmentTabBar}>
               <button
                 className={`${css.assignmentTab} ${assignmentTab === "unassigned" ? css.assignmentTabActive : ""}`}

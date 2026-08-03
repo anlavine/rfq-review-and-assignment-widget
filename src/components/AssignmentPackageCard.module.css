@@ -1,0 +1,148 @@
+/* Single-line card: subject | customer | vehicle | received | due | assignee | icons | tags */
+.card {
+  display: grid;
+  grid-template-columns: 3fr 1.4fr 1.8fr 1.1fr 1.1fr 1.1fr auto auto;
+  align-items: center;
+  column-gap: 10px;
+  border: 2px solid var(--border-default);
+  border-radius: 6px;
+  padding: 6px 10px;
+  background: var(--bg-card);
+  transition: box-shadow 0.15s, border-color 0.15s;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-card);
+  border-color: var(--border-active);
+}
+
+.cardSelected {
+  border-color: var(--border-active);
+  background: var(--bg-card-selected);
+}
+
+/* Priority score left-border tiers */
+.cardBorderGray {
+  border-left: 4px solid #cdcdcd;
+}
+
+.cardBorderYellow {
+  border-left: 4px solid #f3d22c;
+}
+
+.cardBorderOrange {
+  border-left: 4px solid #ea9708;
+}
+
+.colSubject {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.colCustomer,
+.colVehicle,
+.colReceived,
+.colDue,
+.colAssignee {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.colIcons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 16px;
+}
+
+.workTypeIcon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.notReadyIcon {
+  font-size: 12px;
+  line-height: 1;
+  cursor: default;
+}
+
+/* Tags column — one narrow color band per tag the package has. */
+.colTags {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  min-width: 5px;
+}
+
+.tagBand {
+  width: 5px;
+  height: 18px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.tagBandTargets {
+  background: var(--tag-targets-fg);
+}
+.tagBandWaitingForData {
+  background: var(--tag-waiting-fg);
+}
+.tagBandRepeatRequest {
+  background: var(--tag-repeat-fg);
+}
+.tagBandDuplicate {
+  background: var(--tag-duplicate-fg);
+}
+.tagBandUpdateQuote {
+  background: var(--tag-update-fg);
+}
+.tagBandNoQuote {
+  background: var(--tag-noquote-fg);
+}
+.tagBandDefault {
+  background: var(--tag-default-fg);
+}
+
+/* Popover listing each tag by name with a color dot matching its band. */
+.tagsPopover {
+  position: fixed;
+  background: var(--popover-bg);
+  color: var(--popover-fg);
+  border-radius: 4px;
+  padding: 8px 12px;
+  z-index: 9999;
+  white-space: nowrap;
+  box-shadow: var(--shadow-dropdown);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.popoverTagRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.popoverDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}

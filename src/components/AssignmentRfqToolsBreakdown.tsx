@@ -152,6 +152,13 @@ function AssignmentRfqToolsBreakdown({
       ) : (
         <div className={css.tableWrap}>
           <table className={`${css.table} ${css.centeredTable}`}>
+            <colgroup>
+              <col style={{ width: "90px" }} />
+              <col style={{ width: "14%" }} />
+              <col />
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "18%" }} />
+            </colgroup>
             <thead>
               <tr>
                 <th>Image</th>
