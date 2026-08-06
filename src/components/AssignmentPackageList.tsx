@@ -6,6 +6,7 @@ import css from "./AssignmentPackageList.module.css";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import { isInlineImage } from "../utils/attachments";
+import { categorizeWorkType } from "../utils/workType";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 
@@ -13,7 +14,7 @@ const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */
 const LINK_BATCH_SIZE = 20;
 
-export type AssignmentMode = "unassigned" | "assigned";
+export type AssignmentMode = "all" | "unassigned" | "assigned";
 
 export type AssignmentItem =
 
@@ -26,7 +27,8 @@ interface AssignmentPackageListProps {
   onSelect: (id: string, type: "pending" | "rfq") => void;
   /**
    * Which flavor of list to render:
-   *   - "unassigned" — Active packages without an estimator (default)
+   *   - "all"        — Every active package, assigned or not
+   *   - "unassigned" — Active packages without an estimator
    *   - "assigned"   — Active packages that already have an estimator
    */
   mode: AssignmentMode;
@@ -66,6 +68,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
+  const [sortMode, setSortMode] = useState<"dueDate" | "priority">("priority");
   /**
    * Session-local overrides for a pending package's `tags` field. Applied
    * on top of the loaded package data so a save from the Edit Tags modal
@@ -128,10 +131,13 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
 
                 const hasAssignee = !!p.assignedEstimator && p.assignedEstimator.trim() !== "";
-                // Assigned tab also excludes anything already linked to an RFQ Package
-                // (those are essentially "Reviewed" and shouldn't appear as work items).
+                // Assigned tab (and All) exclude anything already linked to an RFQ
+                // Package (those are essentially "Reviewed" and shouldn't appear as
+                // work items).
                 const hasRfqLink = !!p.rfqPackageId && p.rfqPackageId.trim() !== "";
-                if (wantsAssigned) {
+                if (mode === "all") {
+                  if (!(hasAssignee && hasRfqLink)) results.push(p);
+                } else if (wantsAssigned) {
                   if (hasAssignee && !hasRfqLink) results.push(p);
                 } else {
                   if (!hasAssignee) results.push(p);
@@ -160,7 +166,9 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
 
                 const hasAssignee = !!p.assignedTo && p.assignedTo.trim() !== "";
-                if (wantsAssigned) {
+                if (mode === "all") {
+                  results.push(p);
+                } else if (wantsAssigned) {
                   if (hasAssignee) results.push(p);
                 } else {
                   if (!hasAssignee) results.push(p);
@@ -229,11 +237,10 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
                 toolCount = page.data.length;
               } catch { /* non-critical */ }
 
-              let customerName: string | null = null;
-              try {
-                const cv2 = await pkg.$link.betaAdécustomer.fetchOne();
-                customerName = cv2.customerName ?? null;
-              } catch { /* non-critical */ }
+              // Pending packages show their raw (unlinked) customer name in
+              // the assignment list rather than the resolved CustomerV2 link
+              // — that's the value shown in parentheses on the detail view.
+              const customerName = pkg.customerName ?? null;
 
               const attachments = await fetchAttachments(pkg.emailId, pkg.attachmentFileNames);
 
@@ -364,7 +371,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
 
 
-    let filtered = items;
+    // Exclude Rep/Eng Change work — applies across all three tabs.
+    let filtered = items.filter((item) => categorizeWorkType(item.pkg.workType) !== "engChange");
 
     // Apply session-local assignee overrides so reassigned packages reflect
     // their new assignee without a refetch.
@@ -382,8 +390,9 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       filtered = filtered.filter((item) => !hiddenIds.has(String(item.pkg.$primaryKey)));
     }
 
-    // Client-side assignee filter (only meaningful in "assigned" mode)
-    if (mode === "assigned" && assigneeFilter.length > 0) {
+    // Client-side assignee filter — meaningful on "assigned" and "all"
+    // (every item on "unassigned" has no assignee, so it's a no-op there).
+    if (mode !== "unassigned" && assigneeFilter.length > 0) {
       const wantsUnknown = assigneeFilter.includes(UNKNOWN_ASSIGNEE);
       const otherIds = new Set(assigneeFilter.filter((v) => v !== UNKNOWN_ASSIGNEE));
       filtered = filtered.filter((item) => {
@@ -396,8 +405,22 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       });
     }
 
+    // Sort — Priority: score descending. Due Date: ascending, missing due
+    // dates sort to the end. Applies identically across all three tabs.
+    filtered = [...filtered].sort((a, b) => {
+      if (sortMode === "priority") {
+        return b.priorityScore - a.priorityScore;
+      }
+      const aDue = a.pkg.dueDate ?? "";
+      const bDue = b.pkg.dueDate ?? "";
+      if (aDue === bDue) return 0;
+      if (!aDue) return 1;
+      if (!bDue) return -1;
+      return aDue < bDue ? -1 : 1;
+    });
+
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById]);
+  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById, sortMode]);
 
   // Options for the assignee filter — built from the eligible estimator list
   // plus any assignee IDs currently on cards that don't resolve to a name.
@@ -442,7 +465,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, tagOverrides]);
 
-  const title = mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
+  const title = mode === "all" ? "All Packages" : mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
 
   return (
     <div className={css.container}>
@@ -452,7 +475,31 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         <span className={css.count}>{loading ? "" : `${visibleItems.length} active`}</span>
       </div>
 
-      {mode === "assigned" && (
+      <div className={css.sortToggleRow}>
+        <span className={css.sortToggleLabel}>Sort by:</span>
+        <div className={css.sortToggle} role="tablist" aria-label="Sort packages by">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={sortMode === "priority"}
+            className={`${css.sortToggleOption} ${sortMode === "priority" ? css.sortToggleActive : ""}`}
+            onClick={() => setSortMode("priority")}
+          >
+            Priority
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={sortMode === "dueDate"}
+            className={`${css.sortToggleOption} ${sortMode === "dueDate" ? css.sortToggleActive : ""}`}
+            onClick={() => setSortMode("dueDate")}
+          >
+            Due Date
+          </button>
+        </div>
+      </div>
+
+      {mode !== "unassigned" && (
         <div className={css.filterRow}>
           <span className={css.filterLabel}>Filter by assignee:</span>
           <div className={css.filterControl}>

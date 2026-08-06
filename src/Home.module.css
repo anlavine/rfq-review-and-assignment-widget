@@ -3,16 +3,22 @@
   flex-direction: column;
   width: 100%;
   height: calc(100vh - 2.75rem);
-  overflow: hidden;
+  overflow-y: auto;
 }
 
 /* ── Mode toggle (Ingestion / Assignment) ── */
+/* Sticky so it stays visible when expanded content (e.g. the estimator
+   workload scorecard) pushes the page taller than the viewport. */
 .modeToggleBar {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0 0 6px;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-page);
 }
 
 .modeToggle {
@@ -192,7 +198,12 @@
   flex-direction: row;
   gap: 20px;
   flex: 1;
-  min-height: 0;
+  /* A floor, not a cap — keeps the list/detail panes usable instead of
+     being squeezed toward zero when other content (e.g. the estimator
+     workload scorecard) is expanded above them. When that pushes total
+     content taller than the viewport, .home scrolls instead of shrinking
+     this below a usable height. */
+  min-height: 480px;
   overflow: hidden;
 }
 

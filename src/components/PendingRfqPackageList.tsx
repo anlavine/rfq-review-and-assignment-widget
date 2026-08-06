@@ -1199,9 +1199,9 @@ interface PackageCardProps {
 }
 
 const CARD_PRIORITY_CLASSES = {
-  orange: css.cardBorderOrange,
-  yellow: css.cardBorderYellow,
-  gray: css.cardBorderGray
+  high: css.cardBorderHigh,
+  medium: css.cardBorderMedium,
+  low: css.cardBorderLow
 };
 
 function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, hasSiblings, showCheckbox, checked, priorityScore, onClick }: PackageCardProps): React.ReactElement {

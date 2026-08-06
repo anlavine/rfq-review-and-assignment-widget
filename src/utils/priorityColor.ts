@@ -2,8 +2,8 @@
  * Priority tier for a given priority score.
  *
  * Tiers:
- *   score >= 0.6         → high   (orange)
- *   score >= 0.3         → medium (yellow)
+ *   score >= 0.25        → high   (green)
+ *   score >= 1/12         → medium (sunflower yellow)
  *   score >  0           → low    (gray)
  *   score <= 0 / null    → low    (gray) — no priority data ≡ Low
  *
@@ -39,13 +39,11 @@ export function getPriorityLabel(tier: PriorityTier): string {
 export function getPriorityColorClass(
   score: number | null | undefined,
   classes: {
-    orange: string;
-    yellow: string;
-    gray: string;
+    high: string;
+    medium: string;
+    low: string;
   },
 ): string {
   const tier = getPriorityTier(score);
-  if (tier === "high") return classes.orange;
-  if (tier === "medium") return classes.yellow;
-  return classes.gray;
+  return classes[tier];
 }

@@ -11,7 +11,9 @@
   /* ── Text ── */
   --text-primary: #1c2127;
   --text-secondary: #5f6b7c;
-  --text-muted: #abb3bf;
+  /* ~4.8:1 contrast against --bg-page/--bg-card (was ~2.1:1) — legible
+     under screen-share compression, which hits low-contrast text hardest. */
+  --text-muted: #6b7280;
   --text-disabled: #abb3bf;
 
   /* ── Borders ── */
@@ -180,7 +182,8 @@
   /* ── Text ── */
   --text-primary: #e0e0e0;
   --text-secondary: #a0a8b4;
-  --text-muted: #6b7280;
+  /* ~5.6:1 contrast against --bg-page/--bg-card (was ~3.3:1) */
+  --text-muted: #9099a6;
   --text-disabled: #4b5563;
 
   /* ── Borders ── */

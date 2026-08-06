@@ -12,7 +12,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./ReviewPanel.module.css";
 import { compareToolNumber } from "../utils/sortTools";
 import { isInlineImage, excludeZipArchives } from "../utils/attachments";
-import { downloadAttachment } from "../utils/attachmentDownload";
+import { downloadAttachment, downloadAttachmentsAsZip } from "../utils/attachmentDownload";
 import { getConfidenceColor } from "../utils/confidenceColor";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 
@@ -387,11 +387,17 @@ function ReviewPanel({
 
   const handleDownloadAll = async () => {
     setDownloadingAll(true);
-    for (const att of downloadableAttachments) {
-      if (!att.filepath) continue;
-      await handleDownload(att);
+    setDownloadError(null);
+    try {
+      const zipName = pkg?.subject ?? pkg?.packageName ?? "attachments";
+      await downloadAttachmentsAsZip(downloadableAttachments, `${zipName}.zip`);
+      trackUsage(INTERACTION_KEYS.ATTACHMENT_DOWNLOAD, workspace);
+    } catch (e) {
+      console.error("Download all failed:", e);
+      setDownloadError(e instanceof Error ? e.message : "Failed to download files");
+    } finally {
+      setDownloadingAll(false);
     }
-    setDownloadingAll(false);
   };
 
   // Separate tools into active and removed
@@ -473,8 +479,9 @@ function ReviewPanel({
               className={`${css.downloadButton} ${css.downloadAllButton}`}
               disabled={downloadingAll || downloadingId !== null}
               onClick={handleDownloadAll}
+              title="Download all attachments as a single .zip"
             >
-              {downloadingAll ? "Downloading All…" : "Download All"}
+              {downloadingAll ? "Zipping…" : "Download All"}
             </button>
           )}
         </div>

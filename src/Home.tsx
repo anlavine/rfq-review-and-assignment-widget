@@ -19,6 +19,7 @@ import type { AssignmentPackageListHandle } from "./components/AssignmentPackage
 import AssignmentPendingPackageDetail from "./components/AssignmentPendingPackageDetail";
 import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail";
 import AssignToModal from "./components/AssignToModal";
+import EstimatorWorkloadScorecard from "./components/EstimatorWorkloadScorecard";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
 import { trackUsage, INTERACTION_KEYS, WORKSPACES, type Workspace } from "./utils/trackUsage";
@@ -61,7 +62,7 @@ function Home(): React.ReactElement {
    * Defaults to "priority" to match the child's default.
    */
   const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
-  const [assignmentTab, setAssignmentTab] = useState<"unassigned" | "assigned">("unassigned");
+  const [assignmentTab, setAssignmentTab] = useState<"all" | "unassigned" | "assigned">("all");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
   const [showAssignTo, setShowAssignTo] = useState(false);
@@ -436,6 +437,17 @@ function Home(): React.ReactElement {
           <div className={`${css.listPanel} ${css.listPanelWide}`}>
             <div className={css.assignmentTabBar}>
               <button
+                className={`${css.assignmentTab} ${assignmentTab === "all" ? css.assignmentTabActive : ""}`}
+                onClick={() => {
+                  if (assignmentTab === "all") return;
+                  setAssignmentTab("all");
+                  setSelectedAssignmentId(null);
+                  setSelectedAssignmentType(null);
+                }}
+              >
+                All
+              </button>
+              <button
                 className={`${css.assignmentTab} ${assignmentTab === "unassigned" ? css.assignmentTabActive : ""}`}
                 onClick={() => {
                   if (assignmentTab === "unassigned") return;
@@ -467,7 +479,7 @@ function Home(): React.ReactElement {
                 setSelectedAssignmentType(type);
               }}
               hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
-              assigneeOverrides={assignmentTab === "assigned" ? assigneeOverrides : undefined}
+              assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
               refreshToken={refreshToken}
             />
           </div>
@@ -509,6 +521,7 @@ function Home(): React.ReactElement {
               >
                 {assignmentTab === "assigned" ? "Reassign" : "Assign To"}
               </button>
+              <EstimatorWorkloadScorecard refreshToken={refreshToken} />
             </div>
             <div className={css.detailPanel}>
               {selectedAssignmentId && selectedAssignmentType === "pending" ? (

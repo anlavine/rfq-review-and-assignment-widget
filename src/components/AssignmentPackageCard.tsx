@@ -4,7 +4,8 @@ import css from "./AssignmentPackageCard.module.css";
 import { getPriorityColorClass } from "../utils/priorityColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { excludeZipArchives } from "../utils/attachments";
-import { downloadAttachment } from "../utils/attachmentDownload";
+import { downloadAttachmentsAsZip } from "../utils/attachmentDownload";
+import { categorizeWorkType } from "../utils/workType";
 import type { AssignmentItem, AssignmentMode } from "./AssignmentPackageList";
 
 function formatDate(date: string | undefined): string {
@@ -24,19 +25,10 @@ function buildVehicleLine(oem?: string, platform?: string, modelYear?: string): 
 }
 
 const PRIORITY_CLASSES = {
-  orange: css.cardBorderOrange,
-  yellow: css.cardBorderYellow,
-  gray: css.cardBorderGray,
+  high: css.cardBorderHigh,
+  medium: css.cardBorderMedium,
+  low: css.cardBorderLow,
 };
-
-/** Returns "New Build", "Eng Change", "Other", or null based on RfqPackage work type. */
-function categorizeWorkType(workType: string | undefined): "new" | "engChange" | "other" | null {
-  if (!workType) return null;
-  const lower = workType.toLowerCase();
-  if (lower.includes("new build") || lower.includes("new_build") || lower === "new") return "new";
-  if (lower.includes("eng change") || lower.includes("engineering change") || lower.includes("eng_change")) return "engChange";
-  return "other";
-}
 
 /** Fixed left-to-right ordering for tag bands, so a given tag's color always
  *  appears in the same relative order among a package's other tags. */
@@ -175,24 +167,21 @@ export default function AssignmentPackageCard({
   const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
   const isPending = item.type === "pending";
 
+  const title = isPending
+    ? item.pkg.subject ?? item.pkg.packageName ?? "[Unnamed Package]"
+    : item.pkg.packageName ?? "[Unnamed Package]";
+
   const handleDownloadAll = async () => {
     if (isDownloading) return;
     setIsDownloading(true);
     try {
-      for (const att of downloadableAttachments) {
-        if (!att.filepath) continue;
-        await downloadAttachment(att);
-      }
+      await downloadAttachmentsAsZip(downloadableAttachments, `${title}.zip`);
     } catch (err) {
       console.error("Download all failed:", err);
     } finally {
       setIsDownloading(false);
     }
   };
-
-  const title = isPending
-    ? item.pkg.subject ?? item.pkg.packageName ?? "[Unnamed Package]"
-    : item.pkg.packageName ?? "[Unnamed Package]";
 
   const dueText = formatDate(item.pkg.dueDate);
 
@@ -234,15 +223,15 @@ export default function AssignmentPackageCard({
       <div className={css.colReceived}>{receivedText}</div>
       <div className={css.colDue}>{dueText}</div>
       <div className={css.colAssignee} title={assigneeName ?? undefined}>
-        {mode === "assigned" ? assigneeName ?? item.assigneeId ?? "" : ""}
+        {mode !== "unassigned" ? assigneeName ?? item.assigneeId ?? "" : ""}
       </div>
       <div className={css.colIcons}>
         {downloadableAttachments.length > 0 && (
           <span
             ref={downloadRef}
             className={`${css.downloadIcon} ${isDownloading ? css.downloadIconDisabled : ""}`}
-            title={isDownloading ? "Downloading…" : "Download all attachments"}
-            aria-label="Download all attachments"
+            title={isDownloading ? "Downloading…" : "Download all attachments as a .zip"}
+            aria-label="Download all attachments as a .zip"
             role="button"
             tabIndex={0}
             onClick={(e) => { e.stopPropagation(); handleDownloadAll(); }}

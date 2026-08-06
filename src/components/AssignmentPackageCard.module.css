@@ -1,7 +1,12 @@
 /* Single-line card: subject | customer | vehicle | received | due | assignee | icons | tags */
+/* Icons/tags columns are fixed-width (not auto) so their content — which
+   varies row to row (download icon only shows sometimes, tag count varies)
+   — never changes how much space the other columns get. Auto-sized tracks
+   are computed per-card (each row is its own grid), so they'd otherwise
+   shift the fr columns' pixel widths inconsistently between rows. */
 .card {
   display: grid;
-  grid-template-columns: 3fr 1.4fr 1.8fr 1.1fr 1.1fr 1.1fr auto auto;
+  grid-template-columns: 3fr 1.4fr 1.8fr 1.1fr 1.1fr 1.1fr 40px 40px;
   align-items: center;
   column-gap: 10px;
   border: 2px solid var(--border-default);
@@ -25,16 +30,16 @@
 }
 
 /* Priority score left-border tiers */
-.cardBorderGray {
+.cardBorderLow {
   border-left: 4px solid #cdcdcd;
 }
 
-.cardBorderYellow {
-  border-left: 4px solid #f3d22c;
+.cardBorderMedium {
+  border-left: 4px solid #ffc72c;
 }
 
-.cardBorderOrange {
-  border-left: 4px solid #ea9708;
+.cardBorderHigh {
+  border-left: 4px solid #16a34a;
 }
 
 .colSubject {
@@ -165,7 +170,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .popoverDot {
@@ -193,7 +198,7 @@
 }
 
 .filesPopoverTitle {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.4px;
@@ -202,7 +207,7 @@
 }
 
 .popoverFileRow {
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

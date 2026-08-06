@@ -77,7 +77,7 @@
 }
 
 .dateConfirm {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border: 1px solid var(--color-primary);
   border-radius: 3px;
@@ -96,7 +96,7 @@
 }
 
 .dateCancel {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border: 1px solid var(--border-default);
   border-radius: 3px;
@@ -110,7 +110,7 @@
 }
 
 .autoLabel {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
   white-space: nowrap;
 }
@@ -310,7 +310,7 @@
 .mergedEmailLabel {
   background: var(--merged-bg);
   color: var(--merged-fg);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -341,7 +341,7 @@
 .mergedBodyLabel {
   background: var(--merged-bg);
   color: var(--merged-fg);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -355,7 +355,7 @@
 .attachmentChipRed,
 .attachmentChipBlue {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 10px;
@@ -391,7 +391,7 @@
 /* ── Ingestion error chips ── */
 .ingestionErrorChip {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 10px;
@@ -406,7 +406,7 @@
 /* ── Confidence score chip ── */
 .confidenceChip {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   padding: 3px 10px;
   border-radius: 10px;
@@ -428,7 +428,7 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   padding: 3px 10px;
   border-radius: 10px;
@@ -440,15 +440,15 @@
 }
 
 .priorityChipHigh {
-  color: #7a4a04;
-  background: #feebc7;
-  border-color: #ea9708;
+  color: #14532d;
+  background: #dcfce7;
+  border-color: #16a34a;
 }
 
 .priorityChipMedium {
-  color: #6b6a10;
-  background: #fbf5c5;
-  border-color: #f3d22c;
+  color: #7a5b00;
+  background: #fff3cd;
+  border-color: #ffc72c;
 }
 
 .priorityChipLow {
@@ -490,7 +490,7 @@
 }
 
 .priorityFactorsHeader {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -574,7 +574,7 @@
 }
 
 .conversationStatus {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 10px;

@@ -42,7 +42,7 @@
 
 .triggerCaret {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .panel {
@@ -131,7 +131,7 @@
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 6px;
 }
 

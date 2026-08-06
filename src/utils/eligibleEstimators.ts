@@ -13,17 +13,8 @@ export const ELIGIBLE_ESTIMATOR_EMAILS = [
   "dbakker@teamintegrity.com",
   "rrodriguez@teamintegrity.com",
   "disley@teamintegrity.com",
-  "bcollins@integritytn.com",
   "csorrells@integritytn.com",
-  "agruening@teamintegrity.com",
-  "dbondy@integritytn.com",
-  "zwarner@integritytn.com",
-  "jparker@integritytn.com",
-  "bwatson@integritytn.com",
-  "dreiss@integritytn.com",
   "rmittontn@integritytn.com",
-  "skenley@integritytn.com",
-  "cgunter@integritytn.com",
 ];
 
 export const ELIGIBLE_ESTIMATOR_EMAIL_SET = new Set(
