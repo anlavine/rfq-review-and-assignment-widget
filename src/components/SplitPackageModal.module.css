@@ -21,11 +21,41 @@
   gap: 16px;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .title {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
+}
+
+.autoSplitButton {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: 4px;
+  color: var(--color-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 10px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.autoSplitButton:hover:not(:disabled) {
+  background: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.autoSplitButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .subtitle {
@@ -57,6 +87,41 @@
 }
 
 .selectedCount {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* Auto Split preview — one row per source-attachment group */
+.previewList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
+  max-height: 300px;
+}
+
+.previewGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+}
+
+.previewGroupStays {
+  border-color: var(--color-primary);
+  background: var(--bg-hover);
+}
+
+.previewGroupLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.previewGroupMeta {
   font-size: 12px;
   color: var(--text-secondary);
 }

@@ -5,15 +5,15 @@ import client from "../client";
 const FETCH_PAGE_SIZE = 200;
 
 /**
- * The six factors that inform an overall priority score. All are stored as
- * nullable integers (0/1) on `PendingRfqPriority`, except `winRateCustomerOem`
- * which is a nullable double.
+ * The seven factors that inform an overall priority score. Most are stored
+ * as nullable integers (0/1) on `PendingRfqPriority`; `winRateCustomerOem`
+ * and `customerPriority` are nullable doubles (0–1 scores).
  *
  * A factor is considered "present" (i.e. contributed to raising the score)
- * when its value is 1 for the integer factors, or ≥ 0.5 for the win-rate
- * factor. See `getPresentPriorityFactors` for the shared predicate.
+ * when its value is 1 for the integer factors, or ≥ 0.5 for the two double
+ * factors. See `getPresentPriorityFactors` for the shared predicate.
  *
- * Each row on `PendingRfqPriority` exposes two variants of the six factors
+ * Each row on `PendingRfqPriority` exposes two variants of these factors
  * and score: a "pending" variant (used before a Pending package is linked
  * to an RFQ Package) and an "rfq" variant (used once linked). The active
  * variant is decided per-row by `hasRfqLink(row)`. See
@@ -21,39 +21,43 @@ const FETCH_PAGE_SIZE = 200;
  */
 export interface PriorityFactors {
   capacityAtV1: number | null;
-  unmetTarget: number | null;
+  customerPriority: number | null;
   winRateCustomerOem: number | null;
   isLiveProgram: number | null;
   hasProgramIncumbency: number | null;
   hasProgramCustomerIncumbency: number | null;
+  isNetNewCustomer: number | null;
 }
 
 /** Human-readable labels for each priority factor. Keyed by factor id. */
 export const PRIORITY_FACTOR_LABELS: Record<keyof PriorityFactors, string> = {
-  capacityAtV1: "There's production capacity at the V1 date.",
-  unmetTarget: "Customer has an unmet target.",
-  winRateCustomerOem: "OEM/Customer combination has a high historical win rate.",
-  isLiveProgram: "The program is live.",
+  customerPriority: "Customer is important.",
   hasProgramIncumbency: "Integrity's worked on this program before.",
   hasProgramCustomerIncumbency: "Integrity's worked on this program with this customer before.",
+  isLiveProgram: "The program is live.",
+  winRateCustomerOem: "OEM/Customer combination has a high historical win rate.",
+  capacityAtV1: "There's production capacity at the V1 date.",
+  isNetNewCustomer: "This is a net new customer.",
 };
 /**
  * Deterministic ordering of factors for UI rendering. Keeps the tooltip
  * consistent across packages.
  */
 export const PRIORITY_FACTOR_ORDER: Array<keyof PriorityFactors> = [
-  "capacityAtV1",
-  "unmetTarget",
-  "winRateCustomerOem",
-  "isLiveProgram",
+  "customerPriority",
   "hasProgramIncumbency",
   "hasProgramCustomerIncumbency",
+  "isLiveProgram",
+  "winRateCustomerOem",
+  "capacityAtV1",
+  "isNetNewCustomer",
 ];
 /**
  * Returns the ordered list of factor keys that are considered "present"
  * for a given `PriorityFactors` bundle.
  *
- *   - `winRateCustomerOem` is present when its value is ≥ 0.5.
+ *   - `winRateCustomerOem` and `customerPriority` are present when their
+ *     value is ≥ 0.5 (both are 0–1 scores, not plain flags).
  *   - Every other factor is present when its value is exactly 1.
  *
  * Nullish or 0 values are treated as absent.
@@ -65,7 +69,7 @@ export function getPresentPriorityFactors(
   return PRIORITY_FACTOR_ORDER.filter((key) => {
     const value = factors[key];
     if (value == null) return false;
-    if (key === "winRateCustomerOem") return value >= 0.5;
+    if (key === "winRateCustomerOem" || key === "customerPriority") return value >= 0.5;
     return value === 1;
   });
 }
@@ -105,13 +109,13 @@ function resolvePriorityForRow(row: {
   rfqPriorityScore?: number | null | undefined;
   capacityAtV1?: number | null | undefined;
   rfqCapacityAtV1?: number | null | undefined;
-  unmetTarget?: number | null | undefined;
-  rfqUnmetTarget?: number | null | undefined;
+  pendingCustomerPriority?: number | null | undefined;
+  rfqCustomerPriority?: number | null | undefined;
   winRateCustomerOem?: number | null | undefined;
   rfqWinRateCustomerOem?: number | null | undefined;
   isLiveProgram?: number | null | undefined;
   rfqIsLiveProgram?: number | null | undefined;
-  hasProgramIncumbency?: number | null | undefined;
+  pendingHasProgramIncumbency?: number | null | undefined;
   rfqHasProgramIncumbency?: number | null | undefined;
   hasProgramCustomerIncumbency?: number | null | undefined;
   rfqHasProgramCustomerIncumbency?: number | null | undefined;
@@ -128,11 +132,12 @@ function resolvePriorityForRow(row: {
       score: row.rfqPriorityScore ?? null,
       factors: {
         capacityAtV1: row.rfqCapacityAtV1 ?? null,
-        unmetTarget: row.rfqUnmetTarget ?? null,
+        customerPriority: row.rfqCustomerPriority ?? null,
         winRateCustomerOem: row.rfqWinRateCustomerOem ?? null,
         isLiveProgram: row.rfqIsLiveProgram ?? null,
         hasProgramIncumbency: row.rfqHasProgramIncumbency ?? null,
         hasProgramCustomerIncumbency: row.rfqHasProgramCustomerIncumbency ?? null,
+        isNetNewCustomer: row.rfqIsNetNewCustomer ?? null,
       },
       isNetNewCustomer: row.rfqIsNetNewCustomer === 1,
     };
@@ -141,11 +146,12 @@ function resolvePriorityForRow(row: {
     score: row.priorityScore ?? null,
     factors: {
       capacityAtV1: row.capacityAtV1 ?? null,
-      unmetTarget: row.unmetTarget ?? null,
+      customerPriority: row.pendingCustomerPriority ?? null,
       winRateCustomerOem: row.winRateCustomerOem ?? null,
       isLiveProgram: row.isLiveProgram ?? null,
-      hasProgramIncumbency: row.hasProgramIncumbency ?? null,
+      hasProgramIncumbency: row.pendingHasProgramIncumbency ?? null,
       hasProgramCustomerIncumbency: row.hasProgramCustomerIncumbency ?? null,
+      isNetNewCustomer: row.isNetNewCustomer ?? null,
     },
     isNetNewCustomer: row.isNetNewCustomer === 1,
   };

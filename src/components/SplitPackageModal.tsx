@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   PendingRfqPackage,
   PendingRFQPackageTool,
@@ -14,6 +14,37 @@ import { compareToolNumber } from "../utils/sortTools";
 interface PartSummary {
   partName: string | undefined;
   partNumber: string | undefined;
+}
+
+/** Tools sharing the same source attachment, as computed for Auto Split. */
+interface ToolAttachmentGroup {
+  key: string;
+  label: string;
+  tools: Osdk.Instance<PendingRFQPackageTool>[];
+}
+
+const UNKNOWN_ATTACHMENT_KEY = "__unknown__";
+
+/**
+ * Groups tools by their source attachment (`toolAttachment`), largest group
+ * first. The largest group is what Auto Split leaves behind in the original
+ * package; every other group is split off into its own new package.
+ */
+function groupToolsByAttachment(tools: Osdk.Instance<PendingRFQPackageTool>[]): ToolAttachmentGroup[] {
+  const map = new Map<string, Osdk.Instance<PendingRFQPackageTool>[]>();
+  for (const tool of tools) {
+    const key = tool.toolAttachment?.trim() || UNKNOWN_ATTACHMENT_KEY;
+    const list = map.get(key) ?? [];
+    list.push(tool);
+    map.set(key, list);
+  }
+  const groups: ToolAttachmentGroup[] = Array.from(map.entries()).map(([key, groupTools]) => ({
+    key,
+    label: key === UNKNOWN_ATTACHMENT_KEY ? "Unknown source" : key,
+    tools: groupTools,
+  }));
+  groups.sort((a, b) => b.tools.length - a.tools.length || a.label.localeCompare(b.label));
+  return groups;
 }
 
 interface SplitPackageModalProps {
@@ -35,10 +66,12 @@ function SplitPackageModal({
   const [error, setError] = useState<string | null>(null);
   const [selectedToolIds, setSelectedToolIds] = useState<Set<string>>(new Set());
   const [splitting, setSplitting] = useState(false);
+  const [autoSplitPreview, setAutoSplitPreview] = useState<ToolAttachmentGroup[] | null>(null);
 
   // Fetch tools for the package, then resolve parts for each tool
   useEffect(() => {
     let cancelled = false;
+    setAutoSplitPreview(null);
     (async () => {
       try {
         const page = await client(PendingRfqPackage)
@@ -140,6 +173,50 @@ function SplitPackageModal({
     }
   };
 
+  // Largest group first — that's the one Auto Split leaves in the original
+  // package; every other group becomes its own new package.
+  const autoSplitGroups = useMemo(() => groupToolsByAttachment(tools), [tools]);
+
+  const handleAutoSplitPreview = () => {
+    if (autoSplitGroups.length < 2) return;
+    setError(null);
+    setAutoSplitPreview(autoSplitGroups);
+  };
+
+  const handleConfirmAutoSplit = async () => {
+    if (!autoSplitPreview || splitting) return;
+    setSplitting(true);
+    setError(null);
+    try {
+      const sourcePkg = await client(PendingRfqPackage).fetchOne(packageId);
+
+      // The first (largest) group stays in the original package — split off
+      // every other group into its own new package, one split call at a time.
+      const groupsToSplitOff = autoSplitPreview.slice(1);
+      for (let i = 0; i < groupsToSplitOff.length; i++) {
+        const group = groupsToSplitOff[i];
+        const freshTools: Osdk.Instance<PendingRFQPackageTool>[] = [];
+        for (const t of group.tools) {
+          const fresh = await client(PendingRFQPackageTool).fetchOne(String(t.$primaryKey));
+          freshTools.push(fresh);
+        }
+        const newPackageId = `${packageId}-split-${Date.now()}-${i}`;
+        await client(splitPackage).applyAction(
+          {
+            "source-package": sourcePkg,
+            "tools-to-move": freshTools,
+            "new-package-id": newPackageId,
+          },
+          { $returnEdits: true },
+        );
+      }
+      onSplit();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to auto-split package");
+      setSplitting(false);
+    }
+  };
+
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget && !splitting) {
       onClose();
@@ -150,12 +227,51 @@ function SplitPackageModal({
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions
     <div className={css.overlay} onClick={handleOverlayClick}>
       <div className={css.modal}>
-        <h3 className={css.title}>Split Package</h3>
-        <p className={css.subtitle}>
-          Select tools to move from <strong>{packageName}</strong> into a new package.
-        </p>
+        <div className={css.titleRow}>
+          <h3 className={css.title}>Split Package</h3>
+          {!loading && tools.length > 0 && !autoSplitPreview && (
+            <button
+              className={css.autoSplitButton}
+              onClick={handleAutoSplitPreview}
+              disabled={splitting || autoSplitGroups.length < 2}
+              title={
+                autoSplitGroups.length < 2
+                  ? "All tools share the same source attachment — nothing to auto-split."
+                  : "Group tools by source attachment"
+              }
+            >
+              Auto Split
+            </button>
+          )}
+        </div>
 
-        {loading ? (
+        {autoSplitPreview ? (
+          <p className={css.subtitle}>
+            This will split <strong>{packageName}</strong> into {autoSplitPreview.length} packages by
+            source attachment.
+          </p>
+        ) : (
+          <p className={css.subtitle}>
+            Select tools to move from <strong>{packageName}</strong> into a new package.
+          </p>
+        )}
+
+        {autoSplitPreview ? (
+          <div className={css.previewList}>
+            {autoSplitPreview.map((group, i) => (
+              <div
+                key={group.key}
+                className={`${css.previewGroup} ${i === 0 ? css.previewGroupStays : ""}`}
+              >
+                <span className={css.previewGroupLabel}>{group.label}</span>
+                <span className={css.previewGroupMeta}>
+                  {group.tools.length} tool{group.tools.length !== 1 ? "s" : ""} —{" "}
+                  {i === 0 ? "stays in the original package" : "moves to a new package"}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : loading ? (
           <div className={css.loadingMsg}>Loading tools…</div>
         ) : tools.length === 0 ? (
           <div className={css.loadingMsg}>No tools found for this package.</div>
@@ -218,22 +334,45 @@ function SplitPackageModal({
         {error && <div className={css.error}>{error}</div>}
 
         <div className={css.footer}>
-          <button
-            className={css.cancelButton}
-            onClick={onClose}
-            disabled={splitting}
-          >
-            Cancel
-          </button>
-          <button
-            className={css.splitButton}
-            onClick={handleSplit}
-            disabled={splitting || selectedToolIds.size === 0 || loading}
-          >
-            {splitting
-              ? "Splitting…"
-              : `Split ${selectedToolIds.size} Tool${selectedToolIds.size !== 1 ? "s" : ""}`}
-          </button>
+          {autoSplitPreview ? (
+            <>
+              <button
+                className={css.cancelButton}
+                onClick={() => setAutoSplitPreview(null)}
+                disabled={splitting}
+              >
+                Back
+              </button>
+              <button
+                className={css.splitButton}
+                onClick={handleConfirmAutoSplit}
+                disabled={splitting}
+              >
+                {splitting
+                  ? "Splitting…"
+                  : `Confirm Auto Split (${autoSplitPreview.length - 1} new package${autoSplitPreview.length - 1 !== 1 ? "s" : ""})`}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className={css.cancelButton}
+                onClick={onClose}
+                disabled={splitting}
+              >
+                Cancel
+              </button>
+              <button
+                className={css.splitButton}
+                onClick={handleSplit}
+                disabled={splitting || selectedToolIds.size === 0 || loading}
+              >
+                {splitting
+                  ? "Splitting…"
+                  : `Split ${selectedToolIds.size} Tool${selectedToolIds.size !== 1 ? "s" : ""}`}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
