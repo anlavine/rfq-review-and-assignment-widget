@@ -5,10 +5,9 @@ import { getPriorityColorClass } from "../utils/priorityColor";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { excludeZipArchives } from "../utils/attachments";
 import { downloadAttachmentsAsZip } from "../utils/attachmentDownload";
-import { categorizeWorkType } from "../utils/workType";
 import type { AssignmentItem, AssignmentMode } from "./AssignmentPackageList";
 
-function formatDate(date: string | undefined): string {
+function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
   try {
     const parts = date.split("T")[0].split("-");
@@ -183,31 +182,32 @@ export default function AssignmentPackageCard({
     }
   };
 
-  const dueText = formatDate(item.pkg.dueDate);
+  const dueText = formatDate(item.dueDate);
+  // automatedDueDate only exists on PendingRfqPackage — RFQ packages have no
+  // equivalent concept, their due date is always manually set.
+  const isAutomatedDueDate = item.type === "pending" && item.pkg.automatedDueDate === "true";
 
-  let receivedText: string;
-  let icon: React.ReactElement | null;
-  if (isPending) {
-    receivedText = formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate);
-    icon = (
-      <span
-        className={css.notReadyIcon}
-        title="Not Ready — this package hasn't been linked to an RFQ Package yet"
-        aria-label="Not Ready"
-        role="img"
-      >
-        ⏳
-      </span>
-    );
-  } else {
-    receivedText = formatDate(item.pkg.dateReceived);
-    const workCategory = categorizeWorkType(item.pkg.workType);
-    icon = workCategory === "new" ? (
-      <span className={css.workTypeIcon} title={`Work Type: ${item.pkg.workType}`} aria-label="New Build">✨</span>
-    ) : workCategory === "engChange" ? (
-      <span className={css.workTypeIcon} title={`Work Type: ${item.pkg.workType}`} aria-label="Engineering Change">🔄</span>
-    ) : null;
-  }
+  const receivedText = isPending
+    ? formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)
+    : formatDate(item.pkg.dateReceived);
+
+  // "In the system" — this package has an RFQ Package Id in Foundry: either
+  // it IS an RFQ package, or (for a pending package) it's already linked to
+  // one via `rfqPackageId`.
+  const isInSystem = item.type === "rfq"
+    || (!!item.pkg.rfqPackageId && item.pkg.rfqPackageId.trim() !== "");
+  const icon = isInSystem ? (
+    <span
+      className={css.inSystemIcon}
+      title="In Foundry"
+      aria-label="In the system"
+      role="img"
+    >
+      <svg className={css.inSystemIconSvg} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+      </svg>
+    </span>
+  ) : null;
 
   return (
     <div
@@ -221,46 +221,55 @@ export default function AssignmentPackageCard({
       <div className={css.colCustomer} title={customerName ?? undefined}>{customerName ?? "—"}</div>
       <div className={css.colVehicle}>{buildVehicleLine(item.pkg.oem, item.pkg.platform, item.pkg.modelYear)}</div>
       <div className={css.colReceived}>{receivedText}</div>
-      <div className={css.colDue}>{dueText}</div>
+      <div className={css.colDue}>
+        {dueText}
+        {isAutomatedDueDate && (
+          <span className={css.autoIcon} title="This due date was auto-generated" aria-label="Auto-generated" role="img">
+            🤖
+          </span>
+        )}
+      </div>
       <div className={css.colAssignee} title={assigneeName ?? undefined}>
         {mode !== "unassigned" ? assigneeName ?? item.assigneeId ?? "" : ""}
       </div>
       <div className={css.colIcons}>
-        {downloadableAttachments.length > 0 && (
-          <span
-            ref={downloadRef}
-            className={`${css.downloadIcon} ${isDownloading ? css.downloadIconDisabled : ""}`}
-            title={isDownloading ? "Downloading…" : "Download all attachments as a .zip"}
-            aria-label="Download all attachments as a .zip"
-            role="button"
-            tabIndex={0}
-            onClick={(e) => { e.stopPropagation(); handleDownloadAll(); }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.stopPropagation();
-                e.preventDefault();
-                handleDownloadAll();
-              }
-            }}
-            onMouseEnter={() => setShowDownloadPopover(true)}
-            onMouseLeave={() => setShowDownloadPopover(false)}
-          >
-            {isDownloading ? (
-              "⏳"
-            ) : (
-              <svg className={css.downloadIconSvg} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
-              </svg>
-            )}
-          </span>
-        )}
-        {showDownloadPopover && !isDownloading && (
-          <FileListPopover
-            fileNames={downloadableAttachments.map((att) => att.fileName ?? att.filepath ?? "Unnamed file")}
-            triggerRef={downloadRef}
-          />
-        )}
-        {icon}
+        <span className={css.iconSlot}>
+          {downloadableAttachments.length > 0 && (
+            <span
+              ref={downloadRef}
+              className={`${css.downloadIcon} ${isDownloading ? css.downloadIconDisabled : ""}`}
+              title={isDownloading ? "Downloading…" : "Download all attachments as a .zip"}
+              aria-label="Download all attachments as a .zip"
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); handleDownloadAll(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  handleDownloadAll();
+                }
+              }}
+              onMouseEnter={() => setShowDownloadPopover(true)}
+              onMouseLeave={() => setShowDownloadPopover(false)}
+            >
+              {isDownloading ? (
+                "⏳"
+              ) : (
+                <svg className={css.downloadIconSvg} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
+                </svg>
+              )}
+            </span>
+          )}
+          {showDownloadPopover && !isDownloading && (
+            <FileListPopover
+              fileNames={downloadableAttachments.map((att) => att.fileName ?? att.filepath ?? "Unnamed file")}
+              triggerRef={downloadRef}
+            />
+          )}
+        </span>
+        <span className={css.iconSlot}>{icon}</span>
       </div>
       <div
         ref={tagsRef}

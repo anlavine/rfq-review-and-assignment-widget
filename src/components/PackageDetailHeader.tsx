@@ -44,6 +44,13 @@ interface PackageDetailHeaderProps {
 
   /** Whether inline due-date editing is enabled. Defaults to true. */
   editableDueDate?: boolean;
+  /**
+   * Whether the due date (and its edit control/auto-generated label) is
+   * rendered here at all. Defaults to true. Set to false when the caller
+   * renders due date elsewhere instead (e.g. the Assignment tab moves it
+   * up next to Package Name/Customer).
+   */
+  showDueDate?: boolean;
 
   /** Called when the user saves a new due date (or clears it). */
   onSaveDueDate: (dateStr: string | null) => Promise<void> | void;
@@ -91,6 +98,7 @@ function PackageDetailHeader({
   showIngestionErrorChips = true,
   showConfidenceChip = true,
   editableDueDate = true,
+  showDueDate = true,
   onSaveDueDate,
   editingDueDate,
   setEditingDueDate,
@@ -116,22 +124,24 @@ function PackageDetailHeader({
         <span className={css.dateCompact}>
           Received: <strong>{formatReceivedDatetime(pkg.receivedDatetime, pkg.receivedDate)}</strong>
         </span>
-        <span className={`${css.dateCompact} ${urgency === "overdue" ? css.dateOverdue : urgency === "dueSoon" ? css.dateDueSoon : ""}`}>
-          Due: <strong>{formatDate(pkg.dueDate)}</strong>
-          {editableDueDate && !editingDueDate && (
-            <button
-              className={css.editIcon}
-              onClick={() => {
-                setEditingDueDate(true);
-                setTimeout(() => dateInputRef.current?.showPicker?.(), 50);
-              }}
-              title="Edit due date"
-            >
-              ✏️
-            </button>
-          )}
-        </span>
-        {pkg.automatedDueDate === "true" && (
+        {showDueDate && (
+          <span className={`${css.dateCompact} ${urgency === "overdue" ? css.dateOverdue : urgency === "dueSoon" ? css.dateDueSoon : ""}`}>
+            Due: <strong>{formatDate(pkg.dueDate)}</strong>
+            {editableDueDate && !editingDueDate && (
+              <button
+                className={css.editIcon}
+                onClick={() => {
+                  setEditingDueDate(true);
+                  setTimeout(() => dateInputRef.current?.showPicker?.(), 50);
+                }}
+                title="Edit due date"
+              >
+                ✏️
+              </button>
+            )}
+          </span>
+        )}
+        {showDueDate && pkg.automatedDueDate === "true" && (
           <span className={css.autoLabel} title="This due date was auto-generated">
             🤖 Auto-generated
           </span>
@@ -141,7 +151,7 @@ function PackageDetailHeader({
             Assigned to: <strong>{assignedEstimatorName}</strong>
           </span>
         )}
-        {editableDueDate && editingDueDate && (
+        {showDueDate && editableDueDate && editingDueDate && (
           <div className={css.dateEditRow}>
             <input
               ref={dateInputRef}

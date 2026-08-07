@@ -32,6 +32,8 @@ export interface RfqPackageDetailState {
   hasToolError: boolean;
   loading: boolean;
   error: string | null;
+  /** Replace the loaded RFQ package instance in local state (e.g. after an action). */
+  setRfqPkg: (pkg: Osdk.Instance<RfqPackage>) => void;
 }
 
 /**
@@ -240,5 +242,6 @@ export function useRfqPackageDetail(
     hasToolError,
     loading,
     error,
+    setRfqPkg,
   };
 }

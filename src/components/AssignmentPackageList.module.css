@@ -132,6 +132,27 @@
   min-width: 0;
 }
 
+/* Column header row — mirrors AssignmentPackageCard's grid exactly (same
+   template columns/gap) so labels line up with the card content below,
+   accounting for the card's 2px border + 10px padding via 12px padding here. */
+.columnHeaderRow {
+  display: grid;
+  grid-template-columns: 3fr 1.4fr 1.8fr 1.1fr 1.1fr 1.1fr 40px 40px;
+  column-gap: 10px;
+  padding: 0 12px 4px;
+}
+
+.columnHeaderCell {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cardGrid {
   display: flex;
   flex-direction: column;

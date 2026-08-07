@@ -17,6 +17,12 @@ interface AssignmentPendingPackageDetailProps {
   packageId: string;
   refreshToken?: number;
   onDueDateChanged?: () => void;
+  /**
+   * Called after a due-date edit is confirmed by the server, with the new
+   * value. Lets the parent cache the change locally (e.g. so the list
+   * reflects it immediately) without forcing a full refetch.
+   */
+  onDueDateSaved?: (packageId: string, newDueDate: string | null) => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
   /** Workspace identifier for usage tracking inside the detail view. */
   workspace?: Workspace | null;
@@ -40,6 +46,7 @@ function AssignmentPendingPackageDetail({
   packageId,
   refreshToken,
   onDueDateChanged,
+  onDueDateSaved,
   onSelectPackage,
   workspace,
 }: AssignmentPendingPackageDetailProps): React.ReactElement {
@@ -93,7 +100,7 @@ function AssignmentPendingPackageDetail({
       setPkg(updated);
       setEditingDueDate(false);
       trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE, workspace);
-      onDueDateChanged?.();
+      onDueDateSaved?.(packageId, dateStr);
     } catch (e) {
       console.error("Failed to update due date:", e);
     } finally {
@@ -124,8 +131,14 @@ function AssignmentPendingPackageDetail({
           setCustomerName(newName);
           onDueDateChanged?.();
         }}
+        dueDateEditing={{
+          onSave: handleDueDateSave,
+          editing: editingDueDate,
+          setEditing: setEditingDueDate,
+          saving: savingDueDate,
+        }}
       />
-      
+
       <AssignmentToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
 
       <PackageDetailHeader
@@ -141,6 +154,7 @@ function AssignmentPendingPackageDetail({
         showAttachmentChip={false}
         showIngestionErrorChips={false}
         showConfidenceChip={false}
+        showDueDate={false}
         onSaveDueDate={handleDueDateSave}
         editingDueDate={editingDueDate}
         setEditingDueDate={setEditingDueDate}

@@ -65,13 +65,29 @@
   min-width: 0;
 }
 
+.autoIcon {
+  margin-left: 3px;
+  font-size: 11px;
+  line-height: 1;
+  cursor: default;
+}
+
+/* Two fixed-width slots (download, in-system) so each icon sits at a
+   consistent horizontal position regardless of whether the other one is
+   present in a given row. */
 .colIcons {
+  display: grid;
+  grid-template-columns: 16px 16px;
+  align-items: center;
+  justify-content: end;
+  column-gap: 6px;
+  flex-shrink: 0;
+}
+
+.iconSlot {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  flex-shrink: 0;
-  min-width: 16px;
+  justify-content: center;
 }
 
 .downloadIcon {
@@ -101,15 +117,17 @@
   display: block;
 }
 
-.workTypeIcon {
-  font-size: 14px;
-  line-height: 1;
+.inSystemIcon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-secondary);
+  cursor: default;
 }
 
-.notReadyIcon {
-  font-size: 12px;
-  line-height: 1;
-  cursor: default;
+.inSystemIconSvg {
+  width: 14px;
+  height: 14px;
+  display: block;
 }
 
 /* Tags column — one narrow color band per tag the package has. */

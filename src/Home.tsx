@@ -56,7 +56,7 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
-  const showAssignmentTab = false;
+  const showAssignmentTab = true;
   /**
    * Current sort mode of the Outstanding tab in the Ingestion list. Kept in
    * sync with the child `PendingRfqPackageList` via its
@@ -81,6 +81,15 @@ function Home(): React.ReactElement {
    * the new assignee. Keyed by package primary key.
    */
   const [assigneeOverrides, setAssigneeOverrides] = useState<Record<string, string | null>>({});
+  /**
+   * Session-local overrides for `dueDate` in the Assignment tab. When a due
+   * date is saved from the detail view, we update this map so the list
+   * reflects it immediately without a full refetch.
+   */
+  const [dueDateOverrides, setDueDateOverrides] = useState<Record<string, string | null>>({});
+  const handleAssignmentDueDateSaved = useCallback((packageId: string, newDueDate: string | null) => {
+    setDueDateOverrides((prev) => ({ ...prev, [packageId]: newDueDate }));
+  }, []);
   const { theme, toggleTheme } = useTheme();
 
   /** Ref to PendingRfqPackageList for optimistic updates */
@@ -483,6 +492,7 @@ function Home(): React.ReactElement {
               }}
               hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
               assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
+              dueDateOverrides={dueDateOverrides}
               refreshToken={refreshToken}
               filters={assignmentFilters}
             />
@@ -534,6 +544,7 @@ function Home(): React.ReactElement {
                   packageId={selectedAssignmentId}
                   refreshToken={refreshToken}
                   onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                  onDueDateSaved={handleAssignmentDueDateSaved}
                   onSelectPackage={(id) => setSelectedAssignmentId(id)}
                   workspace={WORKSPACES.ASSIGNMENT}
                 />
@@ -541,6 +552,7 @@ function Home(): React.ReactElement {
                 <AssignmentRfqPackageDetail
                   packageId={selectedAssignmentId}
                   refreshToken={refreshToken}
+                  onDueDateSaved={handleAssignmentDueDateSaved}
                   onSelectPackage={(id) => {
                     // Switching to a pending package sibling from the
                     // conversation section — flip both selection fields.

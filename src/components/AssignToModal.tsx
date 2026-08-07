@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Employee,
   PendingRfqPackage,
@@ -6,35 +6,9 @@ import {
   assignEstimator,
   editRfqPackagePrivilegedFields,
 } from "@rfq-review-hub-widget-application/sdk";
-import type { Osdk } from "@osdk/client";
 import client from "../client";
 import css from "./AssignToModal.module.css";
-
-/**
- * Fixed allowlist of employees eligible to be assigned to a package.
- *
- * The Employee list rendered in the modal is limited to Active employees
- * whose company email is in this set (case-insensitive match).
- */
-const ELIGIBLE_EMAILS = [
-  "cgulisano@teamintegrity.com",
-  "cparete@teamintegrity.com",
-  "mrodriguez@teamintegrity.com",
-  "mscipione@teamintegrity.com",
-  "dbakker@teamintegrity.com",
-  "rrodriguez@teamintegrity.com",
-  "disley@teamintegrity.com",
-  "bcollins@integritytn.com",
-  "csorrells@integritytn.com",
-  "agruening@teamintegrity.com",
-  "dbondy@integritytn.com",
-  "zwarner@integritytn.com",
-  "jparker@integritytn.com",
-  "bwatson@integritytn.com",
-  "dreiss@integritytn.com",
-  "skenley@integritytn.com",
-];
-const ELIGIBLE_EMAIL_SET = new Set(ELIGIBLE_EMAILS.map((e) => e.toLowerCase()));
+import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 
 interface AssignToModalProps {
   packageId: string;
@@ -58,83 +32,44 @@ function AssignToModal({
   onClose,
   onAssigned,
 }: AssignToModalProps): React.ReactElement {
-  const [employees, setEmployees] = useState<Osdk.Instance<Employee>[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { estimators, loading, error: estimatorsError } = useEligibleEstimators();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const page = await client(Employee)
-          .where({
-            $and: [
-              { active: { $eq: true } },
-              { companyEmail: { $in: ELIGIBLE_EMAILS } },
-            ],
-          })
-          .fetchPage({ $pageSize: 100 });
-        if (cancelled) return;
-        // Client-side filter as a safety net in case of case-mismatch
-        const filtered = page.data.filter((e) =>
-          e.companyEmail && ELIGIBLE_EMAIL_SET.has(e.companyEmail.toLowerCase()),
-        );
-        // Sort by display name (fallback to first/last name)
-        filtered.sort((a, b) => {
-          const an = (a.displayName ?? `${a.firstName ?? ""} ${a.lastName ?? ""}`.trim()).toLowerCase();
-          const bn = (b.displayName ?? `${b.firstName ?? ""} ${b.lastName ?? ""}`.trim()).toLowerCase();
-          return an.localeCompare(bn);
-        });
-        setEmployees(filtered);
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Failed to load employees");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const filteredEmployees = useMemo(() => {
+  const filteredEstimators = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return employees;
-    return employees.filter((e) => {
-      const name = (e.displayName ?? `${e.firstName ?? ""} ${e.lastName ?? ""}`).toLowerCase();
-      const email = (e.companyEmail ?? "").toLowerCase();
+    if (!term) return estimators;
+    return estimators.filter((e) => {
+      const name = e.name.toLowerCase();
+      const email = (e.email ?? "").toLowerCase();
       return name.includes(term) || email.includes(term);
     });
-  }, [employees, search]);
+  }, [estimators, search]);
 
   const handleSubmit = async () => {
     if (!selectedId || saving) return;
-    const selectedEmployee = employees.find((e) => String(e.$primaryKey) === selectedId);
-    if (!selectedEmployee) return;
+    const selectedEstimator = estimators.find((e) => e.id === selectedId);
+    if (!selectedEstimator) return;
 
     setSaving(true);
-    setError(null);
+    setSubmitError(null);
     try {
       if (packageType === "pending") {
         const pendingPkg = await client(PendingRfqPackage).fetchOne(packageId);
         await client(assignEstimator).applyAction(
           {
             pending_rfq_package: pendingPkg,
-            assignedEstimator: String(selectedEmployee.$primaryKey),
+            assignedEstimator: selectedId,
           },
           { $returnEdits: true },
         );
       } else {
-        const rfqPkg = await client(RfqPackage).fetchOne(packageId);
+        const [rfqPkg, selectedEmployee] = await Promise.all([
+          client(RfqPackage).fetchOne(packageId),
+          client(Employee).fetchOne(selectedId),
+        ]);
         // Only the RFQ Package and Assigned To parameters are meaningful for
         // the "assign to" workflow. The action signature has other required
         // params (priority, status) that we intentionally omit — the
@@ -146,10 +81,10 @@ function AssignToModal({
         } as unknown as any;
         await client(editRfqPackagePrivilegedFields).applyAction(args, { $returnEdits: true });
       }
-      onAssigned(String(selectedEmployee.$primaryKey));
+      onAssigned(selectedId);
     } catch (e) {
       console.error("Failed to assign package:", e);
-      setError(e instanceof Error ? e.message : "Failed to assign package");
+      setSubmitError(e instanceof Error ? e.message : "Failed to assign package");
     } finally {
       setSaving(false);
     }
@@ -180,34 +115,29 @@ function AssignToModal({
 
           {loading ? (
             <div className={css.emptyMessage}>Loading employees…</div>
-          ) : filteredEmployees.length === 0 ? (
+          ) : filteredEstimators.length === 0 ? (
             <div className={css.emptyMessage}>No matching employees found.</div>
           ) : (
             <div className={css.list}>
-              {filteredEmployees.map((emp) => {
-                const id = String(emp.$primaryKey);
-                const name =
-                  emp.displayName ??
-                  `${emp.firstName ?? ""} ${emp.lastName ?? ""}`.trim() ??
-                  "Unknown";
-                return (
-                  <button
-                    key={id}
-                    className={`${css.item} ${selectedId === id ? css.itemSelected : ""}`}
-                    onClick={() => setSelectedId(id)}
-                  >
-                    <span className={css.itemName}>{name}</span>
-                    <span className={css.itemMeta}>
-                      {emp.companyEmail ?? "—"}
-                      {emp.jobTitle ? ` · ${emp.jobTitle}` : ""}
-                    </span>
-                  </button>
-                );
-              })}
+              {filteredEstimators.map((estimator) => (
+                <button
+                  key={estimator.id}
+                  className={`${css.item} ${selectedId === estimator.id ? css.itemSelected : ""}`}
+                  onClick={() => setSelectedId(estimator.id)}
+                >
+                  <span className={css.itemName}>{estimator.name}</span>
+                  <span className={css.itemMeta}>
+                    {estimator.email ?? "—"}
+                    {estimator.jobTitle ? ` · ${estimator.jobTitle}` : ""}
+                  </span>
+                </button>
+              ))}
             </div>
           )}
 
-          {error && <div className={css.errorText}>{error}</div>}
+          {(submitError ?? estimatorsError) && (
+            <div className={css.errorText}>{submitError ?? estimatorsError}</div>
+          )}
         </div>
 
         <div className={css.actions}>

@@ -7,6 +7,7 @@ import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
+import { comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
@@ -20,8 +21,8 @@ export type AssignmentMode = "all" | "unassigned" | "assigned";
 export type AssignmentItem =
 
 
-  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[] }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; linkedFrom: string | null };
+  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; dueDate: string | null }
+  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; linkedFrom: string | null; dueDate: string | null };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
@@ -45,6 +46,12 @@ interface AssignmentPackageListProps {
    * new assignee without a full refetch.
    */
   assigneeOverrides?: Record<string, string | null>;
+  /**
+   * Optional override map for `dueDate`. When a due date is saved from the
+   * detail view, we update this map so the card/sort/filter reflect the
+   * new value without a full refetch.
+   */
+  dueDateOverrides?: Record<string, string | null>;
   /** Bumping this value forces a full refetch */
   refreshToken?: number;
   /** Same filter set as the Ingestion tab's FilterDropdown. */
@@ -76,7 +83,7 @@ export interface AssignmentPackageListHandle {
 
 
 const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, AssignmentPackageListProps>(
-  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken, filters }, ref) {
+  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, dueDateOverrides, refreshToken, filters }, ref) {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -339,6 +346,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           assigneeId: p.assigneeId,
           customerName: p.customerName,
           attachments: p.attachments,
+          dueDate: p.pkg.dueDate ?? null,
         }));
         const rfqItems: AssignmentItem[] = rfqPartials.map((r) => ({
           type: "rfq",
@@ -351,6 +359,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           customerName: r.customerName,
           attachments: r.attachments,
           linkedFrom: r.linkedFrom,
+          dueDate: r.pkg.dueDate ?? null,
         }));
 
         // Build the interleaved list
@@ -389,18 +398,25 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
 
 
-    // Exclude Rep/Eng Change work — applies across all three tabs.
-    let filtered = items.filter((item) => categorizeWorkType(item.pkg.workType) !== "engChange");
+    // Only show New Build work — applies across all three tabs. Packages
+    // categorized as "engChange"/"other", or with no workType set at all
+    // (categorizeWorkType returns null), are excluded.
+    let filtered = items.filter((item) => categorizeWorkType(item.pkg.workType) === "new");
 
-    // Apply session-local assignee overrides so reassigned packages reflect
-    // their new assignee without a refetch.
-    if (assigneeOverrides && Object.keys(assigneeOverrides).length > 0) {
+    // Apply session-local assignee/due-date overrides so reassignments and
+    // due-date edits reflect immediately without a full refetch.
+    if ((assigneeOverrides && Object.keys(assigneeOverrides).length > 0)
+      || (dueDateOverrides && Object.keys(dueDateOverrides).length > 0)) {
       filtered = filtered.map((item) => {
-      const id = String(item.pkg.$primaryKey);
-        if (Object.prototype.hasOwnProperty.call(assigneeOverrides, id)) {
-          return { ...item, assigneeId: assigneeOverrides[id] };
+        const id = String(item.pkg.$primaryKey);
+        let next = item;
+        if (assigneeOverrides && Object.prototype.hasOwnProperty.call(assigneeOverrides, id)) {
+          next = { ...next, assigneeId: assigneeOverrides[id] };
         }
-        return item;
+        if (dueDateOverrides && Object.prototype.hasOwnProperty.call(dueDateOverrides, id)) {
+          next = { ...next, dueDate: dueDateOverrides[id] };
+        }
+        return next;
       });
     }
 
@@ -443,11 +459,11 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       filtered = filtered.filter((item) => {
         const pkg = item.pkg;
 
-        if (filters.dueDateStart && pkg.dueDate) {
-          if (pkg.dueDate.split("T")[0] < filters.dueDateStart) return false;
+        if (filters.dueDateStart && item.dueDate) {
+          if (item.dueDate.split("T")[0] < filters.dueDateStart) return false;
         }
-        if (filters.dueDateEnd && pkg.dueDate) {
-          if (pkg.dueDate.split("T")[0] > filters.dueDateEnd) return false;
+        if (filters.dueDateEnd && item.dueDate) {
+          if (item.dueDate.split("T")[0] > filters.dueDateEnd) return false;
         }
 
         if (filters.subjectSearch) {
@@ -488,22 +504,19 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       });
     }
 
-    // Sort — Priority: score descending. Due Date: ascending, missing due
-    // dates sort to the end. Applies identically across all three tabs.
+    // Sort — Priority: tier (High → Medium → Low), then due date ascending
+    // within a tier. Due Date: ascending, missing due dates sort to the
+    // end. Applies identically across all three tabs.
     filtered = [...filtered].sort((a, b) => {
       if (sortMode === "priority") {
-        return b.priorityScore - a.priorityScore;
+        const tierCompare = comparePriorityTier(a.priorityScore, b.priorityScore);
+        if (tierCompare !== 0) return tierCompare;
       }
-      const aDue = a.pkg.dueDate ?? "";
-      const bDue = b.pkg.dueDate ?? "";
-      if (aDue === bDue) return 0;
-      if (!aDue) return 1;
-      if (!bDue) return -1;
-      return aDue < bDue ? -1 : 1;
+      return compareDueDateAsc(a.dueDate, b.dueDate);
     });
 
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
+  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
 
   // Options for the assignee filter — built from the eligible estimator list
   // plus any assignee IDs currently on cards that don't resolve to a name.
@@ -594,6 +607,17 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           </div>
         </div>
       )}
+
+      <div className={css.columnHeaderRow}>
+        <span className={css.columnHeaderCell}>Subject</span>
+        <span className={css.columnHeaderCell}>Customer</span>
+        <span className={css.columnHeaderCell}>Program</span>
+        <span className={css.columnHeaderCell}>Received</span>
+        <span className={css.columnHeaderCell}>Due</span>
+        <span className={css.columnHeaderCell}>Assignee</span>
+        <span className={css.columnHeaderCell} />
+        <span className={css.columnHeaderCell} />
+      </div>
 
       <div className={css.cardGrid}>
         {content}

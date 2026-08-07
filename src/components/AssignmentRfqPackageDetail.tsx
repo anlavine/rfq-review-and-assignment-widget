@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
+import { RfqPackage, editRfqPackage } from "@rfq-review-hub-widget-application/sdk";
+import client from "../client";
 import css from "./PackageDetail.module.css";
 import { useRfqPackageDetail } from "../hooks/useRfqPackageDetail";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
-import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import PackageEmailAddressFields from "./PackageEmailAddressFields";
 import PackageConversationSection from "./PackageConversationSection";
@@ -14,17 +15,12 @@ interface AssignmentRfqPackageDetailProps {
   packageId: string;
   refreshToken?: number;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
-}
-
-function formatDate(date: string | undefined): string {
-  if (!date) return "—";
-  try {
-    const parts = date.split("T")[0].split("-");
-    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-    return local.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
-  } catch {
-    return date;
-  }
+  /**
+   * Called after a due-date edit is confirmed by the server, with the new
+   * value. Lets the parent cache the change locally (e.g. so the list
+   * reflects it immediately) without forcing a full refetch.
+   */
+  onDueDateSaved?: (packageId: string, newDueDate: string | null) => void;
 }
 
 /**
@@ -43,6 +39,7 @@ function AssignmentRfqPackageDetail({
   packageId,
   refreshToken,
   onSelectPackage,
+  onDueDateSaved,
 }: AssignmentRfqPackageDetailProps): React.ReactElement {
   const {
     rfqPkg,
@@ -51,7 +48,11 @@ function AssignmentRfqPackageDetail({
     conversationSiblings,
     loading,
     error,
+    setRfqPkg,
   } = useRfqPackageDetail(packageId, refreshToken);
+
+  const [editingDueDate, setEditingDueDate] = useState(false);
+  const [savingDueDate, setSavingDueDate] = useState(false);
 
   if (loading) {
     return (
@@ -69,9 +70,34 @@ function AssignmentRfqPackageDetail({
     );
   }
 
-  // The due date always comes from the RFQ Package (read-only).
-  const rfqDueDate = rfqPkg.dueDate ?? undefined;
-  const urgency = getDueDateUrgency(rfqDueDate, rfqPkg.status);
+  const handleDueDateSave = async (dateStr: string | null) => {
+    if (savingDueDate) return;
+    setSavingDueDate(true);
+    try {
+      const freshPkg = await client(RfqPackage).fetchOne(packageId);
+      await client(editRfqPackage).applyAction(
+        {
+          rfqPackage: freshPkg,
+          dueDate: dateStr,
+          // customerTerms/status/workType are required by this action even
+          // though we're only changing the due date — resend the package's
+          // current values unchanged so nothing else actually changes.
+          customerTerms: freshPkg.customerTerms ?? "",
+          status: freshPkg.status ?? "",
+          workType: freshPkg.workType ?? "",
+        },
+        { $returnEdits: true },
+      );
+      const updated = await client(RfqPackage).fetchOne(packageId);
+      setRfqPkg(updated);
+      setEditingDueDate(false);
+      onDueDateSaved?.(packageId, dateStr);
+    } catch (e) {
+      console.error("Failed to update RFQ package due date:", e);
+    } finally {
+      setSavingDueDate(false);
+    }
+  };
 
   const merged = pendingPkg
     ? isMergedPackage(pendingPkg.from, pendingPkg.to, pendingPkg.subject, pendingPkg.bodyContent)
@@ -89,6 +115,12 @@ function AssignmentRfqPackageDetail({
         customerName={customerName}
         layout="row"
         showCreatedOn
+        dueDateEditing={{
+          onSave: handleDueDateSave,
+          editing: editingDueDate,
+          setEditing: setEditingDueDate,
+          saving: savingDueDate,
+        }}
       />
 
       <AssignmentRfqToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
@@ -108,17 +140,6 @@ function AssignmentRfqPackageDetail({
               </strong>
             </span>
           )}
-          <span
-            className={`${css.dateCompact} ${
-              urgency === "overdue"
-                ? css.dateOverdue
-                : urgency === "dueSoon"
-                  ? css.dateDueSoon
-                  : ""
-            }`}
-          >
-            Due: <strong>{formatDate(rfqDueDate)}</strong>
-          </span>
         </div>
       </div>
 

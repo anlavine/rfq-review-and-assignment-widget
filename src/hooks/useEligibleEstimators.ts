@@ -13,6 +13,7 @@ export interface EligibleEstimator {
   /** Display-friendly name; falls back to email if no name is set */
   name: string;
   email: string | null;
+  jobTitle: string | null;
 }
 
 /** Module-level cache so multiple consumers share one network request */
@@ -45,6 +46,7 @@ async function fetchEligibleEstimators(): Promise<EligibleEstimator[]> {
     id: String(e.$primaryKey),
     name: resolveName(e),
     email: e.companyEmail ?? null,
+    jobTitle: e.jobTitle ?? null,
   }));
   result.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
   return result;

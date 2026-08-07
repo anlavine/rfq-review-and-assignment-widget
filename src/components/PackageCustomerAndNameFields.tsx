@@ -1,10 +1,30 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { PendingRfqPackage, changeCustomer } from "@rfq-review-hub-widget-application/sdk";
 import type { Osdk } from "@osdk/client";
 import client from "../client";
 import css from "./PackageDetail.module.css";
 import CustomerPicker from "./CustomerPicker";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
+import { getDueDateUrgency } from "../utils/dueDateUrgency";
+
+function formatDate(date: string | undefined): string {
+  if (!date) return "—";
+  try {
+    const parts = date.split("T")[0].split("-");
+    const local = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    return local.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+  } catch {
+    return date;
+  }
+}
+
+/** Bundles the state/handlers needed to render an editable Due Date field. */
+export interface DueDateEditing {
+  onSave: (dateStr: string | null) => Promise<void> | void;
+  editing: boolean;
+  setEditing: (v: boolean) => void;
+  saving: boolean;
+}
 
 interface PackageCustomerAndNameFieldsProps {
   pkg: Osdk.Instance<PendingRfqPackage>;
@@ -21,6 +41,12 @@ interface PackageCustomerAndNameFieldsProps {
   layout?: "stacked" | "row";
   /** Workspace identifier passed to usage tracking on customer edits. */
   workspace?: Workspace | null;
+  /**
+   * When provided (in "row" layout), renders a fourth editable Due Date
+   * field alongside Package Name/Customer. Assignment-tab-only — the
+   * Ingestion detail view doesn't pass this, so its layout is unaffected.
+   */
+  dueDateEditing?: DueDateEditing;
 }
 
 /**
@@ -34,9 +60,11 @@ function PackageCustomerAndNameFields({
   editable = true,
   layout = "stacked",
   workspace,
+  dueDateEditing,
 }: PackageCustomerAndNameFieldsProps): React.ReactElement {
   const [editingCustomer, setEditingCustomer] = useState(false);
   const [savingCustomer, setSavingCustomer] = useState(false);
+  const dateInputRef = useRef<HTMLInputElement | null>(null);
 
   const packageId = String(pkg.$primaryKey);
 
@@ -99,14 +127,73 @@ function PackageCustomerAndNameFields({
     </div>
   );
 
+  const urgency = getDueDateUrgency(pkg.dueDate, pkg.completionStatus);
+  const dueDateField = dueDateEditing && (
+    <div className={css.field}>
+      <span className={css.fieldLabel}>Due Date</span>
+      {!dueDateEditing.editing ? (
+        <span className={`${pkg.dueDate ? css.fieldValue : css.fieldValueMuted} ${urgency === "overdue" ? css.dateOverdue : urgency === "dueSoon" ? css.dateDueSoon : ""}`}>
+          {formatDate(pkg.dueDate)}
+          <button
+            className={css.editIcon}
+            onClick={() => {
+              dueDateEditing.setEditing(true);
+              setTimeout(() => dateInputRef.current?.showPicker?.(), 50);
+            }}
+            title="Edit due date"
+          >
+            ✏️
+          </button>
+          {pkg.automatedDueDate === "true" && (
+            <span className={css.autoLabel} title="This due date was auto-generated">
+              {" "}🤖 Auto-generated
+            </span>
+          )}
+        </span>
+      ) : (
+        <div className={css.dateEditRow}>
+          <input
+            ref={dateInputRef}
+            type="date"
+            className={css.dateInput}
+            defaultValue={pkg.dueDate ? pkg.dueDate.split("T")[0] : ""}
+            disabled={dueDateEditing.saving}
+          />
+          <button
+            className={css.dateConfirm}
+            disabled={dueDateEditing.saving}
+            onClick={() => dueDateEditing.onSave(dateInputRef.current?.value || null)}
+          >
+            {dueDateEditing.saving ? "…" : "Save"}
+          </button>
+          <button
+            className={css.dateCancel}
+            disabled={dueDateEditing.saving}
+            onClick={() => dueDateEditing.setEditing(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   const containerClass = layout === "row" ? css.emailFieldsRow : css.emailFields;
+  // Drive the grid column count from the number of fields actually
+  // rendered, otherwise the default 2-column grid pushes a third field
+  // (Due Date) onto its own row even when there's plenty of horizontal room.
+  const colCount = layout === "row" ? (dueDateEditing ? 3 : 2) : undefined;
+  const rowStyle = colCount != null
+    ? ({ "--col-count": String(colCount) } as React.CSSProperties)
+    : undefined;
 
   return (
-    <div className={containerClass}>
+    <div className={containerClass} style={rowStyle}>
       {layout === "row" ? (
         <>
           {packageNameField}
           {customerField}
+          {dueDateField}
         </>
       ) : (
         <>

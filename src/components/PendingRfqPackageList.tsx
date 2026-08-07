@@ -9,7 +9,7 @@ import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { isMergedPackage } from "../utils/mergedFields";
 import { isInlineImage } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
-import { getPriorityColorClass } from "../utils/priorityColor";
+import { getPriorityColorClass, comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
 
@@ -747,8 +747,9 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
     });
 
     // Sort:
-    //  - Outstanding tab, sort=priority → priority score desc, then due date asc,
-    //    then received datetime asc (stable tiebreakers).
+    //  - Outstanding tab, sort=priority → priority tier (High → Medium →
+    //    Low), then due date asc, then received datetime asc (stable
+    //    tiebreakers).
     //  - Outstanding tab, sort=dueDate  → leave in server order (asc due date),
     //    render step will further bucket by due-date group.
     //  - All other tabs → descending received datetime.
@@ -757,15 +758,10 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         filtered.sort((a, b) => {
           const aScore = priorityMap.get(String(a.$primaryKey)) ?? 0;
           const bScore = priorityMap.get(String(b.$primaryKey)) ?? 0;
-          if (aScore !== bScore) return bScore - aScore; // desc
-          const aDue = a.dueDate ?? "";
-          const bDue = b.dueDate ?? "";
-          if (aDue !== bDue) {
-            // Missing due dates sort to the end
-            if (!aDue) return 1;
-            if (!bDue) return -1;
-            return aDue < bDue ? -1 : 1;
-          }
+          const tierCompare = comparePriorityTier(aScore, bScore);
+          if (tierCompare !== 0) return tierCompare;
+          const dueCompare = compareDueDateAsc(a.dueDate, b.dueDate);
+          if (dueCompare !== 0) return dueCompare;
           const aRcv = a.receivedDatetime ?? a.receivedDate ?? "";
           const bRcv = b.receivedDatetime ?? b.receivedDate ?? "";
           if (aRcv === bRcv) return 0;
