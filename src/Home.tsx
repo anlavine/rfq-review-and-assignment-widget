@@ -54,7 +54,7 @@ function Home(): React.ReactElement {
   const [bulkSkipSelected, setBulkSkipSelected] = useState<string[]>([]);
   const [showBulkSkipConfirm, setShowBulkSkipConfirm] = useState(false);
   const [appMode, setAppMode] = useState<"ingestion" | "assignment">("ingestion");
-  const showAssignmentTab = true;
+  const showAssignmentTab = false;
   /**
    * Current sort mode of the Outstanding tab in the Ingestion list. Kept in
    * sync with the child `PendingRfqPackageList` via its
