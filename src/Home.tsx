@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
-import PendingRfqPackageList, { EMPTY_FILTERS } from "./components/PendingRfqPackageList";
-import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode, PendingRfqPackageListHandle } from "./components/PendingRfqPackageList";
+import PendingRfqPackageList from "./components/PendingRfqPackageList";
+import { EMPTY_FILTERS } from "./components/packageFilters";
+import type { TabKey, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode, PendingRfqPackageListHandle } from "./components/PendingRfqPackageList";
+import type { Filters } from "./components/packageFilters";
 import BulkSkipConfirmModal from "./components/BulkSkipConfirmModal";
 import MergeConfirmModal from "./components/MergeConfirmModal";
 import SplitPackageModal from "./components/SplitPackageModal";

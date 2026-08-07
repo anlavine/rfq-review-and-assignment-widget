@@ -9,7 +9,7 @@ import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
-import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./PendingRfqPackageList";
+import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
 
 const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */

@@ -11,6 +11,7 @@ import { isInlineImage } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getPriorityColorClass } from "../utils/priorityColor";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
+import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -36,40 +37,6 @@ const TABS: { key: TabKey; label: string; status: string | null }[] = [
   { key: "skipped", label: "Skipped", status: "Skipped" },
   { key: "reviewed", label: "Reviewed", status: "Reviewed" },
 ];
-
-export interface Filters {
-  dueDateStart: string;
-  dueDateEnd: string;
-  subjectSearch: string;
-  customerSearch: string;
-  platformSearch: string;
-  senderSearch: string;
-  selectedTags: string[];
-  hasParsedTools: boolean;
-  /**
-   * Employee primary keys (RfqPackage.assignedTo values). A package matches
-   * the filter if the RFQ Package it's linked to has `assignedTo` in this set.
-   * The special value `"__unassigned__"` matches packages with no linked
-   * RFQ Package or a linked RFQ Package with a null/empty `assignedTo`.
-   */
-  assignedToIds: string[];
-}
-
-/** Sentinel value inserted into `assignedToIds` to represent "unassigned". */
-export const ASSIGNED_TO_UNASSIGNED = "__unassigned__";
-
-/** An empty `Filters` value — every field cleared/unset. */
-export const EMPTY_FILTERS: Filters = {
-  dueDateStart: "",
-  dueDateEnd: "",
-  subjectSearch: "",
-  customerSearch: "",
-  platformSearch: "",
-  senderSearch: "",
-  selectedTags: [],
-  hasParsedTools: false,
-  assignedToIds: [],
-};
 
 /** Package IDs to exclude from auto-selection (e.g. just-skipped packages) */
 export type ExcludeFromAutoSelect = string[];

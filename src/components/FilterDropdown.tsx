@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import css from "./FilterDropdown.module.css";
-import { type Filters, ASSIGNED_TO_UNASSIGNED, EMPTY_FILTERS } from "./PendingRfqPackageList";
+import { type Filters, ASSIGNED_TO_UNASSIGNED, EMPTY_FILTERS } from "./packageFilters";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
