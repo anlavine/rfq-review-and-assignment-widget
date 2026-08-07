@@ -13,7 +13,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@osdk/client": "^2.43.0",
+    "@osdk/client": "^2.54.0",
     "@osdk/foundry": "^2.66.0",
     "@osdk/foundry.admin": "^2.60.0",
     "@osdk/foundry.datasets": "^2.59.0",
