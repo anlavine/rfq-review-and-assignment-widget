@@ -9,6 +9,7 @@ import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
+import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./PendingRfqPackageList";
 
 const FETCH_PAGE_SIZE = 200;
 /** Concurrency limit when resolving links / tool counts per package */
@@ -20,7 +21,7 @@ export type AssignmentItem =
 
 
   | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[] }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[] };
+  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; linkedFrom: string | null };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
@@ -46,10 +47,22 @@ interface AssignmentPackageListProps {
   assigneeOverrides?: Record<string, string | null>;
   /** Bumping this value forces a full refetch */
   refreshToken?: number;
+  /** Same filter set as the Ingestion tab's FilterDropdown. */
+  filters: Filters;
 }
 
 /** Sentinel for the "Unknown" / "no name resolved" assignee filter option */
 const UNKNOWN_ASSIGNEE = "__unknown__";
+
+/**
+ * Tags for an item, with any session-local Edit Tags override applied. RFQ
+ * items don't carry a `tags` field, so they always resolve to an empty list.
+ */
+function getEffectiveTags(item: AssignmentItem, tagOverrides: Record<string, string[]>): string[] {
+  if (item.type !== "pending") return [];
+  const id = String(item.pkg.$primaryKey);
+  return tagOverrides[id] ?? item.pkg.tags ?? [];
+}
 
 /** Imperative handle exposed to the parent for optimistic tag updates. */
 export interface AssignmentPackageListHandle {
@@ -63,7 +76,7 @@ export interface AssignmentPackageListHandle {
 
 
 const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, AssignmentPackageListProps>(
-  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken }, ref) {
+  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, refreshToken, filters }, ref) {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -202,6 +215,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           attachments: Osdk.Instance<PendingRfqAttachments>[];
           /** id of the linked PendingRfqPackage, if any */
           pendingPackageId: string | null;
+          /** `from` of the linked PendingRfqPackage — RfqPackage has no sender field of its own. */
+          linkedFrom: string | null;
         }
 
         /** Resolves the attachment rows for an email (excluding inline images). */
@@ -265,10 +280,12 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               // RfqPackage itself doesn't have.
               let pendingPackageId: string | null = null;
               let attachments: Osdk.Instance<PendingRfqAttachments>[] = [];
+              let linkedFrom: string | null = null;
               try {
                 const linked = await rfqPkg.$link.pendingRfqPackage.fetchOne();
                 pendingPackageId = String(linked.$primaryKey);
                 attachments = await fetchAttachments(linked.emailId, linked.attachmentFileNames);
+                linkedFrom = linked.from ?? null;
               } catch { /* no linked pending package */ }
 
               // Resolve tool count via rfqTool link
@@ -294,7 +311,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId };
+              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId, linkedFrom };
             }),
           );
           rfqPartials.push(...results);
@@ -333,6 +350,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           assigneeId: r.assigneeId,
           customerName: r.customerName,
           attachments: r.attachments,
+          linkedFrom: r.linkedFrom,
         }));
 
         // Build the interleaved list
@@ -405,6 +423,71 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       });
     }
 
+    // Full filter panel — same fields as the Ingestion tab's FilterDropdown.
+    // Subject/Sender resolve differently for RFQ items, which have no
+    // subject/from field of their own: subject falls back to the RFQ
+    // Package's name, sender falls back to the linked pending package's
+    // `from`. Tags never match on RFQ items — they don't carry a tags field.
+    const hasAnyFilter =
+      filters.dueDateStart !== "" ||
+      filters.dueDateEnd !== "" ||
+      filters.subjectSearch !== "" ||
+      filters.customerSearch !== "" ||
+      filters.platformSearch !== "" ||
+      filters.senderSearch !== "" ||
+      filters.selectedTags.length > 0 ||
+      filters.hasParsedTools ||
+      filters.assignedToIds.length > 0;
+
+    if (hasAnyFilter) {
+      filtered = filtered.filter((item) => {
+        const pkg = item.pkg;
+
+        if (filters.dueDateStart && pkg.dueDate) {
+          if (pkg.dueDate.split("T")[0] < filters.dueDateStart) return false;
+        }
+        if (filters.dueDateEnd && pkg.dueDate) {
+          if (pkg.dueDate.split("T")[0] > filters.dueDateEnd) return false;
+        }
+
+        if (filters.subjectSearch) {
+          const subject = item.type === "pending" ? item.pkg.subject : item.pkg.packageName;
+          if (!subject?.toLowerCase().includes(filters.subjectSearch.toLowerCase())) return false;
+        }
+
+        if (filters.senderSearch) {
+          const from = item.type === "pending" ? item.pkg.from : item.linkedFrom;
+          if (!from?.toLowerCase().includes(filters.senderSearch.toLowerCase())) return false;
+        }
+
+        if (filters.customerSearch) {
+          if (!item.customerName?.toLowerCase().includes(filters.customerSearch.toLowerCase())) return false;
+        }
+
+        if (filters.platformSearch) {
+          if (!pkg.platform?.toLowerCase().includes(filters.platformSearch.toLowerCase())) return false;
+        }
+
+        if (filters.selectedTags.length > 0) {
+          const tags = getEffectiveTags(item, tagOverrides);
+          if (!filters.selectedTags.some((t) => tags.includes(t))) return false;
+        }
+
+        if (filters.hasParsedTools && !item.toolCount) return false;
+
+        if (filters.assignedToIds.length > 0) {
+          const wantsUnassigned = filters.assignedToIds.includes(ASSIGNED_TO_UNASSIGNED);
+          const otherIds = filters.assignedToIds.filter((v) => v !== ASSIGNED_TO_UNASSIGNED);
+          const assigneeId = item.assigneeId;
+          const matchesUnassigned = wantsUnassigned && assigneeId === null;
+          const matchesSelected = assigneeId !== null && otherIds.includes(assigneeId);
+          if (!matchesUnassigned && !matchesSelected) return false;
+        }
+
+        return true;
+      });
+    }
+
     // Sort — Priority: score descending. Due Date: ascending, missing due
     // dates sort to the end. Applies identically across all three tabs.
     filtered = [...filtered].sort((a, b) => {
@@ -420,7 +503,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     });
 
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById, sortMode]);
+  }, [items, hiddenIds, assigneeOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
 
   // Options for the assignee filter — built from the eligible estimator list
   // plus any assignee IDs currently on cards that don't resolve to a name.
@@ -444,9 +527,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       const id = String(item.pkg.$primaryKey);
       const isSelected = id === selectedId;
       const assigneeName = resolveAssigneeName(item.assigneeId);
-      // Apply any local tag override (set optimistically by Edit Tags). RFQ
-      // items don't carry a `tags` field, so they always get an empty list.
-      const tags = item.type === "pending" ? tagOverrides[id] ?? item.pkg.tags ?? [] : [];
+      const tags = getEffectiveTags(item, tagOverrides);
 
       return (
         <AssignmentPackageCard

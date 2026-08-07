@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import css from "./FilterDropdown.module.css";
-import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./PendingRfqPackageList";
+import { type Filters, ASSIGNED_TO_UNASSIGNED, EMPTY_FILTERS } from "./PendingRfqPackageList";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
@@ -80,10 +80,8 @@ function FilterDropdown({ filters, onFiltersChange, workspace }: FilterDropdownP
   };
 
   const handleClear = () => {
-
-    const cleared: Filters = { dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", senderSearch: "", selectedTags: [], hasParsedTools: false, assignedToIds: [] };
-    setLocalFilters(cleared);
-    onFiltersChange(cleared);
+    setLocalFilters(EMPTY_FILTERS);
+    onFiltersChange(EMPTY_FILTERS);
     setOpen(false);
   };
 

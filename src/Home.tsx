@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import css from "./Home.module.css";
-import PendingRfqPackageList from "./components/PendingRfqPackageList";
+import PendingRfqPackageList, { EMPTY_FILTERS } from "./components/PendingRfqPackageList";
 import type { TabKey, Filters, MergeStep, SplitStep, ExcludeFromAutoSelect, BulkSkipMode, PendingRfqPackageListHandle } from "./components/PendingRfqPackageList";
 import BulkSkipConfirmModal from "./components/BulkSkipConfirmModal";
 import MergeConfirmModal from "./components/MergeConfirmModal";
@@ -37,7 +37,8 @@ function Home(): React.ReactElement {
   const [showEditTags, setShowEditTags] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
   const [createPackageLoading, setCreatePackageLoading] = useState(false);
-  const [filters, setFilters] = useState<Filters>({ dueDateStart: "", dueDateEnd: "", subjectSearch: "", customerSearch: "", platformSearch: "", senderSearch: "", selectedTags: [], hasParsedTools: false, assignedToIds: [] });
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [assignmentFilters, setAssignmentFilters] = useState<Filters>(EMPTY_FILTERS);
   const [mergeStep, setMergeStep] = useState<MergeStep>(null);
   const [mergeSourceId, setMergeSourceId] = useState<string | null>(null);
   const [mergeSourceName, setMergeSourceName] = useState<string>("");
@@ -481,6 +482,7 @@ function Home(): React.ReactElement {
               hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
               assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
               refreshToken={refreshToken}
+              filters={assignmentFilters}
             />
           </div>
           <div className={css.detailColumn}>
@@ -502,6 +504,7 @@ function Home(): React.ReactElement {
               >
                 {theme === "dark" ? "☀️" : "🌙"}
               </button>
+              <FilterDropdown filters={assignmentFilters} onFiltersChange={setAssignmentFilters} workspace={currentWorkspace} />
               <button
                 className={css.headerButton}
                 disabled={!selectedAssignmentId || selectedAssignmentType !== "pending"}

@@ -58,6 +58,19 @@ export interface Filters {
 /** Sentinel value inserted into `assignedToIds` to represent "unassigned". */
 export const ASSIGNED_TO_UNASSIGNED = "__unassigned__";
 
+/** An empty `Filters` value — every field cleared/unset. */
+export const EMPTY_FILTERS: Filters = {
+  dueDateStart: "",
+  dueDateEnd: "",
+  subjectSearch: "",
+  customerSearch: "",
+  platformSearch: "",
+  senderSearch: "",
+  selectedTags: [],
+  hasParsedTools: false,
+  assignedToIds: [],
+};
+
 /** Package IDs to exclude from auto-selection (e.g. just-skipped packages) */
 export type ExcludeFromAutoSelect = string[];
 
