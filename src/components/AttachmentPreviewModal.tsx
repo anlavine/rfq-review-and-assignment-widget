@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import * as XLSX from "@e965/xlsx";
 import css from "./AttachmentPreviewModal.module.css";
 import { getAttachmentPreviewKind } from "../utils/attachments";
 import { downloadAttachment, fetchAttachmentBlobForPreview } from "../utils/attachmentDownload";
