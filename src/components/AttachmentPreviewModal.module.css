@@ -13,10 +13,9 @@
   border: 1px solid var(--border-default);
   border-radius: 8px;
   box-shadow: var(--shadow-dropdown);
-  width: 860px;
-  max-width: 94vw;
-  height: 640px;
-  max-height: 88vh;
+  width: 96vw;
+  max-width: 1600px;
+  height: 94vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;

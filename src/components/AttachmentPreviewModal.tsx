@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "@e965/xlsx";
 import css from "./AttachmentPreviewModal.module.css";
-import { getAttachmentPreviewKind } from "../utils/attachments";
+import { getAttachmentPreviewKind, getPreviewMimeType } from "../utils/attachments";
 import { downloadAttachment, fetchAttachmentBlobForPreview } from "../utils/attachmentDownload";
 
 const EXCEL_MAX_ROWS = 200;
@@ -66,7 +66,13 @@ function AttachmentPreviewModal({
         if (cancelled) return;
 
         if (kind === "image" || kind === "pdf") {
-          objectUrl = URL.createObjectURL(blob);
+          // The data-proxy response doesn't reliably set a correct
+          // Content-Type, so browsers can't tell the blob is renderable
+          // in an <iframe>/<img> and fall back to downloading it instead.
+          // Re-wrap with the type inferred from the file's extension.
+          const mimeType = getPreviewMimeType(fileName);
+          const typedBlob = mimeType ? new Blob([blob], { type: mimeType }) : blob;
+          objectUrl = URL.createObjectURL(typedBlob);
           setPreview({ status: kind, blobUrl: objectUrl });
           return;
         }

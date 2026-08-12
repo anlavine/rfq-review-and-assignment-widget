@@ -23,6 +23,33 @@ export function getAttachmentPreviewKind(fileName: string): AttachmentPreviewKin
   return "none";
 }
 
+const IMAGE_MIME_TYPES: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".gif": "image/gif",
+  ".bmp": "image/bmp",
+  ".webp": "image/webp",
+};
+
+/**
+ * Resolves the MIME type a browser needs to render this file inline (in an
+ * `<img>`/`<iframe>`) based on its extension. The Foundry data-proxy
+ * response doesn't reliably set a correct `Content-Type` header, so the
+ * fetched blob's own `.type` can't be trusted — callers should re-wrap the
+ * blob with this type before creating an object URL for preview. Returns
+ * `null` for kinds that aren't rendered via a typed blob (e.g. "excel",
+ * which is parsed rather than displayed directly).
+ */
+export function getPreviewMimeType(fileName: string): string | null {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(".pdf")) return "application/pdf";
+  for (const [ext, mime] of Object.entries(IMAGE_MIME_TYPES)) {
+    if (lower.endsWith(ext)) return mime;
+  }
+  return null;
+}
+
 /**
  * Returns true if the filename is an inline image that should be excluded
  * from attachment lists and badge counts.
