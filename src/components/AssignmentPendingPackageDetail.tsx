@@ -3,7 +3,7 @@ import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-applicati
 import client from "../client";
 import css from "./PackageDetail.module.css";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
-import { excludeInlineImages, isParsedAttachment } from "../utils/attachments";
+import { excludeInlineImages, excludeZipArchives, isParsedAttachment } from "../utils/attachments";
 import { trackUsage, INTERACTION_KEYS, type Workspace } from "../utils/trackUsage";
 import { usePendingPackageDetail } from "../hooks/usePendingPackageDetail";
 import PackageDetailHeader from "./PackageDetailHeader";
@@ -12,6 +12,7 @@ import PackageCustomerAndNameFields from "./PackageCustomerAndNameFields";
 import PackageConversationSection from "./PackageConversationSection";
 import PackageBodyContent from "./PackageBodyContent";
 import AssignmentToolsBreakdown from "./AssignmentToolsBreakdown";
+import AttachmentPreviewModal from "./AttachmentPreviewModal";
 
 interface AssignmentPendingPackageDetailProps {
   packageId: string;
@@ -54,6 +55,7 @@ function AssignmentPendingPackageDetail({
     pkg,
     customerName,
     attachmentCount,
+    attachments,
     conversationSiblings,
     hasPackageError,
     hasToolError,
@@ -67,6 +69,7 @@ function AssignmentPendingPackageDetail({
 
   const [editingDueDate, setEditingDueDate] = useState(false);
   const [savingDueDate, setSavingDueDate] = useState(false);
+  const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
 
   if (loading) {
     return (
@@ -112,6 +115,8 @@ function AssignmentPendingPackageDetail({
     ? (pkg.parsedAttachmentFilenames ?? []).length
     : excludeInlineImages(pkg.attachmentFileNames ?? []).filter(isParsedAttachment).length;
 
+  const previewableAttachments = excludeZipArchives(attachments);
+
   const merged = isMergedPackage(pkg.from, pkg.to, pkg.subject, pkg.bodyContent);
   const fromSegments = splitMergedField(pkg.from);
   const toSegments = splitMergedField(pkg.to);
@@ -138,6 +143,25 @@ function AssignmentPendingPackageDetail({
           saving: savingDueDate,
         }}
       />
+
+      {previewableAttachments.length > 0 && (
+        <div className={css.previewAttachmentsRow}>
+          <button
+            className={css.previewAttachmentsButton}
+            onClick={() => setShowAttachmentPreview(true)}
+          >
+            Preview Attachments
+          </button>
+        </div>
+      )}
+
+      {showAttachmentPreview && (
+        <AttachmentPreviewModal
+          packageName={pkg.subject ?? pkg.packageName ?? "Package"}
+          attachments={previewableAttachments}
+          onClose={() => setShowAttachmentPreview(false)}
+        />
+      )}
 
       <AssignmentToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
 

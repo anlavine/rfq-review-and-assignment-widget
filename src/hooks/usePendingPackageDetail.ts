@@ -26,6 +26,8 @@ export interface PendingPackageDetailState {
   customerName: string | null;
   toolCount: number | null;
   attachmentCount: number | null;
+  /** Resolved attachment rows (excluding inline images), for previewing/downloading. */
+  attachments: Osdk.Instance<PendingRfqAttachments>[];
   conversationSiblings: ConversationSibling[];
   hasPackageError: boolean;
   hasToolError: boolean;
@@ -63,6 +65,7 @@ export function usePendingPackageDetail(
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [toolCount, setToolCount] = useState<number | null>(null);
   const [attachmentCount, setAttachmentCount] = useState<number | null>(null);
+  const [attachments, setAttachments] = useState<Osdk.Instance<PendingRfqAttachments>[]>([]);
   const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
   const [hasPackageError, setHasPackageError] = useState(false);
   const [hasToolError, setHasToolError] = useState(false);
@@ -80,6 +83,7 @@ export function usePendingPackageDetail(
     setCustomerName(null);
     setToolCount(null);
     setAttachmentCount(null);
+    setAttachments([]);
     setConversationSiblings([]);
     setHasPackageError(false);
     setHasToolError(false);
@@ -120,10 +124,10 @@ export function usePendingPackageDetail(
           }
         })();
 
-        const attachmentCountPromise = (async () => {
+        const attachmentsPromise = (async (): Promise<Osdk.Instance<PendingRfqAttachments>[]> => {
           const emailId = obj.emailId;
           const fileNames = (obj.attachmentFileNames ?? []).filter((n) => !isInlineImage(n));
-          if (!emailId || fileNames.length === 0) return 0;
+          if (!emailId || fileNames.length === 0) return [];
           try {
             const page = await client(PendingRfqAttachments)
               .where({
@@ -133,13 +137,9 @@ export function usePendingPackageDetail(
                 ],
               })
               .fetchPage({ $pageSize: 200 });
-            const seen = new Set<string>();
-            for (const att of page.data) {
-              if (att.fileName) seen.add(att.fileName);
-            }
-            return seen.size;
+            return page.data;
           } catch {
-            return 0;
+            return [];
           }
         })();
 
@@ -254,7 +254,7 @@ export function usePendingPackageDetail(
         const [
           resolvedCustomer,
           resolvedToolCount,
-          resolvedAttachmentCount,
+          resolvedAttachments,
           resolvedSiblings,
           resolvedErrors,
           resolvedPriority,
@@ -262,7 +262,7 @@ export function usePendingPackageDetail(
         ] = await Promise.all([
           customerPromise,
           toolCountPromise,
-          attachmentCountPromise,
+          attachmentsPromise,
           conversationPromise,
           errorsPromise,
           priorityPromise,
@@ -272,7 +272,12 @@ export function usePendingPackageDetail(
         if (cancelled) return;
         setCustomerName(resolvedCustomer);
         setToolCount(resolvedToolCount);
-        setAttachmentCount(resolvedAttachmentCount);
+        setAttachments(resolvedAttachments);
+        const seenFileNames = new Set<string>();
+        for (const att of resolvedAttachments) {
+          if (att.fileName) seenFileNames.add(att.fileName);
+        }
+        setAttachmentCount(seenFileNames.size);
         setConversationSiblings(resolvedSiblings);
         setHasPackageError(resolvedErrors.hasPackageError);
         setHasToolError(resolvedErrors.hasToolError);
@@ -301,6 +306,7 @@ export function usePendingPackageDetail(
     customerName,
     toolCount,
     attachmentCount,
+    attachments,
     conversationSiblings,
     hasPackageError,
     hasToolError,

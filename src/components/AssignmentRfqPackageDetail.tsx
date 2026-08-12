@@ -4,12 +4,14 @@ import client from "../client";
 import css from "./PackageDetail.module.css";
 import { useRfqPackageDetail } from "../hooks/useRfqPackageDetail";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
+import { excludeZipArchives } from "../utils/attachments";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import PackageEmailAddressFields from "./PackageEmailAddressFields";
 import PackageConversationSection from "./PackageConversationSection";
 import PackageBodyContent from "./PackageBodyContent";
 import RfqPackageCustomerAndNameFields from "./RfqPackageCustomerAndNameFields";
 import AssignmentRfqToolsBreakdown from "./AssignmentRfqToolsBreakdown";
+import AttachmentPreviewModal from "./AttachmentPreviewModal";
 
 interface AssignmentRfqPackageDetailProps {
   packageId: string;
@@ -45,6 +47,7 @@ function AssignmentRfqPackageDetail({
     rfqPkg,
     customerName,
     pendingPkg,
+    attachments,
     conversationSiblings,
     loading,
     error,
@@ -53,6 +56,7 @@ function AssignmentRfqPackageDetail({
 
   const [editingDueDate, setEditingDueDate] = useState(false);
   const [savingDueDate, setSavingDueDate] = useState(false);
+  const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
 
   if (loading) {
     return (
@@ -107,6 +111,7 @@ function AssignmentRfqPackageDetail({
   const subjectSegments = pendingPkg ? splitMergedField(pendingPkg.subject) : [];
   const bodySegments = pendingPkg ? splitMergedField(pendingPkg.bodyContent) : [];
   const emailIdSegments = pendingPkg ? splitMergedField(pendingPkg.emailId) : [];
+  const previewableAttachments = excludeZipArchives(attachments);
 
   return (
     <div className={css.container}>
@@ -122,6 +127,25 @@ function AssignmentRfqPackageDetail({
           saving: savingDueDate,
         }}
       />
+
+      {previewableAttachments.length > 0 && (
+        <div className={css.previewAttachmentsRow}>
+          <button
+            className={css.previewAttachmentsButton}
+            onClick={() => setShowAttachmentPreview(true)}
+          >
+            Preview Attachments
+          </button>
+        </div>
+      )}
+
+      {showAttachmentPreview && (
+        <AttachmentPreviewModal
+          packageName={pendingPkg?.subject || rfqPkg.packageName || "Package"}
+          attachments={previewableAttachments}
+          onClose={() => setShowAttachmentPreview(false)}
+        />
+      )}
 
       <AssignmentRfqToolsBreakdown packageId={packageId} refreshToken={refreshToken} />
 

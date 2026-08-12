@@ -18,6 +18,28 @@ async function fetchAttachmentBlob(att: DownloadableAttachment): Promise<Blob> {
   return response.blob();
 }
 
+/** Module-level cache so re-opening the preview modal / re-clicking the same
+ *  attachment doesn't refetch it. Keyed by `filepath` (the dataset path,
+ *  stable per attachment row); never evicted — attachments are small and few
+ *  per package, same tradeoff as the CID-image cache in HtmlBodyContent. */
+const previewBlobCache = new Map<string, Promise<Blob>>();
+
+/**
+ * Fetches an attachment's content for in-app preview, caching the in-flight
+ * (and resolved) promise per `filepath` so repeated previews of the same
+ * file don't hit the network again.
+ */
+export function fetchAttachmentBlobForPreview(att: DownloadableAttachment): Promise<Blob> {
+  const key = att.filepath ?? "";
+  const cached = previewBlobCache.get(key);
+  if (cached) return cached;
+  const promise = fetchAttachmentBlob(att);
+  previewBlobCache.set(key, promise);
+  // Don't cache a rejected fetch — let the next attempt retry.
+  promise.catch(() => previewBlobCache.delete(key));
+  return promise;
+}
+
 function triggerBlobDownload(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob);
   const anchor = document.createElement("a");

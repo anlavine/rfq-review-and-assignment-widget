@@ -26,6 +26,8 @@ export interface RfqPackageDetailState {
   pendingPkg: Osdk.Instance<PendingRfqPackage> | null;
   /** Attachment count for the linked pending package, if any. */
   attachmentCount: number | null;
+  /** Resolved attachment rows for the linked pending package (excluding inline images). */
+  attachments: Osdk.Instance<PendingRfqAttachments>[];
   /** Conversation siblings from the linked pending package's conversation, if any. */
   conversationSiblings: ConversationSibling[];
   hasPackageError: boolean;
@@ -52,6 +54,7 @@ export function useRfqPackageDetail(
   const [customerName, setCustomerName] = useState<string | null>(null);
   const [pendingPkg, setPendingPkg] = useState<Osdk.Instance<PendingRfqPackage> | null>(null);
   const [attachmentCount, setAttachmentCount] = useState<number | null>(null);
+  const [attachments, setAttachments] = useState<Osdk.Instance<PendingRfqAttachments>[]>([]);
   const [conversationSiblings, setConversationSiblings] = useState<ConversationSibling[]>([]);
   const [hasPackageError, setHasPackageError] = useState(false);
   const [hasToolError, setHasToolError] = useState(false);
@@ -65,6 +68,7 @@ export function useRfqPackageDetail(
     setCustomerName(null);
     setPendingPkg(null);
     setAttachmentCount(null);
+    setAttachments([]);
     setConversationSiblings([]);
     setHasPackageError(false);
     setHasToolError(false);
@@ -123,11 +127,11 @@ export function useRfqPackageDetail(
           const pendingId = String(resolvedPending.$primaryKey);
           const pendingEmailId = resolvedPending.emailId;
 
-          const attachmentPromise = (async (): Promise<number> => {
+          const attachmentPromise = (async (): Promise<Osdk.Instance<PendingRfqAttachments>[]> => {
             const fileNames = (resolvedPending.attachmentFileNames ?? []).filter(
               (n) => !isInlineImage(n),
             );
-            if (!pendingEmailId || fileNames.length === 0) return 0;
+            if (!pendingEmailId || fileNames.length === 0) return [];
             try {
               const page = await client(PendingRfqAttachments)
                 .where({
@@ -137,13 +141,9 @@ export function useRfqPackageDetail(
                   ],
                 })
                 .fetchPage({ $pageSize: 200 });
-              const seen = new Set<string>();
-              for (const att of page.data) {
-                if (att.fileName) seen.add(att.fileName);
-              }
-              return seen.size;
+              return page.data;
             } catch {
-              return 0;
+              return [];
             }
           })();
 
@@ -206,14 +206,19 @@ export function useRfqPackageDetail(
             }
           })();
 
-          const [resolvedAttachmentCount, resolvedSiblings, resolvedErrors] = await Promise.all([
+          const [resolvedAttachments, resolvedSiblings, resolvedErrors] = await Promise.all([
             attachmentPromise,
             conversationPromise,
             errorsPromise,
           ]);
 
           if (cancelled) return;
-          setAttachmentCount(resolvedAttachmentCount);
+          setAttachments(resolvedAttachments);
+          const seenFileNames = new Set<string>();
+          for (const att of resolvedAttachments) {
+            if (att.fileName) seenFileNames.add(att.fileName);
+          }
+          setAttachmentCount(seenFileNames.size);
           setConversationSiblings(resolvedSiblings);
           setHasPackageError(resolvedErrors.hasPackageError);
           setHasToolError(resolvedErrors.hasToolError);
@@ -237,6 +242,7 @@ export function useRfqPackageDetail(
     customerName,
     pendingPkg,
     attachmentCount,
+    attachments,
     conversationSiblings,
     hasPackageError,
     hasToolError,

@@ -4,6 +4,25 @@ export const PARSED_EXTENSIONS = [".pdf", ".xlsx", ".xls", ".xlsb", ".xlsm", ".p
 /** Image file extensions that are embedded inline in the email body (excluded from attachment lists) */
 const INLINE_IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp"];
 
+/** Spreadsheet extensions SheetJS can parse — rendered as an HTML table in the attachment preview. */
+const EXCEL_EXTENSIONS = [".xlsx", ".xls", ".xlsb", ".xlsm"];
+
+export type AttachmentPreviewKind = "image" | "pdf" | "excel" | "none";
+
+/**
+ * Classifies a file name into how the attachment preview modal should
+ * render it: a real image (`<img>`), a PDF (browser-native `<iframe>`), a
+ * spreadsheet (parsed client-side with SheetJS into an HTML table), or
+ * `"none"` — no in-app preview, fall back to a download prompt.
+ */
+export function getAttachmentPreviewKind(fileName: string): AttachmentPreviewKind {
+  const lower = fileName.toLowerCase();
+  if (INLINE_IMAGE_EXTENSIONS.some((ext) => lower.endsWith(ext))) return "image";
+  if (lower.endsWith(".pdf")) return "pdf";
+  if (EXCEL_EXTENSIONS.some((ext) => lower.endsWith(ext))) return "excel";
+  return "none";
+}
+
 /**
  * Returns true if the filename is an inline image that should be excluded
  * from attachment lists and badge counts.
