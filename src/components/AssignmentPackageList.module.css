@@ -159,6 +159,30 @@
   gap: 6px;
 }
 
+/* Section divider for Due Date sort buckets */
+.sectionDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0 4px;
+}
+
+.sectionDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border-default);
+}
+
+.sectionDividerLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 /* Empty / loading / error placeholder */
 .emptyCard {
   border: 2px dashed var(--border-default);

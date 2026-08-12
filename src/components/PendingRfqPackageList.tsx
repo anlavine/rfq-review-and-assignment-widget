@@ -12,6 +12,7 @@ import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { getPriorityColorClass, comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
+import { type DueDateBucket, BUCKET_LABELS, BUCKET_ORDER, getDueDateBucket } from "../utils/dueDateBucket";
 
 const PAGE_SIZE = 50;
 const MAX_VISIBLE_TAGS = 2;
@@ -205,58 +206,6 @@ async function resolveMetaStreaming(
       onBatch(batchResult);
     }
   }
-}
-
-/** Due date bucket for Outstanding tab section dividers */
-type DueDateBucket = "noDueDate" | "today" | "tomorrow" | "thisWeek" | "nextWeek" | "later";
-
-const BUCKET_LABELS: Record<DueDateBucket, string> = {
-  noDueDate: "No Due Date",
-  today: "Due Today",
-  tomorrow: "Due Tomorrow",
-  thisWeek: "Due This Week",
-  nextWeek: "Due Next Week",
-  later: "Due Later",
-};
-
-/** Order in which buckets should appear */
-const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWeek", "nextWeek", "later"];
-
-/**
- * Assigns a package to a due-date bucket based on the current local date.
- * - No due date → "noDueDate"
- * - Overdue or due today → "today"
- * - Due tomorrow → "tomorrow"
- * - Due on or before Sunday of the current week → "thisWeek"
- * - Due on or before Sunday of the following week → "nextWeek"
- * - Everything else → "later"
- */
-function getDueDateBucket(dueDate: string | undefined): DueDateBucket {
-  if (!dueDate) return "noDueDate";
-
-  const parts = dueDate.split("T")[0].split("-");
-  const due = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  // End of current week (Sunday). getDay(): 0=Sun, 1=Mon, …, 6=Sat
-  const dayOfWeek = today.getDay(); // 0=Sun
-  const daysUntilSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-  const endOfWeek = new Date(today);
-  endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday);
-
-  // End of next week (the following Sunday)
-  const endOfNextWeek = new Date(endOfWeek);
-  endOfNextWeek.setDate(endOfNextWeek.getDate() + 7);
-
-  if (due.getTime() <= today.getTime()) return "today"; // overdue + today
-  if (due.getTime() === tomorrow.getTime()) return "tomorrow";
-  if (due.getTime() <= endOfWeek.getTime()) return "thisWeek";
-  if (due.getTime() <= endOfNextWeek.getTime()) return "nextWeek";
-  return "later";
 }
 
 const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfqPackageListProps>(function PendingRfqPackageList({ onSelectPackage, onDeselectPackage, selectedPackageId, onTabChange, onOutstandingSortChange, refreshToken, filters, mergeStep, mergeSourceId, onMergeSelect, splitStep, onSplitSelect, onFirstPackageReady, excludeFromAutoSelect, bulkSkipMode, bulkSkipSelected, onBulkSkipToggle, onBulkSkipSelectAll, onBulkSkipDeselectAll, onNewDataAvailable }, ref) {

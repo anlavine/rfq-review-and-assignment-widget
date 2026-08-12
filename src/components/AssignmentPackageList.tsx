@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useState, useMemo, useRef, forwardRef, useImperativeHandle, type ReactElement } from "react";
 import { PendingRfqPackage, RfqPackage, PendingRfqAttachments } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -8,6 +8,7 @@ import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
 import { comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
+import { type DueDateBucket, BUCKET_LABELS, getDueDateBucket, compareDueDateBucket } from "../utils/dueDateBucket";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
@@ -505,14 +506,17 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     }
 
     // Sort — Priority: tier (High → Medium → Low), then due date ascending
-    // within a tier. Due Date: ascending, missing due dates sort to the
-    // end. Applies identically across all three tabs.
+    // within a tier. Due Date: bucketed the same way as the Ingestion tab's
+    // Outstanding list (Due Today/Tomorrow/This Week/Next Week/Later),
+    // ascending due date within a bucket. Applies identically across all
+    // three tabs.
     filtered = [...filtered].sort((a, b) => {
       if (sortMode === "priority") {
         const tierCompare = comparePriorityTier(a.priorityScore, b.priorityScore);
         if (tierCompare !== 0) return tierCompare;
+        return compareDueDateAsc(a.dueDate, b.dueDate);
       }
-      return compareDueDateAsc(a.dueDate, b.dueDate);
+      return compareDueDateBucket(a.dueDate, b.dueDate);
     });
 
     return filtered;
@@ -536,13 +540,33 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     if (error) return <div className={`${css.emptyCard} ${css.emptyCardError}`}>Error: {error}</div>;
     if (visibleItems.length === 0) return <div className={css.emptyCard}>No active packages found.</div>;
 
-    return visibleItems.map((item) => {
+    // Due Date sort groups items under section-divider headers (Due Today,
+    // Due Tomorrow, etc.) — same bucketing as the Ingestion tab's Outstanding
+    // list. Priority sort renders a flat list.
+    const useBuckets = sortMode === "dueDate";
+    const elements: ReactElement[] = [];
+    let lastBucket: DueDateBucket | null = null;
+
+    for (const item of visibleItems) {
       const id = String(item.pkg.$primaryKey);
+
+      if (useBuckets) {
+        const bucket = getDueDateBucket(item.dueDate);
+        if (bucket !== lastBucket) {
+          lastBucket = bucket;
+          elements.push(
+            <div key={`divider-${bucket}`} className={css.sectionDivider}>
+              <span className={css.sectionDividerLabel}>{BUCKET_LABELS[bucket]}</span>
+            </div>,
+          );
+        }
+      }
+
       const isSelected = id === selectedId;
       const assigneeName = resolveAssigneeName(item.assigneeId);
       const tags = getEffectiveTags(item, tagOverrides);
 
-      return (
+      elements.push(
         <AssignmentPackageCard
           key={id}
           item={item}
@@ -552,12 +576,14 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           tags={tags}
           assigneeName={assigneeName}
           customerName={item.customerName}
-        />
+        />,
       );
-    });
+    }
+
+    return elements;
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, tagOverrides]);
+  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, tagOverrides, sortMode]);
 
   const title = mode === "all" ? "All Packages" : mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
 

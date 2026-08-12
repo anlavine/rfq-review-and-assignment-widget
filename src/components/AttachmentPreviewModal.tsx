@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "@e965/xlsx";
 import css from "./AttachmentPreviewModal.module.css";
 import { getAttachmentPreviewKind, getPreviewMimeType } from "../utils/attachments";
@@ -18,13 +18,34 @@ interface AttachmentPreviewModalProps {
   onClose: () => void;
 }
 
+interface ExcelSheetData {
+  rows: string[][];
+  truncatedRows: boolean;
+  truncatedCols: boolean;
+}
+
 type PreviewState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "image"; blobUrl: string }
   | { status: "pdf"; blobUrl: string }
-  | { status: "excel"; sheetName: string; rows: string[][]; truncatedRows: boolean; truncatedCols: boolean }
+  | { status: "excel"; workbook: XLSX.WorkBook; activeSheetName: string }
   | { status: "none" };
+
+/** Converts one sheet's cells into a table-ready 2D array, capped in size. */
+function computeSheetData(workbook: XLSX.WorkBook, sheetName: string): ExcelSheetData {
+  const sheet = workbook.Sheets[sheetName];
+  const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+    header: 1,
+    raw: false,
+    defval: "",
+  });
+  const truncatedRows = allRows.length > EXCEL_MAX_ROWS;
+  const rows = allRows.slice(0, EXCEL_MAX_ROWS);
+  const truncatedCols = rows.some((r) => r.length > EXCEL_MAX_COLS);
+  const trimmedRows = rows.map((r) => r.slice(0, EXCEL_MAX_COLS));
+  return { rows: trimmedRows, truncatedRows, truncatedCols };
+}
 
 /**
  * Modal for browsing a package's attachments and previewing one at a time.
@@ -39,6 +60,11 @@ function AttachmentPreviewModal({
 }: AttachmentPreviewModalProps): React.ReactElement {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  // Per-sheet table data, computed lazily on tab click rather than for every
+  // sheet up front. Keyed by sheet name; reset whenever a new attachment's
+  // workbook is parsed. A ref (not state) since populating it shouldn't by
+  // itself trigger a re-render — only `activeSheetName` needs to.
+  const sheetDataCacheRef = useRef<Map<string, ExcelSheetData>>(new Map());
 
   const selected = selectedIndex != null ? attachments[selectedIndex] : null;
 
@@ -77,23 +103,16 @@ function AttachmentPreviewModal({
           return;
         }
 
-        // kind === "excel"
+        // kind === "excel" — XLSX.read() parses every sheet's raw cell data
+        // up front (that's unavoidable), but converting a sheet into
+        // table-ready rows (computeSheetData) is deferred per-sheet: only
+        // the first sheet is converted now, others convert on tab click.
         const buffer = await blob.arrayBuffer();
         if (cancelled) return;
         const workbook = XLSX.read(buffer, { type: "array" });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const allRows = XLSX.utils.sheet_to_json<string[]>(sheet, {
-          header: 1,
-          raw: false,
-          defval: "",
-        });
-        const truncatedRows = allRows.length > EXCEL_MAX_ROWS;
-        const rows = allRows.slice(0, EXCEL_MAX_ROWS);
-        const truncatedCols = rows.some((r) => r.length > EXCEL_MAX_COLS);
-        const trimmedRows = rows.map((r) => r.slice(0, EXCEL_MAX_COLS));
+        sheetDataCacheRef.current = new Map();
         if (!cancelled) {
-          setPreview({ status: "excel", sheetName, rows: trimmedRows, truncatedRows, truncatedCols });
+          setPreview({ status: "excel", workbook, activeSheetName: workbook.SheetNames[0] });
         }
       } catch (e) {
         if (!cancelled) {
@@ -108,6 +127,10 @@ function AttachmentPreviewModal({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedIndex]);
+
+  const handleSelectSheet = (sheetName: string) => {
+    setPreview((prev) => (prev && prev.status === "excel" ? { ...prev, activeSheetName: sheetName } : prev));
+  };
 
   const [downloadingFallback, setDownloadingFallback] = useState(false);
   const handleDownloadSelected = async () => {
@@ -139,13 +162,34 @@ function AttachmentPreviewModal({
       return <iframe className={css.previewFrame} src={preview.blobUrl} title={selected.fileName ?? "Attachment preview"} />;
     }
     if (preview.status === "excel") {
+      const sheetNames = preview.workbook.SheetNames;
+      const cache = sheetDataCacheRef.current;
+      let sheetData = cache.get(preview.activeSheetName);
+      if (!sheetData) {
+        sheetData = computeSheetData(preview.workbook, preview.activeSheetName);
+        cache.set(preview.activeSheetName, sheetData);
+      }
       return (
         <div className={css.excelWrap}>
-          <div className={css.excelSheetName}>Sheet: {preview.sheetName}</div>
+          {sheetNames.length > 1 ? (
+            <div className={css.excelSheetTabs}>
+              {sheetNames.map((name) => (
+                <button
+                  key={name}
+                  className={`${css.excelSheetTab} ${name === preview.activeSheetName ? css.excelSheetTabActive : ""}`}
+                  onClick={() => handleSelectSheet(name)}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className={css.excelSheetName}>Sheet: {preview.activeSheetName}</div>
+          )}
           <div className={css.excelTableWrap}>
             <table className={css.excelTable}>
               <tbody>
-                {preview.rows.map((row, i) => (
+                {sheetData.rows.map((row, i) => (
                   <tr key={i}>
                     {row.map((cell, j) => <td key={j}>{cell}</td>)}
                   </tr>
@@ -153,9 +197,9 @@ function AttachmentPreviewModal({
               </tbody>
             </table>
           </div>
-          {(preview.truncatedRows || preview.truncatedCols) && (
+          {(sheetData.truncatedRows || sheetData.truncatedCols) && (
             <div className={css.excelTruncatedNote}>
-              Showing the first {EXCEL_MAX_ROWS} rows{preview.truncatedCols ? ` and ${EXCEL_MAX_COLS} columns` : ""} — download the file to see the rest.
+              Showing the first {EXCEL_MAX_ROWS} rows{sheetData.truncatedCols ? ` and ${EXCEL_MAX_COLS} columns` : ""} — download the file to see the rest.
             </div>
           )}
         </div>
