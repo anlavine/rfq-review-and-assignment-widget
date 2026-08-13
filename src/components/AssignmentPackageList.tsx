@@ -23,11 +23,30 @@ export type AssignmentItem =
 
 
   | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; dueDate: string | null }
-  | { type: "rfq"; pkg: Osdk.Instance<RfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; linkedFrom: string | null; dueDate: string | null };
+  | {
+    type: "rfq";
+    pkg: Osdk.Instance<RfqPackage>;
+    priorityScore: number;
+    toolCount: number | null;
+    assigneeId: string | null;
+    customerName: string | null;
+    attachments: Osdk.Instance<PendingRfqAttachments>[];
+    linkedFrom: string | null;
+    dueDate: string | null;
+    /** id of the linked PendingRfqPackage, or null if there isn't one. */
+    linkedPendingId: string | null;
+    /** tags on the linked PendingRfqPackage — RfqPackage itself has no tags field. */
+    linkedTags: string[];
+  };
 
 interface AssignmentPackageListProps {
   selectedId: string | null;
-  onSelect: (id: string, type: "pending" | "rfq") => void;
+  /**
+   * `linkedPendingId` is the id of the linked Pending package when
+   * selecting an RFQ item (or `null`/`undefined` otherwise) — lets the
+   * parent enable Edit Tags for RFQ selections that have one.
+   */
+  onSelect: (id: string, type: "pending" | "rfq", linkedPendingId?: string | null) => void;
   /**
    * Which flavor of list to render:
    *   - "all"        — Every active package, assigned or not
@@ -63,13 +82,19 @@ interface AssignmentPackageListProps {
 const UNKNOWN_ASSIGNEE = "__unknown__";
 
 /**
- * Tags for an item, with any session-local Edit Tags override applied. RFQ
- * items don't carry a `tags` field, so they always resolve to an empty list.
+ * Tags for an item, with any session-local Edit Tags override applied.
+ * RfqPackage itself has no `tags` field, so RFQ items resolve to the tags
+ * of their linked Pending package (or `[]` if there isn't one) — overrides
+ * are keyed by that linked pending id too, since editing an RFQ item's tags
+ * writes to the underlying Pending package.
  */
 function getEffectiveTags(item: AssignmentItem, tagOverrides: Record<string, string[]>): string[] {
-  if (item.type !== "pending") return [];
-  const id = String(item.pkg.$primaryKey);
-  return tagOverrides[id] ?? item.pkg.tags ?? [];
+  if (item.type === "pending") {
+    const id = String(item.pkg.$primaryKey);
+    return tagOverrides[id] ?? item.pkg.tags ?? [];
+  }
+  if (!item.linkedPendingId) return [];
+  return tagOverrides[item.linkedPendingId] ?? item.linkedTags ?? [];
 }
 
 /** Imperative handle exposed to the parent for optimistic tag updates. */
@@ -225,6 +250,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           pendingPackageId: string | null;
           /** `from` of the linked PendingRfqPackage — RfqPackage has no sender field of its own. */
           linkedFrom: string | null;
+          /** tags of the linked PendingRfqPackage — RfqPackage has no tags field of its own. */
+          linkedTags: string[];
         }
 
         /** Resolves the attachment rows for an email (excluding inline images). */
@@ -289,11 +316,13 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               let pendingPackageId: string | null = null;
               let attachments: Osdk.Instance<PendingRfqAttachments>[] = [];
               let linkedFrom: string | null = null;
+              let linkedTags: string[] = [];
               try {
                 const linked = await rfqPkg.$link.pendingRfqPackage.fetchOne();
                 pendingPackageId = String(linked.$primaryKey);
                 attachments = await fetchAttachments(linked.emailId, linked.attachmentFileNames);
                 linkedFrom = linked.from ?? null;
+                linkedTags = linked.tags ?? [];
               } catch { /* no linked pending package */ }
 
               // Resolve tool count via rfqTool link
@@ -319,7 +348,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId, linkedFrom };
+              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId, linkedFrom, linkedTags };
             }),
           );
           rfqPartials.push(...results);
@@ -361,6 +390,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           attachments: r.attachments,
           linkedFrom: r.linkedFrom,
           dueDate: r.pkg.dueDate ?? null,
+          linkedPendingId: r.pendingPackageId,
+          linkedTags: r.linkedTags,
         }));
 
         // Build the interleaved list
@@ -403,6 +434,14 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     // categorized as "engChange"/"other", or with no workType set at all
     // (categorizeWorkType returns null), are excluded.
     let filtered = items.filter((item) => categorizeWorkType(item.pkg.workType) === "new");
+
+    // Exclude "No Quote" tagged work — applies across all three tabs. For
+    // RFQ items this checks the linked Pending package's tags, since
+    // RfqPackage itself has no tags field. Session-local Edit Tags overrides
+    // are respected too, so removing the tag re-surfaces the item without a
+    // full refetch. ("No Quote"/Completed work instead shows up in the
+    // dedicated Completed tab.)
+    filtered = filtered.filter((item) => !getEffectiveTags(item, tagOverrides).includes("No Quote"));
 
     // Apply session-local assignee/due-date overrides so reassignments and
     // due-date edits reflect immediately without a full refetch.

@@ -18,10 +18,13 @@ import FeedbackModal from "./components/FeedbackModal";
 import ReviewPanel from "./components/ReviewPanel";
 import AssignmentPackageList from "./components/AssignmentPackageList";
 import type { AssignmentPackageListHandle } from "./components/AssignmentPackageList";
+import CompletedPackageList from "./components/CompletedPackageList";
+import type { CompletedPackageListHandle } from "./components/CompletedPackageList";
 import AssignmentPendingPackageDetail from "./components/AssignmentPendingPackageDetail";
 import AssignmentRfqPackageDetail from "./components/AssignmentRfqPackageDetail";
 import AssignToModal from "./components/AssignToModal";
 import EstimatorWorkloadScorecard from "./components/EstimatorWorkloadScorecard";
+import type { EstimatorWorkloadScorecardHandle } from "./components/EstimatorWorkloadScorecard";
 import { useWorkshop, type WorkshopContext } from "./useWorkshop";
 import { useTheme } from "./ThemeContext";
 import { trackUsage, INTERACTION_KEYS, WORKSPACES, type Workspace } from "./utils/trackUsage";
@@ -65,9 +68,16 @@ function Home(): React.ReactElement {
    * Defaults to "priority" to match the child's default.
    */
   const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
-  const [assignmentTab, setAssignmentTab] = useState<"all" | "unassigned" | "assigned">("all");
+  const [assignmentTab, setAssignmentTab] = useState<"all" | "unassigned" | "assigned" | "completed">("all");
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [selectedAssignmentType, setSelectedAssignmentType] = useState<"pending" | "rfq" | null>(null);
+  /**
+   * For an RFQ selection, the id of its linked Pending package (or `null`
+   * if there isn't one). Lets Edit Tags work on an RFQ selection by editing
+   * the tags of the underlying Pending package instead. Always `null` for
+   * a Pending selection (Edit Tags then just uses `selectedAssignmentId` directly).
+   */
+  const [selectedAssignmentLinkedPendingId, setSelectedAssignmentLinkedPendingId] = useState<string | null>(null);
   const [showAssignTo, setShowAssignTo] = useState(false);
   /**
    * Session-local set of package IDs that were just assigned via the
@@ -98,6 +108,15 @@ function Home(): React.ReactElement {
   /** Ref to AssignmentPackageList for optimistic tag updates */
   const assignmentListRef = useRef<AssignmentPackageListHandle>(null);
 
+  /** Ref to CompletedPackageList for optimistic tag updates */
+  const completedListRef = useRef<CompletedPackageListHandle>(null);
+
+  /** Ref to EstimatorWorkloadScorecard for cache-based workload-count updates after an assignment, instead of a full refetch */
+  const estimatorWorkloadRef = useRef<EstimatorWorkloadScorecardHandle>(null);
+
+  /** Set when a background assignment (see AssignToModal) fails after the modal has already closed. */
+  const [assignErrorMessage, setAssignErrorMessage] = useState<string | null>(null);
+
   /**
    * Workspace identifier for usage tracking. Ingestion view value depends on
    * the currently-active sort tab of the Outstanding list; assignment view is
@@ -115,6 +134,18 @@ function Home(): React.ReactElement {
       : outstandingSort === "dueDate"
         ? WORKSPACES.INGESTION_DATE
         : WORKSPACES.INGESTION_PRIORITY;
+  /**
+   * The Pending package id Edit Tags should actually operate on for the
+   * current Assignment selection — the selection itself when it's a
+   * Pending package, or its linked Pending package when it's an RFQ
+   * package that has one. `null` when Edit Tags isn't available.
+   */
+  const assignmentEditTagsPendingId: string | null =
+    selectedAssignmentType === "pending"
+      ? selectedAssignmentId
+      : selectedAssignmentType === "rfq"
+        ? selectedAssignmentLinkedPendingId
+        : null;
   const workspaceRef = useRef<Workspace>(currentWorkspace);
   useEffect(() => {
     workspaceRef.current = currentWorkspace;
@@ -454,6 +485,7 @@ function Home(): React.ReactElement {
                   if (assignmentTab === "all") return;
                   setAssignmentTab("all");
                   setSelectedAssignmentId(null);
+                  setSelectedAssignmentLinkedPendingId(null);
                   setSelectedAssignmentType(null);
                 }}
               >
@@ -465,6 +497,7 @@ function Home(): React.ReactElement {
                   if (assignmentTab === "unassigned") return;
                   setAssignmentTab("unassigned");
                   setSelectedAssignmentId(null);
+                  setSelectedAssignmentLinkedPendingId(null);
                   setSelectedAssignmentType(null);
                 }}
               >
@@ -476,26 +509,55 @@ function Home(): React.ReactElement {
                   if (assignmentTab === "assigned") return;
                   setAssignmentTab("assigned");
                   setSelectedAssignmentId(null);
+                  setSelectedAssignmentLinkedPendingId(null);
                   setSelectedAssignmentType(null);
                 }}
               >
                 Assigned
               </button>
+              <button
+                className={`${css.assignmentTab} ${assignmentTab === "completed" ? css.assignmentTabActive : ""}`}
+                onClick={() => {
+                  if (assignmentTab === "completed") return;
+                  setAssignmentTab("completed");
+                  setSelectedAssignmentId(null);
+                  setSelectedAssignmentLinkedPendingId(null);
+                  setSelectedAssignmentType(null);
+                }}
+              >
+                Completed
+              </button>
             </div>
-            <AssignmentPackageList
-              ref={assignmentListRef}
-              mode={assignmentTab}
-              selectedId={selectedAssignmentId}
-              onSelect={(id, type) => {
-                setSelectedAssignmentId(id);
-                setSelectedAssignmentType(type);
-              }}
-              hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
-              assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
-              dueDateOverrides={dueDateOverrides}
-              refreshToken={refreshToken}
-              filters={assignmentFilters}
-            />
+            {assignmentTab === "completed" ? (
+              <CompletedPackageList
+                ref={completedListRef}
+                selectedId={selectedAssignmentId}
+                onSelect={(id, type, linkedPendingId) => {
+                  setSelectedAssignmentId(id);
+                  setSelectedAssignmentType(type);
+                  setSelectedAssignmentLinkedPendingId(linkedPendingId ?? null);
+                }}
+                assigneeOverrides={assigneeOverrides}
+                dueDateOverrides={dueDateOverrides}
+                refreshToken={refreshToken}
+              />
+            ) : (
+              <AssignmentPackageList
+                ref={assignmentListRef}
+                mode={assignmentTab}
+                selectedId={selectedAssignmentId}
+                onSelect={(id, type, linkedPendingId) => {
+                  setSelectedAssignmentId(id);
+                  setSelectedAssignmentType(type);
+                  setSelectedAssignmentLinkedPendingId(linkedPendingId ?? null);
+                }}
+                hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
+                assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
+                dueDateOverrides={dueDateOverrides}
+                refreshToken={refreshToken}
+                filters={assignmentFilters}
+              />
+            )}
           </div>
           <div className={css.detailColumn}>
             <div className={css.headerBar}>
@@ -519,12 +581,14 @@ function Home(): React.ReactElement {
               <FilterDropdown filters={assignmentFilters} onFiltersChange={setAssignmentFilters} workspace={currentWorkspace} />
               <button
                 className={css.headerButton}
-                disabled={!selectedAssignmentId || selectedAssignmentType !== "pending"}
+                disabled={!assignmentEditTagsPendingId}
                 onClick={() => setShowEditTags(true)}
                 title={
                   selectedAssignmentType === "pending"
                     ? "Edit tags on the selected package"
-                    : "Edit Tags is only available on Pending RFQ Package selections"
+                    : selectedAssignmentType === "rfq" && assignmentEditTagsPendingId
+                      ? "Edit tags on the linked Pending package"
+                      : "Edit Tags requires a Pending Package selection, or an RFQ Package with a linked Pending Package"
                 }
               >
                 Edit Tags
@@ -536,7 +600,7 @@ function Home(): React.ReactElement {
               >
                 {assignmentTab === "assigned" ? "Reassign" : "Assign To"}
               </button>
-              <EstimatorWorkloadScorecard refreshToken={refreshToken} />
+              <EstimatorWorkloadScorecard ref={estimatorWorkloadRef} refreshToken={refreshToken} />
             </div>
             <div className={css.detailPanel}>
               {selectedAssignmentId && selectedAssignmentType === "pending" ? (
@@ -820,14 +884,15 @@ function Home(): React.ReactElement {
         update on `assignmentListRef` instead. Either way, only one is
         rendered at a time based on the current `appMode`.
       */}
-      {showEditTags && appMode === "assignment" && selectedAssignmentId && selectedAssignmentType === "pending" && (
+      {showEditTags && appMode === "assignment" && assignmentEditTagsPendingId && (
         <EditTagsModal
-          packageId={selectedAssignmentId}
+          packageId={assignmentEditTagsPendingId}
           onClose={() => setShowEditTags(false)}
           onSaved={(newTags) => {
             trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);
             setShowEditTags(false);
-            assignmentListRef.current?.updatePackageTags(selectedAssignmentId, newTags);
+            assignmentListRef.current?.updatePackageTags(assignmentEditTagsPendingId, newTags);
+            completedListRef.current?.updatePackageTags(assignmentEditTagsPendingId, newTags);
           }}
         />
       )}
@@ -908,6 +973,7 @@ function Home(): React.ReactElement {
                 return next;
               });
               setSelectedAssignmentId(null);
+              setSelectedAssignmentLinkedPendingId(null);
               setSelectedAssignmentType(null);
             } else {
               // Reassignment: keep the package in the Assigned list but
@@ -917,10 +983,47 @@ function Home(): React.ReactElement {
                 [assignedId]: assignedEmployeeId,
               }));
             }
+            // The actual action call happens in the background (fire-and-
+            // forget) — no refetch here; onAssignConfirmed/onAssignFailed
+            // below settle the workload scorecard and error recovery once
+            // it resolves.
             setShowAssignTo(false);
-            setRefreshToken((t) => t + 1);
+          }}
+          onAssignConfirmed={(_packageId, newAssigneeId, toolCount, previousAssigneeId) => {
+            estimatorWorkloadRef.current?.applyAssignmentDelta(newAssigneeId, toolCount, previousAssigneeId);
+          }}
+          onAssignFailed={(packageId, message) => {
+            // The modal has already closed by the time this fires — undo
+            // the optimistic list update made in onAssigned and surface the
+            // failure via a standalone toast instead.
+            setAssignedInSession((prev) => {
+              if (!prev.has(packageId)) return prev;
+              const next = new Set(prev);
+              next.delete(packageId);
+              return next;
+            });
+            setAssigneeOverrides((prev) => {
+              if (!(packageId in prev)) return prev;
+              const next = { ...prev };
+              delete next[packageId];
+              return next;
+            });
+            setAssignErrorMessage(message);
           }}
         />
+      )}
+
+      {assignErrorMessage && (
+        <div className={css.assignErrorToast} role="alert">
+          <span>{assignErrorMessage}</span>
+          <button
+            className={css.assignErrorDismiss}
+            onClick={() => setAssignErrorMessage(null)}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
     </div>
   );

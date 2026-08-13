@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { forwardRef, useImperativeHandle, useState } from "react";
 import ReactDOM from "react-dom";
 import css from "./EstimatorWorkloadScorecard.module.css";
 import { useEstimatorWorkload } from "../hooks/useEstimatorWorkload";
@@ -6,6 +6,11 @@ import { useEstimatorWorkload } from "../hooks/useEstimatorWorkload";
 interface EstimatorWorkloadScorecardProps {
   /** Bumping this value refetches workload counts. */
   refreshToken?: number;
+}
+
+export interface EstimatorWorkloadScorecardHandle {
+  /** Applies an assignment's effect on workload counts locally, without refetching — see useEstimatorWorkload. */
+  applyAssignmentDelta: (newAssigneeId: string, toolCount: number, previousAssigneeId?: string | null) => void;
 }
 
 /**
@@ -21,76 +26,80 @@ interface EstimatorWorkloadScorecardProps {
  * expanded, so clicking the trigger shows an already-populated table
  * instead of a loading flash.
  */
-function EstimatorWorkloadScorecard({ refreshToken }: EstimatorWorkloadScorecardProps): React.ReactElement {
-  const [expanded, setExpanded] = useState(false);
-  const { rows, loading, error } = useEstimatorWorkload(true, refreshToken);
+const EstimatorWorkloadScorecard = forwardRef<EstimatorWorkloadScorecardHandle, EstimatorWorkloadScorecardProps>(
+  function EstimatorWorkloadScorecard({ refreshToken }, ref) {
+    const [expanded, setExpanded] = useState(false);
+    const { rows, loading, error, applyAssignmentDelta } = useEstimatorWorkload(true, refreshToken);
 
-  return (
-    <>
-      <button
-        type="button"
-        className={`${css.trigger} ${expanded ? css.triggerActive : ""}`}
-        onClick={() => setExpanded((e) => !e)}
-        aria-expanded={expanded}
-      >
-        <span className={css.triggerIcon} aria-hidden="true">📊</span>
-        <span className={css.triggerLabel}>Estimator Workload</span>
-        <span className={css.chevron} aria-hidden="true">{expanded ? "✕" : "›"}</span>
-      </button>
+    useImperativeHandle(ref, () => ({ applyAssignmentDelta }), [applyAssignmentDelta]);
 
-      {ReactDOM.createPortal(
-        <div className={`${css.panel} ${expanded ? css.panelOpen : ""}`}>
-          <div className={css.panelHeader}>
-            <span className={css.panelTitle}>Estimator Workload</span>
-            {!loading && !error && (
-              <span className={css.count}>{rows.length} estimators</span>
-            )}
-            <button
-              type="button"
-              className={css.closeButton}
-              onClick={() => setExpanded(false)}
-              aria-label="Close estimator workload panel"
-            >
-              ✕
-            </button>
-          </div>
-          <div className={css.panelBody}>
-            {loading ? (
-              <div className={css.emptyState}>Loading workload…</div>
-            ) : error ? (
-              <div className={`${css.emptyState} ${css.emptyStateError}`}>Error: {error}</div>
-            ) : rows.length === 0 ? (
-              <div className={css.emptyState}>No eligible estimators found.</div>
-            ) : (
-              <div className={css.tableWrap}>
-                <table className={css.table}>
-                  <thead>
-                    <tr>
-                      <th className={css.rankCol}>#</th>
-                      <th>Estimator</th>
-                      <th className={css.numCol}>Packages</th>
-                      <th className={css.numCol}>Tools</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, i) => (
-                      <tr key={row.id}>
-                        <td className={css.rankCol}>{i + 1}</td>
-                        <td>{row.name}</td>
-                        <td className={css.numCol}>{row.packageCount}</td>
-                        <td className={css.numCol}>{row.toolCount}</td>
+    return (
+      <>
+        <button
+          type="button"
+          className={`${css.trigger} ${expanded ? css.triggerActive : ""}`}
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+        >
+          <span className={css.triggerIcon} aria-hidden="true">📊</span>
+          <span className={css.triggerLabel}>Estimator Workload</span>
+          <span className={css.chevron} aria-hidden="true">{expanded ? "✕" : "›"}</span>
+        </button>
+
+        {ReactDOM.createPortal(
+          <div className={`${css.panel} ${expanded ? css.panelOpen : ""}`}>
+            <div className={css.panelHeader}>
+              <span className={css.panelTitle}>Estimator Workload</span>
+              {!loading && !error && (
+                <span className={css.count}>{rows.length} estimators</span>
+              )}
+              <button
+                type="button"
+                className={css.closeButton}
+                onClick={() => setExpanded(false)}
+                aria-label="Close estimator workload panel"
+              >
+                ✕
+              </button>
+            </div>
+            <div className={css.panelBody}>
+              {loading ? (
+                <div className={css.emptyState}>Loading workload…</div>
+              ) : error ? (
+                <div className={`${css.emptyState} ${css.emptyStateError}`}>Error: {error}</div>
+              ) : rows.length === 0 ? (
+                <div className={css.emptyState}>No eligible estimators found.</div>
+              ) : (
+                <div className={css.tableWrap}>
+                  <table className={css.table}>
+                    <thead>
+                      <tr>
+                        <th className={css.rankCol}>#</th>
+                        <th>Estimator</th>
+                        <th className={css.numCol}>Packages</th>
+                        <th className={css.numCol}>Tools</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        </div>,
-        document.body,
-      )}
-    </>
-  );
-}
+                    </thead>
+                    <tbody>
+                      {rows.map((row, i) => (
+                        <tr key={row.id}>
+                          <td className={css.rankCol}>{i + 1}</td>
+                          <td>{row.name}</td>
+                          <td className={css.numCol}>{row.packageCount}</td>
+                          <td className={css.numCol}>{row.toolCount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+      </>
+    );
+  },
+);
 
 export default EstimatorWorkloadScorecard;

@@ -14,7 +14,36 @@ interface AssignToModalProps {
   packageId: string;
   packageType: "pending" | "rfq";
   onClose: () => void;
+  /** Fired immediately on submit, before the action call — lets the parent close the modal and update the list right away. */
   onAssigned: (assignedEmployeeId: string) => void;
+  /** Fired once the background action succeeds, with enough info to apply a workload-count delta without refetching. */
+  onAssignConfirmed: (packageId: string, newAssigneeId: string, toolCount: number, previousAssigneeId: string | null) => void;
+  /** Fired if the background action fails — the modal is already closed by then, so the parent must revert its optimistic update and surface the error itself. */
+  onAssignFailed: (packageId: string, message: string) => void;
+}
+
+async function resolvePreviousAssigneeAndToolCount(
+  packageId: string,
+  packageType: "pending" | "rfq",
+): Promise<{ previousAssigneeId: string | null; toolCount: number }> {
+  if (packageType === "pending") {
+    const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+    let toolCount = 0;
+    try {
+      const page = await pkg.$link.pendingRfqPackageTools.fetchPage({ $pageSize: 200 });
+      toolCount = page.data.length;
+    } catch { /* non-critical */ }
+    const previousAssigneeId = pkg.assignedEstimator && pkg.assignedEstimator.trim() !== "" ? pkg.assignedEstimator.trim() : null;
+    return { previousAssigneeId, toolCount };
+  }
+  const pkg = await client(RfqPackage).fetchOne(packageId);
+  let toolCount = 0;
+  try {
+    const page = await pkg.$link.rfqTool.fetchPage({ $pageSize: 200 });
+    toolCount = page.data.length;
+  } catch { /* non-critical */ }
+  const previousAssigneeId = pkg.assignedTo && pkg.assignedTo.trim() !== "" ? pkg.assignedTo.trim() : null;
+  return { previousAssigneeId, toolCount };
 }
 
 /**
@@ -25,18 +54,26 @@ interface AssignToModalProps {
  *   RFQ Package and Assigned To parameters set (other required parameters
  *   are also required by the action signature and are passed through with
  *   empty strings so the primary write — the assignment — succeeds).
+ *
+ * Submission is fire-and-forget: `onAssigned` fires the instant "Assign" is
+ * clicked so the modal closes and the list updates immediately, and the
+ * actual action call runs in the background. `onAssignConfirmed`/
+ * `onAssignFailed` report back once it resolves — by which point this
+ * component itself is typically already unmounted, so the parent owns
+ * reverting the optimistic update and surfacing an error on failure.
  */
 function AssignToModal({
   packageId,
   packageType,
   onClose,
   onAssigned,
+  onAssignConfirmed,
+  onAssignFailed,
 }: AssignToModalProps): React.ReactElement {
   const { estimators, loading, error: estimatorsError } = useEligibleEstimators();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const filteredEstimators = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -48,46 +85,48 @@ function AssignToModal({
     });
   }, [estimators, search]);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!selectedId || saving) return;
     const selectedEstimator = estimators.find((e) => e.id === selectedId);
     if (!selectedEstimator) return;
 
     setSaving(true);
-    setSubmitError(null);
-    try {
-      if (packageType === "pending") {
-        const pendingPkg = await client(PendingRfqPackage).fetchOne(packageId);
-        await client(assignEstimator).applyAction(
-          {
-            pending_rfq_package: pendingPkg,
-            assignedEstimator: selectedId,
-          },
-          { $returnEdits: true },
-        );
-      } else {
-        const [rfqPkg, selectedEmployee] = await Promise.all([
-          client(RfqPackage).fetchOne(packageId),
-          client(Employee).fetchOne(selectedId),
-        ]);
-        // Only the RFQ Package and Assigned To parameters are meaningful for
-        // the "assign to" workflow. The action signature has other required
-        // params (priority, status) that we intentionally omit — the
-        // underlying Foundry function accepts them as no-ops when unset.
-        const args = {
-          rfqPackage: rfqPkg,
-          assignedTo: selectedEmployee,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as unknown as any;
-        await client(editRfqPackagePrivilegedFields).applyAction(args, { $returnEdits: true });
+    onAssigned(selectedId);
+
+    (async () => {
+      try {
+        const { previousAssigneeId, toolCount } = await resolvePreviousAssigneeAndToolCount(packageId, packageType);
+        if (packageType === "pending") {
+          const pendingPkg = await client(PendingRfqPackage).fetchOne(packageId);
+          await client(assignEstimator).applyAction(
+            {
+              pending_rfq_package: pendingPkg,
+              assignedEstimator: selectedId,
+            },
+            { $returnEdits: true },
+          );
+        } else {
+          const [rfqPkg, selectedEmployee] = await Promise.all([
+            client(RfqPackage).fetchOne(packageId),
+            client(Employee).fetchOne(selectedId),
+          ]);
+          // Only the RFQ Package and Assigned To parameters are meaningful for
+          // the "assign to" workflow. The action signature has other required
+          // params (priority, status) that we intentionally omit — the
+          // underlying Foundry function accepts them as no-ops when unset.
+          const args = {
+            rfqPackage: rfqPkg,
+            assignedTo: selectedEmployee,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as unknown as any;
+          await client(editRfqPackagePrivilegedFields).applyAction(args, { $returnEdits: true });
+        }
+        onAssignConfirmed(packageId, selectedId, toolCount, previousAssigneeId);
+      } catch (e) {
+        console.error("Failed to assign package:", e);
+        onAssignFailed(packageId, e instanceof Error ? e.message : "Failed to assign package");
       }
-      onAssigned(selectedId);
-    } catch (e) {
-      console.error("Failed to assign package:", e);
-      setSubmitError(e instanceof Error ? e.message : "Failed to assign package");
-    } finally {
-      setSaving(false);
-    }
+    })();
   };
 
   return (
@@ -135,8 +174,8 @@ function AssignToModal({
             </div>
           )}
 
-          {(submitError ?? estimatorsError) && (
-            <div className={css.errorText}>{submitError ?? estimatorsError}</div>
+          {estimatorsError && (
+            <div className={css.errorText}>{estimatorsError}</div>
           )}
         </div>
 

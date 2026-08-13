@@ -135,6 +135,36 @@
   color: var(--text-primary);
 }
 
+/* Toast for a background assignment failure — the modal that triggered it has
+   already closed by the time this can appear, so it needs to stand on its own. */
+.assignErrorToast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 360px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--error-fg);
+  border-radius: 6px;
+  box-shadow: var(--shadow-modal);
+  font-size: 13px;
+  color: var(--error-fg);
+}
+
+.assignErrorDismiss {
+  background: none;
+  border: none;
+  color: var(--error-fg);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
 /* Merge/split mode banner — sits in the header bar */
 .modeBanner {
   background: var(--color-primary);

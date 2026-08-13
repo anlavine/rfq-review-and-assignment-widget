@@ -130,7 +130,13 @@ function FileListPopover({
 export interface AssignmentPackageCardProps {
   item: AssignmentItem;
   isSelected: boolean;
-  onSelect: (id: string, type: "pending" | "rfq") => void;
+  /**
+   * `linkedPendingId` is the id of the linked Pending package for an RFQ
+   * item (or `null`/`undefined` otherwise) — lets the parent know whether
+   * Edit Tags is available for the current selection, and which package to
+   * apply the edit to.
+   */
+  onSelect: (id: string, type: "pending" | "rfq", linkedPendingId?: string | null) => void;
   mode: AssignmentMode;
   /** Tags for this package — rendered as color bands in the trailing tags column. */
   tags: string[];
@@ -214,8 +220,8 @@ export default function AssignmentPackageCard({
       className={`${css.card} ${priorityBorderClass} ${isSelected ? css.cardSelected : ""}`}
       role="button"
       tabIndex={0}
-      onClick={() => onSelect(id, item.type)}
-      onKeyDown={(e) => { if (e.key === "Enter") onSelect(id, item.type); }}
+      onClick={() => onSelect(id, item.type, item.type === "rfq" ? item.linkedPendingId : null)}
+      onKeyDown={(e) => { if (e.key === "Enter") onSelect(id, item.type, item.type === "rfq" ? item.linkedPendingId : null); }}
     >
       <div className={css.colSubject} title={title}>{title}</div>
       <div className={css.colCustomer} title={customerName ?? undefined}>{customerName ?? "—"}</div>

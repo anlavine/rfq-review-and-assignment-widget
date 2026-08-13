@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PendingRfqPackage, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import type { Osdk } from "@osdk/client";
 import client from "../client";
@@ -28,6 +28,16 @@ function addCount(counts: Map<string, WorkloadCount>, estimatorId: string, toolC
   counts.set(estimatorId, existing);
 }
 
+function applyDelta(counts: Map<string, WorkloadCount>, estimatorId: string, packageDelta: number, toolDelta: number): Map<string, WorkloadCount> {
+  const next = new Map(counts);
+  const existing = next.get(estimatorId) ?? { packageCount: 0, toolCount: 0 };
+  next.set(estimatorId, {
+    packageCount: Math.max(0, existing.packageCount + packageDelta),
+    toolCount: Math.max(0, existing.toolCount + toolDelta),
+  });
+  return next;
+}
+
 /**
  * Computes, for every eligible estimator, how many active packages are
  * currently assigned to them and the total number of tools across those
@@ -48,7 +58,18 @@ function addCount(counts: Map<string, WorkloadCount>, estimatorId: string, toolC
 export function useEstimatorWorkload(
   enabled: boolean,
   refreshToken?: number,
-): { rows: EstimatorWorkloadRow[]; loading: boolean; error: string | null } {
+): {
+  rows: EstimatorWorkloadRow[];
+  loading: boolean;
+  error: string | null;
+  /**
+   * Applies a workload change locally — e.g. right after an assignment is
+   * confirmed — instead of refetching. Increments `newAssigneeId`'s counts
+   * by `toolCount`/1 package, and if `previousAssigneeId` is set and
+   * different, decrements it by the same amount (a reassignment).
+   */
+  applyAssignmentDelta: (newAssigneeId: string, toolCount: number, previousAssigneeId?: string | null) => void;
+} {
   const { estimators } = useEligibleEstimators();
   const [counts, setCounts] = useState<Map<string, WorkloadCount>>(new Map());
   const [loading, setLoading] = useState(false);
@@ -168,5 +189,15 @@ export function useEstimatorWorkload(
     return list;
   }, [estimators, counts]);
 
-  return { rows, loading, error };
+  const applyAssignmentDelta = useCallback((newAssigneeId: string, toolCount: number, previousAssigneeId?: string | null) => {
+    setCounts((prev) => {
+      let next = applyDelta(prev, newAssigneeId, 1, toolCount);
+      if (previousAssigneeId && previousAssigneeId !== newAssigneeId) {
+        next = applyDelta(next, previousAssigneeId, -1, -toolCount);
+      }
+      return next;
+    });
+  }, []);
+
+  return { rows, loading, error, applyAssignmentDelta };
 }
