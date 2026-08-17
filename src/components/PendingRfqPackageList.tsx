@@ -356,12 +356,32 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       } catch { /* ignore — non-critical */ }
 
       try {
-        // Build date cutoff: 4 months ago
+        // Build date cutoff: 4 months ago, in both the date-only format
+        // `receivedDate` uses and the full ISO timestamp `receivedDatetime`
+        // uses — same instant either way.
         const cutoff = new Date();
         cutoff.setMonth(cutoff.getMonth() - RECEIVED_MONTHS);
-        const cutoffStr = cutoff.toISOString().split("T")[0];
+        const cutoffDateStr = cutoff.toISOString().split("T")[0];
+        const cutoffDatetimeStr = cutoff.toISOString();
 
-        const dateFilter = { $or: [{ receivedDate: { $gte: cutoffStr } }, { receivedDate: { $isNull: true } }] };
+        // `receivedDatetime` is treated as authoritative when present —
+        // `receivedDate` is an older field that's occasionally wrong or
+        // stale on individual records — falling back to `receivedDate` only
+        // when `receivedDatetime` is missing. Mirrors the
+        // `receivedDatetime ?? receivedDate` fallback used everywhere else
+        // in this file for display/sorting, so a package that reads as
+        // "recent" there can't silently fall outside this window.
+        const dateFilter = {
+          $or: [
+            { receivedDatetime: { $gte: cutoffDatetimeStr } },
+            {
+              $and: [
+                { receivedDatetime: { $isNull: true } },
+                { $or: [{ receivedDate: { $gte: cutoffDateStr } }, { receivedDate: { $isNull: true } }] },
+              ],
+            },
+          ],
+        };
 
         // Helper: deduplicate when appending to allPackages state
         const appendDeduped = (newPackages: Osdk.Instance<PendingRfqPackage>[]) => {
