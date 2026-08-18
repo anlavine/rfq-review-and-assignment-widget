@@ -6,7 +6,7 @@
    shift the fr columns' pixel widths inconsistently between rows. */
 .card {
   display: grid;
-  grid-template-columns: 3fr 1.2fr 1.4fr 1.8fr 1.1fr 1.1fr 1fr 1.1fr 40px 40px;
+  grid-template-columns: 3fr 1.2fr 1.4fr 1.8fr 1.1fr 1.1fr 1fr 1.1fr 66px 40px;
   align-items: center;
   column-gap: 10px;
   border: 2px solid var(--border-default);
@@ -96,7 +96,7 @@
    present in a given row. */
 .colIcons {
   display: grid;
-  grid-template-columns: 16px 16px;
+  grid-template-columns: 16px 16px 20px;
   align-items: center;
   justify-content: end;
   column-gap: 6px;
@@ -147,6 +147,26 @@
   width: 14px;
   height: 14px;
   display: block;
+}
+
+/* Duplicate-package count badge — orange like the other "worth a second
+   look" indicators in this app (e.g. the attachment-parse-status chips),
+   rather than red (not an error) or gray (not just informational). */
+.duplicateBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--att-orange-bg);
+  color: var(--att-orange-fg);
+  border: 1px solid var(--att-orange-border);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: default;
+  flex-shrink: 0;
 }
 
 /* Tags column — one narrow color band per tag the package has. */

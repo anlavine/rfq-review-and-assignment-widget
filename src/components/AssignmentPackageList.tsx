@@ -10,6 +10,7 @@ import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
 import { comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
 import { type DueDateBucket, BUCKET_LABELS, getDueDateBucket, compareDueDateBucket } from "../utils/dueDateBucket";
+import { resolveDuplicatePackages } from "../utils/duplicatePackages";
 import MultiSelectDropdown, { type MultiSelectOption } from "./MultiSelectDropdown";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 import { type Filters, ASSIGNED_TO_UNASSIGNED } from "./packageFilters";
@@ -40,6 +41,8 @@ export type AssignmentItem =
     linkedPendingId: string | null;
     /** tags on the linked PendingRfqPackage — RfqPackage itself has no tags field. */
     linkedTags: string[];
+    /** ids of other RFQ Packages sharing at least one tool "related tool group" — i.e. duplicate/shared-tooling packages. */
+    duplicatePackageIds: string[];
   };
 
 interface AssignmentPackageListProps {
@@ -389,6 +392,11 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         }
         const priorityData = await fetchPriorityData(Array.from(pendingIdsForPriority));
 
+        // Batched, not per-item — see resolveDuplicatePackages for why.
+        const duplicatesByPackageId = await resolveDuplicatePackages(
+          rfqPartials.map((r) => String(r.pkg.$primaryKey)),
+        );
+
         if (cancelled || loadId !== loadIdRef.current) return;
 
         // Assemble the final items with their priority scores.
@@ -417,6 +425,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           dueDate: r.pkg.dueDate ?? null,
           linkedPendingId: r.pendingPackageId,
           linkedTags: r.linkedTags,
+          duplicatePackageIds: duplicatesByPackageId.get(String(r.pkg.$primaryKey))?.packageIds ?? [],
         }));
 
         // Build the interleaved list

@@ -8,6 +8,7 @@ import type { AssignmentItem } from "./AssignmentPackageList";
 import AssignmentPackageCard from "./AssignmentPackageCard";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
 import { useEmployeeNames } from "../hooks/useEmployeeNames";
+import { resolveDuplicatePackages } from "../utils/duplicatePackages";
 
 const PAGE_SIZE = 25;
 /** Concurrency limit when resolving a Completed RFQ's linked Pending package */
@@ -305,7 +306,27 @@ async function buildRfqItem(rfqPkg: Osdk.Instance<RfqPackage>): Promise<Assignme
     dueDate: rfqPkg.dueDate ?? null,
     linkedPendingId: linked ? String(linked.$primaryKey) : null,
     linkedTags: linked?.tags ?? [],
+    // Resolved separately, in a batch, after a page of items is built —
+    // see attachDuplicatePackages.
+    duplicatePackageIds: [],
   };
+}
+
+/**
+ * Resolves and attaches duplicate-package info to the rfq-typed items in a
+ * batch, in one shot rather than per item — see resolveDuplicatePackages.
+ * Pending items pass through unchanged.
+ */
+async function attachDuplicatePackages(items: AssignmentItem[]): Promise<AssignmentItem[]> {
+  const rfqIds = items
+    .filter((item): item is Extract<AssignmentItem, { type: "rfq" }> => item.type === "rfq")
+    .map((item) => String(item.pkg.$primaryKey));
+  if (rfqIds.length === 0) return items;
+
+  const duplicatesByPackageId = await resolveDuplicatePackages(rfqIds);
+  return items.map((item) => item.type === "rfq"
+    ? { ...item, duplicatePackageIds: duplicatesByPackageId.get(String(item.pkg.$primaryKey))?.packageIds ?? [] }
+    : item);
 }
 
 /** Builds the lightweight AssignmentItem used to render a No Quote Pending row. */
@@ -477,15 +498,22 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
           }
           if (cancelled || loadId !== loadIdRef.current) return;
 
+          const noQuoteItems = mergeNoQuoteItems(noQuotePage.items, noQuoteByName, noQuoteRfqDirect);
+          const [rfqItemsWithDuplicates, noQuoteItemsWithDuplicates] = await Promise.all([
+            attachDuplicatePackages(rfqItems),
+            attachDuplicatePackages(noQuoteItems),
+          ]);
+          if (cancelled || loadId !== loadIdRef.current) return;
+
           setRfqSection({
-            items: rfqItems,
+            items: rfqItemsWithDuplicates,
             nextToken: rfqPage.nextToken,
             hasMore: !!rfqPage.nextToken,
             loading: false,
             loadingMore: false,
           });
           setNoQuoteSection({
-            items: mergeNoQuoteItems(noQuotePage.items, noQuoteByName, noQuoteRfqDirect),
+            items: noQuoteItemsWithDuplicates,
             nextToken: noQuotePage.nextToken,
             hasMore: !!noQuotePage.nextToken,
             loading: false,
@@ -508,11 +536,12 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
       setRfqSection((prev) => ({ ...prev, loadingMore: true }));
       try {
         const page = await fetchCompletedRfqPage(rfqSection.nextToken, search);
-        const newItems: AssignmentItem[] = [];
+        let newItems: AssignmentItem[] = [];
         for (let i = 0; i < page.items.length; i += LINK_BATCH_SIZE) {
           const batch = page.items.slice(i, i + LINK_BATCH_SIZE);
           newItems.push(...await Promise.all(batch.map(buildRfqItem)));
         }
+        newItems = await attachDuplicatePackages(newItems);
         setRfqSection((prev) => {
           // A later primary page can reach a package already surfaced by
           // the package-name lead merged in on load — drop repeats.
@@ -537,9 +566,10 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
       setNoQuoteSection((prev) => ({ ...prev, loadingMore: true }));
       try {
         const page = await fetchNoQuotePage(noQuoteSection.nextToken, search);
+        const newItems = await attachDuplicatePackages(page.items);
         setNoQuoteSection((prev) => {
           const seen = new Set(prev.items.map(itemKey));
-          const deduped = page.items.filter((i) => !seen.has(itemKey(i)));
+          const deduped = newItems.filter((i) => !seen.has(itemKey(i)));
           return {
             items: [...prev.items, ...deduped],
             nextToken: page.nextToken,

@@ -137,6 +137,42 @@ function FileListPopover({
   );
 }
 
+/**
+ * Popover listing the RFQ Package IDs that make up a duplicate count.
+ * Rendered via a portal so it can escape the row's `overflow` clipping.
+ */
+function DuplicatesPopover({
+  packageIds,
+  triggerRef,
+}: {
+  packageIds: string[];
+  triggerRef: React.RefObject<HTMLElement | null>;
+}): React.ReactElement | null {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.top - 4, left: rect.left + rect.width / 2 });
+    }
+  }, [triggerRef]);
+
+  if (!pos) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      className={css.filesPopover}
+      style={{ top: pos.top, left: pos.left, transform: "translate(-50%, -100%)" }}
+    >
+      <div className={css.filesPopoverTitle}>Duplicate RFQ Packages</div>
+      {packageIds.map((pkgId, i) => (
+        <span key={i} className={css.popoverFileRow}>{pkgId}</span>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 export interface AssignmentPackageCardProps {
   item: AssignmentItem;
   isSelected: boolean;
@@ -179,6 +215,8 @@ export default function AssignmentPackageCard({
   const [showDownloadPopover, setShowDownloadPopover] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const downloadRef = useRef<HTMLSpanElement | null>(null);
+  const [showDuplicatesPopover, setShowDuplicatesPopover] = useState(false);
+  const duplicatesRef = useRef<HTMLSpanElement | null>(null);
   const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
   const isPending = item.type === "pending";
 
@@ -213,6 +251,7 @@ export default function AssignmentPackageCard({
   // one already linked to an RFQ Package) has neither field of its own.
   const rfqPackageId = item.type === "rfq" ? String(item.pkg.$primaryKey) : "";
   const location = item.type === "rfq" ? item.pkg.quotedFor ?? "" : "";
+  const duplicatePackageIds = item.type === "rfq" ? item.duplicatePackageIds : [];
 
   const receivedText = isPending
     ? formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)
@@ -299,6 +338,23 @@ export default function AssignmentPackageCard({
           )}
         </span>
         <span className={css.iconSlot}>{icon}</span>
+        <span className={css.iconSlot}>
+          {duplicatePackageIds.length > 0 && (
+            <span
+              ref={duplicatesRef}
+              className={css.duplicateBadge}
+              title={`${duplicatePackageIds.length} duplicate RFQ Package${duplicatePackageIds.length === 1 ? "" : "s"}`}
+              aria-label={`${duplicatePackageIds.length} duplicate RFQ packages`}
+              onMouseEnter={() => setShowDuplicatesPopover(true)}
+              onMouseLeave={() => setShowDuplicatesPopover(false)}
+            >
+              {duplicatePackageIds.length}
+            </span>
+          )}
+          {showDuplicatesPopover && duplicatePackageIds.length > 0 && (
+            <DuplicatesPopover packageIds={duplicatePackageIds} triggerRef={duplicatesRef} />
+          )}
+        </span>
       </div>
       <div
         ref={tagsRef}
