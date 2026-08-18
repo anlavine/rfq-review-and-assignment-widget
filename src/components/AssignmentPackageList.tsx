@@ -450,10 +450,19 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
 
 
-    // Only show New Build work — applies across all three tabs. Packages
-    // categorized as "engChange"/"other", or with no workType set at all
-    // (categorizeWorkType returns null), are excluded.
-    let filtered = items.filter((item) => categorizeWorkType(item.pkg.workType) === "new");
+    // Only show New Build work — applies across all three tabs, but only to
+    // items already linked to an RFQ Package (RFQ items always qualify,
+    // being one themselves). A Pending package with no RFQ link yet hasn't
+    // necessarily had its work type reviewed/corrected, so it isn't
+    // excluded on that basis alone — it's still surfaced regardless of
+    // whatever workType ingestion happened to parse.
+    let filtered = items.filter((item) => {
+      const hasRfqLink = item.type === "rfq"
+        ? true
+        : !!item.pkg.rfqPackageId && item.pkg.rfqPackageId.trim() !== "";
+      if (!hasRfqLink) return true;
+      return categorizeWorkType(item.pkg.workType) === "new";
+    });
 
     // Exclude "No Quote" tagged work — applies across all three tabs. For
     // RFQ items this checks the linked Pending package's tags, since
