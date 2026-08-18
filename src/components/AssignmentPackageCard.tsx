@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import css from "./AssignmentPackageCard.module.css";
 import { getPriorityColorClass } from "../utils/priorityColor";
+import { getDueDateUrgency } from "../utils/dueDateUrgency";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { excludeZipArchives } from "../utils/attachments";
 import { downloadAttachmentsAsZip } from "../utils/attachmentDownload";
@@ -192,6 +193,12 @@ export default function AssignmentPackageCard({
   // automatedDueDate only exists on PendingRfqPackage — RFQ packages have no
   // equivalent concept, their due date is always manually set.
   const isAutomatedDueDate = item.type === "pending" && item.pkg.automatedDueDate === "true";
+  // "Active" status lives under a different field name per package type —
+  // completionStatus for Pending, status for RFQ. Overdue emphasis only
+  // applies to still-active work (matches the Ingestion view's convention),
+  // so a Completed/Skipped/Reviewed package's stale due date isn't flagged.
+  const effectiveStatus = isPending ? item.pkg.completionStatus : item.pkg.status;
+  const dueUrgency = getDueDateUrgency(item.dueDate ?? undefined, effectiveStatus ?? undefined);
 
   const receivedText = isPending
     ? formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)
@@ -227,7 +234,7 @@ export default function AssignmentPackageCard({
       <div className={css.colCustomer} title={customerName ?? undefined}>{customerName ?? "—"}</div>
       <div className={css.colVehicle}>{buildVehicleLine(item.pkg.oem, item.pkg.platform, item.pkg.modelYear)}</div>
       <div className={css.colReceived}>{receivedText}</div>
-      <div className={css.colDue}>
+      <div className={`${css.colDue} ${dueUrgency === "overdue" ? css.dueOverdue : ""}`}>
         {dueText}
         {isAutomatedDueDate && (
           <span className={css.autoIcon} title="This due date was auto-generated" aria-label="Auto-generated" role="img">

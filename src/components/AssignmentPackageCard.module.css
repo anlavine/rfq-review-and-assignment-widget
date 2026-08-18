@@ -65,6 +65,11 @@
   min-width: 0;
 }
 
+.dueOverdue {
+  color: var(--due-overdue-fg);
+  font-weight: 700;
+}
+
 .autoIcon {
   margin-left: 3px;
   font-size: 11px;
