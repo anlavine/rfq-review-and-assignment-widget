@@ -36,7 +36,7 @@ const TAG_ORDER = [
   "Targets",
   "Waiting for Data",
   "Repeat Request",
-  "Duplicate",
+  "Duplicate Request",
   "Update Quote",
   "No Quote",
 ] as const;
@@ -47,7 +47,7 @@ function getTagBandClass(tag: string): string {
     case "Targets": return css.tagBandTargets;
     case "Waiting for Data": return css.tagBandWaitingForData;
     case "Repeat Request": return css.tagBandRepeatRequest;
-    case "Duplicate": return css.tagBandDuplicate;
+    case "Duplicate Request": return css.tagBandDuplicate;
     case "Update Quote": return css.tagBandUpdateQuote;
     case "No Quote": return css.tagBandNoQuote;
     default: return css.tagBandDefault;

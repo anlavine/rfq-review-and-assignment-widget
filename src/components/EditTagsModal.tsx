@@ -8,7 +8,7 @@ const AVAILABLE_TAGS = [
   "Targets",
   "Waiting for Data",
   "Repeat Request",
-  "Duplicate",
+  "Duplicate Request",
   "Update Quote",
   "No Quote",
 ] as const;

@@ -234,7 +234,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
    * request; session-only (no persistence). On other tabs this state exists
    * but has no effect on the rendered list.
    */
-  const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("priority");
+  const [outstandingSort, setOutstandingSort] = useState<"dueDate" | "priority">("dueDate");
   // Notify parent whenever the outstanding sort changes (and on mount, so
   // the initial "priority" default is broadcast).
   useEffect(() => {
@@ -1074,7 +1074,7 @@ function getTagClass(tag: string): string {
       return css.tagWaitingForData;
     case "Repeat Request":
       return css.tagRepeatRequest;
-    case "Duplicate":
+    case "Duplicate Request":
       return css.tagDuplicate;
     case "Update Quote":
       return css.tagUpdateQuote;

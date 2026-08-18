@@ -114,7 +114,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [assigneeFilter, setAssigneeFilter] = useState<string[]>([]);
-  const [sortMode, setSortMode] = useState<"dueDate" | "priority">("priority");
+  const [sortMode, setSortMode] = useState<"dueDate" | "priority">("dueDate");
   /**
    * Session-local overrides for a pending package's `tags` field. Applied
    * on top of the loaded package data so a save from the Edit Tags modal

@@ -67,18 +67,18 @@
   /* ── Tags ── */
   --tag-default-bg: #e1e8ed;
   --tag-default-fg: #1c2127;
-  --tag-targets-bg: #fce4ec;
-  --tag-targets-fg: #b71c1c;
-  --tag-waiting-bg: #fff3e0;
-  --tag-waiting-fg: #e65100;
-  --tag-repeat-bg: #e8eaf6;
-  --tag-repeat-fg: #283593;
+  --tag-targets-bg: #e0f7fa;
+  --tag-targets-fg: #00707a;
+  --tag-waiting-bg: #e8eaf6;
+  --tag-waiting-fg: #1a237e;
+  --tag-repeat-bg: #e8f5e9;
+  --tag-repeat-fg: #2e7d32;
   --tag-duplicate-bg: #fce4ec;
-  --tag-duplicate-fg: #880e4f;
-  --tag-update-bg: #e0f2f1;
-  --tag-update-fg: #004d40;
-  --tag-noquote-bg: #f3e8ff;
-  --tag-noquote-fg: #6b21a8;
+  --tag-duplicate-fg: #a3067a;
+  --tag-update-bg: #fff8e1;
+  --tag-update-fg: #c68e00;
+  --tag-noquote-bg: #fde3e4;
+  --tag-noquote-fg: #fc696d;
 
   /* ── Count chips ── */
   --chip-bg: #e1e8ed;
@@ -237,18 +237,18 @@
   /* ── Tags ── */
   --tag-default-bg: #2e333b;
   --tag-default-fg: #a0a8b4;
-  --tag-targets-bg: #3a1a1e;
-  --tag-targets-fg: #f87171;
-  --tag-waiting-bg: #3a2a1a;
-  --tag-waiting-fg: #fb923c;
-  --tag-repeat-bg: #1e2040;
-  --tag-repeat-fg: #818cf8;
-  --tag-duplicate-bg: #3a1a2a;
-  --tag-duplicate-fg: #f472b6;
-  --tag-update-bg: #1a3030;
-  --tag-update-fg: #5eead4;
-  --tag-noquote-bg: #2a1a3a;
-  --tag-noquote-fg: #c084fc;
+  --tag-targets-bg: #123a3f;
+  --tag-targets-fg: #22d3ee;
+  --tag-waiting-bg: #1a1f3d;
+  --tag-waiting-fg: #8c9eff;
+  --tag-repeat-bg: #1a3a1f;
+  --tag-repeat-fg: #4ade80;
+  --tag-duplicate-bg: #3a1a2f;
+  --tag-duplicate-fg: #e879c9;
+  --tag-update-bg: #3a2e0a;
+  --tag-update-fg: #fbbf24;
+  --tag-noquote-bg: #3f1a1c;
+  --tag-noquote-fg: #fc696d;
 
   /* ── Count chips ── */
   --chip-bg: #2e333b;
