@@ -97,8 +97,28 @@ function Home(): React.ReactElement {
    * reflects it immediately without a full refetch.
    */
   const [dueDateOverrides, setDueDateOverrides] = useState<Record<string, string | null>>({});
+  /**
+   * Session-local overrides for `dueDateEdited` in the Assignment tab —
+   * always set to `true` alongside a due-date save, so the item re-buckets
+   * out of "Due Date Pending" immediately without a full refetch.
+   */
+  const [dueDateEditedOverrides, setDueDateEditedOverrides] = useState<Record<string, boolean>>({});
   const handleAssignmentDueDateSaved = useCallback((packageId: string, newDueDate: string | null) => {
     setDueDateOverrides((prev) => ({ ...prev, [packageId]: newDueDate }));
+    setDueDateEditedOverrides((prev) => ({ ...prev, [packageId]: true }));
+  }, []);
+  /** Fire-and-forget "Mark due date reviewed" — sets only `dueDateEdited`, leaving `dueDate` untouched. */
+  const handleAssignmentDueDateReviewed = useCallback((packageId: string) => {
+    setDueDateEditedOverrides((prev) => ({ ...prev, [packageId]: true }));
+  }, []);
+  const handleAssignmentDueDateReviewFailed = useCallback((packageId: string, message: string) => {
+    setDueDateEditedOverrides((prev) => {
+      if (!(packageId in prev)) return prev;
+      const next = { ...prev };
+      delete next[packageId];
+      return next;
+    });
+    setErrorToastMessage(message);
   }, []);
   const { theme, toggleTheme } = useTheme();
 
@@ -114,8 +134,13 @@ function Home(): React.ReactElement {
   /** Ref to EstimatorWorkloadScorecard for cache-based workload-count updates after an assignment, instead of a full refetch */
   const estimatorWorkloadRef = useRef<EstimatorWorkloadScorecardHandle>(null);
 
-  /** Set when a background assignment (see AssignToModal) fails after the modal has already closed. */
-  const [assignErrorMessage, setAssignErrorMessage] = useState<string | null>(null);
+  /**
+   * Set when a fire-and-forget background action fails after its optimistic
+   * UI update has already been applied (assignment via AssignToModal, or
+   * marking a due date reviewed) — surfaces the failure and lets the caller
+   * revert its own optimistic state.
+   */
+  const [errorToastMessage, setErrorToastMessage] = useState<string | null>(null);
 
   /**
    * Workspace identifier for usage tracking. Ingestion view value depends on
@@ -554,6 +579,7 @@ function Home(): React.ReactElement {
                 hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
                 assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
                 dueDateOverrides={dueDateOverrides}
+                dueDateEditedOverrides={dueDateEditedOverrides}
                 refreshToken={refreshToken}
                 filters={assignmentFilters}
               />
@@ -609,6 +635,8 @@ function Home(): React.ReactElement {
                   refreshToken={refreshToken}
                   onDueDateChanged={() => setRefreshToken((t) => t + 1)}
                   onDueDateSaved={handleAssignmentDueDateSaved}
+                  onDueDateReviewed={handleAssignmentDueDateReviewed}
+                  onDueDateReviewFailed={handleAssignmentDueDateReviewFailed}
                   onSelectPackage={(id) => setSelectedAssignmentId(id)}
                   workspace={WORKSPACES.ASSIGNMENT}
                 />
@@ -845,6 +873,12 @@ function Home(): React.ReactElement {
                     packageId={selectedPackageId}
                     refreshToken={refreshToken}
                     onDueDateChanged={() => setRefreshToken((t) => t + 1)}
+                    onDueDateSaved={(id, newDueDate) => listRef.current?.updatePackageDueDate(id, newDueDate)}
+                    onDueDateReviewed={(id) => listRef.current?.markDueDateReviewed(id)}
+                    onDueDateReviewFailed={(id, message) => {
+                      listRef.current?.revertDueDateReviewed(id);
+                      setErrorToastMessage(message);
+                    }}
                     onSelectPackage={handleSelectPackage}
                     workspace={currentWorkspace}
                   />
@@ -1008,17 +1042,17 @@ function Home(): React.ReactElement {
               delete next[packageId];
               return next;
             });
-            setAssignErrorMessage(message);
+            setErrorToastMessage(message);
           }}
         />
       )}
 
-      {assignErrorMessage && (
-        <div className={css.assignErrorToast} role="alert">
-          <span>{assignErrorMessage}</span>
+      {errorToastMessage && (
+        <div className={css.errorToast} role="alert">
+          <span>{errorToastMessage}</span>
           <button
-            className={css.assignErrorDismiss}
-            onClick={() => setAssignErrorMessage(null)}
+            className={css.errorToastDismiss}
+            onClick={() => setErrorToastMessage(null)}
             aria-label="Dismiss"
           >
             ×

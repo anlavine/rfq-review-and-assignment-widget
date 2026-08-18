@@ -1,6 +1,7 @@
-export type DueDateBucket = "noDueDate" | "today" | "tomorrow" | "thisWeek" | "nextWeek" | "later";
+export type DueDateBucket = "dueDatePending" | "noDueDate" | "today" | "tomorrow" | "thisWeek" | "nextWeek" | "later";
 
 export const BUCKET_LABELS: Record<DueDateBucket, string> = {
+  dueDatePending: "Due Date Pending",
   noDueDate: "No Due Date",
   today: "Due Today",
   tomorrow: "Due Tomorrow",
@@ -10,10 +11,13 @@ export const BUCKET_LABELS: Record<DueDateBucket, string> = {
 };
 
 /** Order in which buckets should appear */
-export const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", "thisWeek", "nextWeek", "later"];
+export const BUCKET_ORDER: DueDateBucket[] = ["dueDatePending", "noDueDate", "today", "tomorrow", "thisWeek", "nextWeek", "later"];
 
 /**
  * Assigns a package to a due-date bucket based on the current local date.
+ * - `dueDateEdited` explicitly `false` (not null/undefined) → "dueDatePending",
+ *   regardless of whether a due date value is already set — the date hasn't
+ *   been reviewed/confirmed yet.
  * - No due date → "noDueDate"
  * - Overdue or due today → "today"
  * - Due tomorrow → "tomorrow"
@@ -21,7 +25,8 @@ export const BUCKET_ORDER: DueDateBucket[] = ["noDueDate", "today", "tomorrow", 
  * - Due on or before Sunday of the following week → "nextWeek"
  * - Everything else → "later"
  */
-export function getDueDateBucket(dueDate: string | undefined | null): DueDateBucket {
+export function getDueDateBucket(dueDate: string | undefined | null, dueDateEdited?: boolean | null): DueDateBucket {
+  if (dueDateEdited === false) return "dueDatePending";
   if (!dueDate) return "noDueDate";
 
   const parts = dueDate.split("T")[0].split("-");
@@ -54,9 +59,14 @@ export function getDueDateBucket(dueDate: string | undefined | null): DueDateBuc
  * within the same bucket. Mirrors the Ingestion (Outstanding tab) sort used
  * when grouping by due date.
  */
-export function compareDueDateBucket(aDueDate: string | undefined | null, bDueDate: string | undefined | null): number {
-  const bucketA = getDueDateBucket(aDueDate);
-  const bucketB = getDueDateBucket(bDueDate);
+export function compareDueDateBucket(
+  aDueDate: string | undefined | null,
+  bDueDate: string | undefined | null,
+  aDueDateEdited?: boolean | null,
+  bDueDateEdited?: boolean | null,
+): number {
+  const bucketA = getDueDateBucket(aDueDate, aDueDateEdited);
+  const bucketB = getDueDateBucket(bDueDate, bDueDateEdited);
   const orderA = BUCKET_ORDER.indexOf(bucketA);
   const orderB = BUCKET_ORDER.indexOf(bucketB);
   if (orderA !== orderB) return orderA - orderB;

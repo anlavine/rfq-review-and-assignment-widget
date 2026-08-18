@@ -135,9 +135,10 @@
   color: var(--text-primary);
 }
 
-/* Toast for a background assignment failure — the modal that triggered it has
-   already closed by the time this can appear, so it needs to stand on its own. */
-.assignErrorToast {
+/* Toast for a fire-and-forget background action failure (assignment,
+   marking a due date reviewed, etc.) — the UI that triggered it may have
+   already moved on by the time this appears, so it needs to stand on its own. */
+.errorToast {
   position: fixed;
   bottom: 20px;
   right: 20px;
@@ -155,7 +156,7 @@
   color: var(--error-fg);
 }
 
-.assignErrorDismiss {
+.errorToastDismiss {
   background: none;
   border: none;
   color: var(--error-fg);

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, editDueDate, reviewDueDate } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import css from "./PackageDetail.module.css";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
@@ -24,6 +24,10 @@ interface AssignmentPendingPackageDetailProps {
    * reflects it immediately) without forcing a full refetch.
    */
   onDueDateSaved?: (packageId: string, newDueDate: string | null) => void;
+  /** Called immediately (fire-and-forget) when "Mark due date reviewed" is clicked. */
+  onDueDateReviewed?: (packageId: string) => void;
+  /** Called if the background reviewDueDate action fails, so the parent can revert its optimistic update. */
+  onDueDateReviewFailed?: (packageId: string, message: string) => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
   /** Workspace identifier for usage tracking inside the detail view. */
   workspace?: Workspace | null;
@@ -48,6 +52,8 @@ function AssignmentPendingPackageDetail({
   refreshToken,
   onDueDateChanged,
   onDueDateSaved,
+  onDueDateReviewed,
+  onDueDateReviewFailed,
   onSelectPackage,
   workspace,
 }: AssignmentPendingPackageDetailProps): React.ReactElement {
@@ -70,6 +76,7 @@ function AssignmentPendingPackageDetail({
   const [editingDueDate, setEditingDueDate] = useState(false);
   const [savingDueDate, setSavingDueDate] = useState(false);
   const [showAttachmentPreview, setShowAttachmentPreview] = useState(false);
+  const [dueDateReviewedOverride, setDueDateReviewedOverride] = useState(false);
 
   if (loading) {
     return (
@@ -96,6 +103,7 @@ function AssignmentPendingPackageDetail({
         {
           pending_rfq_package: freshPkg,
           dueDate: dateStr === null ? null : dateStr,
+          dueDateEdited: true,
         },
         { $returnEdits: true },
       );
@@ -110,6 +118,36 @@ function AssignmentPendingPackageDetail({
       setSavingDueDate(false);
     }
   };
+
+  /**
+   * Fire-and-forget: the checkmark disappears the instant it's clicked
+   * (via the optimistic override) rather than waiting on the action call.
+   * If the action fails, the override is rolled back and the failure is
+   * surfaced via `onDueDateReviewFailed` — by which point the user may have
+   * navigated elsewhere, so this component can't just show its own error.
+   */
+  const handleMarkDueDateReviewed = () => {
+    if (dueDateReviewedOverride || pkg.dueDateEdited) return;
+    setDueDateReviewedOverride(true);
+    trackUsage(INTERACTION_KEYS.PACKAGE_MARK_DUE_DATE_REVIEWED, workspace);
+    onDueDateReviewed?.(packageId);
+
+    (async () => {
+      try {
+        const freshPkg = await client(PendingRfqPackage).fetchOne(packageId);
+        await client(reviewDueDate).applyAction(
+          { pendingRfqPackage: freshPkg },
+          { $returnEdits: true },
+        );
+      } catch (e) {
+        console.error("Failed to mark due date reviewed:", e);
+        setDueDateReviewedOverride(false);
+        onDueDateReviewFailed?.(packageId, e instanceof Error ? e.message : "Failed to mark due date reviewed");
+      }
+    })();
+  };
+
+  const effectiveDueDateEdited = dueDateReviewedOverride || pkg.dueDateEdited;
 
   const parsedAttachmentCount = pkg.receivedDatetime && pkg.receivedDatetime > "2026-06-05T15:35:06Z"
     ? (pkg.parsedAttachmentFilenames ?? []).length
@@ -141,6 +179,8 @@ function AssignmentPendingPackageDetail({
           editing: editingDueDate,
           setEditing: setEditingDueDate,
           saving: savingDueDate,
+          dueDateEdited: effectiveDueDateEdited,
+          onMarkReviewed: handleMarkDueDateReviewed,
         }}
       />
 

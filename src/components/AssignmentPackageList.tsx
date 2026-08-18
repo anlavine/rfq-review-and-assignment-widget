@@ -22,7 +22,7 @@ export type AssignmentMode = "all" | "unassigned" | "assigned";
 export type AssignmentItem =
 
 
-  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; dueDate: string | null }
+  | { type: "pending"; pkg: Osdk.Instance<PendingRfqPackage>; priorityScore: number; toolCount: number | null; assigneeId: string | null; customerName: string | null; attachments: Osdk.Instance<PendingRfqAttachments>[]; dueDate: string | null; dueDateEdited?: boolean | null }
   | {
     type: "rfq";
     pkg: Osdk.Instance<RfqPackage>;
@@ -33,6 +33,8 @@ export type AssignmentItem =
     attachments: Osdk.Instance<PendingRfqAttachments>[];
     linkedFrom: string | null;
     dueDate: string | null;
+    /** RfqPackage has no `dueDateEdited` field of its own — always undefined/null for RFQ items. */
+    dueDateEdited?: boolean | null;
     /** id of the linked PendingRfqPackage, or null if there isn't one. */
     linkedPendingId: string | null;
     /** tags on the linked PendingRfqPackage — RfqPackage itself has no tags field. */
@@ -72,6 +74,12 @@ interface AssignmentPackageListProps {
    * new value without a full refetch.
    */
   dueDateOverrides?: Record<string, string | null>;
+  /**
+   * Optional override map for `dueDateEdited` — set alongside `dueDateOverrides`
+   * whenever a due date is manually saved, so the item re-buckets out of
+   * "Due Date Pending" immediately without a full refetch.
+   */
+  dueDateEditedOverrides?: Record<string, boolean>;
   /** Bumping this value forces a full refetch */
   refreshToken?: number;
   /** Same filter set as the Ingestion tab's FilterDropdown. */
@@ -97,6 +105,17 @@ function getEffectiveTags(item: AssignmentItem, tagOverrides: Record<string, str
   return tagOverrides[item.linkedPendingId] ?? item.linkedTags ?? [];
 }
 
+/**
+ * Whether an item's due date is still pending review — lifted onto
+ * `AssignmentItem` itself (populated from `pkg.dueDateEdited` for Pending
+ * items; always undefined for RFQ items, which have no such field) so a
+ * `dueDateEditedOverrides` entry can be applied the same way `dueDate`
+ * itself is, without reaching into the nested `pkg` object.
+ */
+function getItemDueDateEdited(item: AssignmentItem): boolean | null | undefined {
+  return item.dueDateEdited;
+}
+
 /** Imperative handle exposed to the parent for optimistic tag updates. */
 export interface AssignmentPackageListHandle {
   /**
@@ -109,7 +128,7 @@ export interface AssignmentPackageListHandle {
 
 
 const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, AssignmentPackageListProps>(
-  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, dueDateOverrides, refreshToken, filters }, ref) {
+  function AssignmentPackageList({ selectedId, onSelect, mode, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, refreshToken, filters }, ref) {
   const [items, setItems] = useState<AssignmentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -377,6 +396,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           customerName: p.customerName,
           attachments: p.attachments,
           dueDate: p.pkg.dueDate ?? null,
+          dueDateEdited: p.pkg.dueDateEdited ?? null,
         }));
         const rfqItems: AssignmentItem[] = rfqPartials.map((r) => ({
           type: "rfq",
@@ -446,7 +466,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     // Apply session-local assignee/due-date overrides so reassignments and
     // due-date edits reflect immediately without a full refetch.
     if ((assigneeOverrides && Object.keys(assigneeOverrides).length > 0)
-      || (dueDateOverrides && Object.keys(dueDateOverrides).length > 0)) {
+      || (dueDateOverrides && Object.keys(dueDateOverrides).length > 0)
+      || (dueDateEditedOverrides && Object.keys(dueDateEditedOverrides).length > 0)) {
       filtered = filtered.map((item) => {
         const id = String(item.pkg.$primaryKey);
         let next = item;
@@ -455,6 +476,9 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         }
         if (dueDateOverrides && Object.prototype.hasOwnProperty.call(dueDateOverrides, id)) {
           next = { ...next, dueDate: dueDateOverrides[id] };
+        }
+        if (dueDateEditedOverrides && Object.prototype.hasOwnProperty.call(dueDateEditedOverrides, id)) {
+          next = { ...next, dueDateEdited: dueDateEditedOverrides[id] };
         }
         return next;
       });
@@ -555,11 +579,11 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         if (tierCompare !== 0) return tierCompare;
         return compareDueDateAsc(a.dueDate, b.dueDate);
       }
-      return compareDueDateBucket(a.dueDate, b.dueDate);
+      return compareDueDateBucket(a.dueDate, b.dueDate, getItemDueDateEdited(a), getItemDueDateEdited(b));
     });
 
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
+  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
 
   // Options for the assignee filter — built from the eligible estimator list
   // plus any assignee IDs currently on cards that don't resolve to a name.
@@ -590,7 +614,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       const id = String(item.pkg.$primaryKey);
 
       if (useBuckets) {
-        const bucket = getDueDateBucket(item.dueDate);
+        const bucket = getDueDateBucket(item.dueDate, getItemDueDateEdited(item));
         if (bucket !== lastBucket) {
           lastBucket = bucket;
           elements.push(

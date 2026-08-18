@@ -24,6 +24,14 @@ export interface DueDateEditing {
   editing: boolean;
   setEditing: (v: boolean) => void;
   saving: boolean;
+  /**
+   * Whether the due date has already been manually reviewed — controls the
+   * "Mark due date reviewed" checkmark button, which only shows when this
+   * is not `true` (i.e. still false, null, or undefined).
+   */
+  dueDateEdited?: boolean | null;
+  /** Fire-and-forget handler for the "Mark due date reviewed" button. */
+  onMarkReviewed?: () => void;
 }
 
 interface PackageCustomerAndNameFieldsProps {
@@ -144,6 +152,15 @@ function PackageCustomerAndNameFields({
           >
             ✏️
           </button>
+          {!dueDateEditing.dueDateEdited && dueDateEditing.onMarkReviewed && (
+            <button
+              className={css.editIcon}
+              onClick={dueDateEditing.onMarkReviewed}
+              title="Mark due date reviewed"
+            >
+              ✔️
+            </button>
+          )}
           {pkg.automatedDueDate === "true" && (
             <span className={css.autoLabel} title="This due date was auto-generated">
               {" "}🤖 Auto-generated

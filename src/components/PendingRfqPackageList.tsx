@@ -65,6 +65,12 @@ export interface PendingRfqPackageListHandle {
   updatePackageStatus: (packageId: string, newStatus: string) => void;
   /** Optimistically update a package's tags in local state */
   updatePackageTags: (packageId: string, newTags: string[]) => void;
+  /** Optimistically update a package's due date (and mark it as manually edited) in local state */
+  updatePackageDueDate: (packageId: string, newDueDate: string | null) => void;
+  /** Optimistically mark a package's due date as reviewed, without touching the due date value itself */
+  markDueDateReviewed: (packageId: string) => void;
+  /** Reverts an optimistic `markDueDateReviewed` call (e.g. the background action failed) */
+  revertDueDateReviewed: (packageId: string) => void;
   /** Remove packages from local state (used after merges/splits) */
   removePackages: (packageIds: string[]) => void;
 }
@@ -73,6 +79,8 @@ export interface PendingRfqPackageListHandle {
 interface PackageOverrides {
   completionStatus?: string;
   tags?: string[];
+  dueDate?: string | null;
+  dueDateEdited?: boolean;
 }
 
 interface PendingRfqPackageListProps {
@@ -272,6 +280,27 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
         [packageId]: { ...prev[packageId], tags: newTags },
       }));
     },
+    updatePackageDueDate(packageId: string, newDueDate: string | null) {
+      setOverridesMap((prev) => ({
+        ...prev,
+        [packageId]: { ...prev[packageId], dueDate: newDueDate, dueDateEdited: true },
+      }));
+    },
+    markDueDateReviewed(packageId: string) {
+      setOverridesMap((prev) => ({
+        ...prev,
+        [packageId]: { ...prev[packageId], dueDateEdited: true },
+      }));
+    },
+    revertDueDateReviewed(packageId: string) {
+      setOverridesMap((prev) => {
+        const existing = prev[packageId];
+        if (!existing || !("dueDateEdited" in existing)) return prev;
+        const next = { ...existing };
+        delete next.dueDateEdited;
+        return { ...prev, [packageId]: next };
+      });
+    },
     removePackages(packageIds: string[]) {
       const idSet = new Set(packageIds);
       setAllPackages((prev) => prev.filter((p) => !idSet.has(String(p.$primaryKey))));
@@ -299,6 +328,22 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
   const getEffectiveTags = (pkg: Osdk.Instance<PendingRfqPackage>): string[] => {
     const pkId = String(pkg.$primaryKey);
     return overridesMap[pkId]?.tags ?? pkg.tags ?? [];
+  };
+
+  // `dueDate` can be legitimately cleared to null, so an override must be
+  // distinguished from "no override recorded" via key presence rather than
+  // nullish-coalescing (which would otherwise fall through to the stale
+  // server value whenever the override itself is null).
+  const getEffectiveDueDate = (pkg: Osdk.Instance<PendingRfqPackage>): string | null => {
+    const pkId = String(pkg.$primaryKey);
+    const ov = overridesMap[pkId];
+    if (ov && Object.prototype.hasOwnProperty.call(ov, "dueDate")) return ov.dueDate ?? null;
+    return pkg.dueDate ?? null;
+  };
+
+  const getEffectiveDueDateEdited = (pkg: Osdk.Instance<PendingRfqPackage>): boolean | undefined => {
+    const pkId = String(pkg.$primaryKey);
+    return overridesMap[pkId]?.dueDateEdited ?? pkg.dueDateEdited;
   };
 
   // ── Prioritized two-phase load: Outstanding first, then the rest ──
@@ -649,17 +694,18 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       // Use effective (overridden) values for filtering
       const effectiveStatus = getEffectiveStatus(pkg);
       const effectiveTags = getEffectiveTags(pkg);
+      const effectiveDueDate = getEffectiveDueDate(pkg);
 
       // Tab / status filter
       if (activeStatus && effectiveStatus !== activeStatus) return false;
 
       // Due date range
-      if (filters.dueDateStart && pkg.dueDate) {
-        const due = pkg.dueDate.split("T")[0];
+      if (filters.dueDateStart && effectiveDueDate) {
+        const due = effectiveDueDate.split("T")[0];
         if (due < filters.dueDateStart) return false;
       }
-      if (filters.dueDateEnd && pkg.dueDate) {
-        const due = pkg.dueDate.split("T")[0];
+      if (filters.dueDateEnd && effectiveDueDate) {
+        const due = effectiveDueDate.split("T")[0];
         if (due > filters.dueDateEnd) return false;
       }
 
@@ -729,7 +775,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
           const bScore = priorityMap.get(String(b.$primaryKey)) ?? 0;
           const tierCompare = comparePriorityTier(aScore, bScore);
           if (tierCompare !== 0) return tierCompare;
-          const dueCompare = compareDueDateAsc(a.dueDate, b.dueDate);
+          const dueCompare = compareDueDateAsc(getEffectiveDueDate(a), getEffectiveDueDate(b));
           if (dueCompare !== 0) return dueCompare;
           const aRcv = a.receivedDatetime ?? a.receivedDate ?? "";
           const bRcv = b.receivedDatetime ?? b.receivedDate ?? "";
@@ -931,14 +977,14 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
             const sortedForDisplay = useBuckets
               ? [...pagePackages].sort((a, b) => {
-                const bucketA = getDueDateBucket(a.dueDate);
-                const bucketB = getDueDateBucket(b.dueDate);
+                const bucketA = getDueDateBucket(getEffectiveDueDate(a), getEffectiveDueDateEdited(a));
+                const bucketB = getDueDateBucket(getEffectiveDueDate(b), getEffectiveDueDateEdited(b));
                 const orderA = BUCKET_ORDER.indexOf(bucketA);
                 const orderB = BUCKET_ORDER.indexOf(bucketB);
                 if (orderA !== orderB) return orderA - orderB;
                 // Within same bucket, ascending due date
-                const dateA = a.dueDate ?? "";
-                const dateB = b.dueDate ?? "";
+                const dateA = getEffectiveDueDate(a) ?? "";
+                const dateB = getEffectiveDueDate(b) ?? "";
                 if (dateA < dateB) return -1;
                 if (dateA > dateB) return 1;
                 return 0;
@@ -950,7 +996,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
 
               // Insert section divider only when bucketing is on
               if (useBuckets) {
-                const bucket = getDueDateBucket(pkg.dueDate);
+                const bucket = getDueDateBucket(getEffectiveDueDate(pkg), getEffectiveDueDateEdited(pkg));
                 if (bucket !== lastBucket) {
                   lastBucket = bucket;
                   elements.push(
@@ -1160,7 +1206,10 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
 
   // Use effective (overridden) values
   const effectiveStatus = overrides?.completionStatus ?? pkg.completionStatus;
-  const urgency = getDueDateUrgency(pkg.dueDate, effectiveStatus);
+  const effectiveDueDate = (overrides && Object.prototype.hasOwnProperty.call(overrides, "dueDate"))
+    ? overrides.dueDate ?? null
+    : pkg.dueDate ?? null;
+  const urgency = getDueDateUrgency(effectiveDueDate ?? undefined, effectiveStatus);
 
   const tags = overrides?.tags ?? pkg.tags ?? [];
   const visibleTags = tags.slice(0, MAX_VISIBLE_TAGS);
@@ -1246,7 +1295,7 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
           <span>Received: {formatReceivedDatetime(pkg.receivedDatetime, pkg.receivedDate)}</span>
           <span className={css.cardMetaSep}>·</span>
           <span className={urgency === "overdue" ? css.dueDateOverdue : urgency === "dueSoon" ? css.dueDateDueSoon : css.dueDateNormal}>
-            Due: {formatDate(pkg.dueDate)}
+            Due: {formatDate(effectiveDueDate ?? undefined)}
           </span>
           {(pkg.automatedDueDate === "true" || pkg.automatedDueDate === "True") && (
             <span className={css.autoIcon} title="Auto-generated due date">🤖</span>

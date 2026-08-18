@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { PendingRfqPackage, editDueDate } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, editDueDate, reviewDueDate } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import css from "./PackageDetail.module.css";
 import { splitMergedField, isMergedPackage } from "../utils/mergedFields";
@@ -17,6 +17,17 @@ interface PackageDetailProps {
   packageId: string;
   refreshToken?: number;
   onDueDateChanged?: () => void;
+  /**
+   * Called after a due-date edit is confirmed by the server, with the new
+   * value. Lets the parent cache the change locally (e.g. so the list
+   * reflects it immediately, including re-bucketing by due date) without
+   * forcing a full refetch.
+   */
+  onDueDateSaved?: (packageId: string, newDueDate: string | null) => void;
+  /** Called immediately (fire-and-forget) when "Mark due date reviewed" is clicked. */
+  onDueDateReviewed?: (packageId: string) => void;
+  /** Called if the background reviewDueDate action fails, so the parent can revert its optimistic update. */
+  onDueDateReviewFailed?: (packageId: string, message: string) => void;
   onSelectPackage?: (packageId: string, completionStatus?: string) => void;
   /**
    * Workspace identifier for usage tracking. Interactions inside the detail
@@ -30,6 +41,9 @@ function PackageDetail({
   packageId,
   refreshToken,
   onDueDateChanged,
+  onDueDateSaved,
+  onDueDateReviewed,
+  onDueDateReviewFailed,
   onSelectPackage,
   workspace,
 }: PackageDetailProps): React.ReactElement {
@@ -53,6 +67,7 @@ function PackageDetail({
 
   const [editingDueDate, setEditingDueDate] = useState(false);
   const [savingDueDate, setSavingDueDate] = useState(false);
+  const [dueDateReviewedOverride, setDueDateReviewedOverride] = useState(false);
 
   if (loading) {
     return (
@@ -79,6 +94,7 @@ function PackageDetail({
         {
           pending_rfq_package: freshPkg,
           dueDate: dateStr === null ? null : dateStr,
+          dueDateEdited: true,
         },
         { $returnEdits: true },
       );
@@ -86,13 +102,43 @@ function PackageDetail({
       setPkg(updated);
       setEditingDueDate(false);
       trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_DUE_DATE, workspace);
-      onDueDateChanged?.();
+      onDueDateSaved?.(packageId, dateStr);
     } catch (e) {
       console.error("Failed to update due date:", e);
     } finally {
       setSavingDueDate(false);
     }
   };
+
+  /**
+   * Fire-and-forget: the checkmark disappears the instant it's clicked
+   * (via the optimistic override) rather than waiting on the action call.
+   * If the action fails, the override is rolled back and the failure is
+   * surfaced via `onDueDateReviewFailed` — by which point the user may have
+   * navigated elsewhere, so this component can't just show its own error.
+   */
+  const handleMarkDueDateReviewed = () => {
+    if (dueDateReviewedOverride || pkg.dueDateEdited) return;
+    setDueDateReviewedOverride(true);
+    trackUsage(INTERACTION_KEYS.PACKAGE_MARK_DUE_DATE_REVIEWED, workspace);
+    onDueDateReviewed?.(packageId);
+
+    (async () => {
+      try {
+        const freshPkg = await client(PendingRfqPackage).fetchOne(packageId);
+        await client(reviewDueDate).applyAction(
+          { pendingRfqPackage: freshPkg },
+          { $returnEdits: true },
+        );
+      } catch (e) {
+        console.error("Failed to mark due date reviewed:", e);
+        setDueDateReviewedOverride(false);
+        onDueDateReviewFailed?.(packageId, e instanceof Error ? e.message : "Failed to mark due date reviewed");
+      }
+    })();
+  };
+
+  const effectiveDueDateEdited = dueDateReviewedOverride || pkg.dueDateEdited;
 
   // parsedAttachmentFilenames is the authoritative list of attachments that were actually parsed
   const parsedAttachmentCount = pkg.receivedDatetime && pkg.receivedDatetime > "2026-06-05T15:35:06Z"
@@ -123,6 +169,8 @@ function PackageDetail({
         editingDueDate={editingDueDate}
         setEditingDueDate={setEditingDueDate}
         savingDueDate={savingDueDate}
+        dueDateEdited={effectiveDueDateEdited}
+        onMarkDueDateReviewed={handleMarkDueDateReviewed}
       />
 
       <PackageEmailAddressFields

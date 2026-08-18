@@ -58,6 +58,15 @@ interface PackageDetailHeaderProps {
   editingDueDate: boolean;
   setEditingDueDate: (v: boolean) => void;
   savingDueDate: boolean;
+
+  /**
+   * Whether the due date has already been manually reviewed — controls the
+   * "Mark due date reviewed" checkmark button, which only shows when this
+   * is not `true` (i.e. still false, null, or undefined).
+   */
+  dueDateEdited?: boolean | null;
+  /** Fire-and-forget handler for the "Mark due date reviewed" button. */
+  onMarkDueDateReviewed?: () => void;
 }
 
 function formatDate(date: string | undefined): string {
@@ -103,6 +112,8 @@ function PackageDetailHeader({
   editingDueDate,
   setEditingDueDate,
   savingDueDate,
+  dueDateEdited,
+  onMarkDueDateReviewed,
 }: PackageDetailHeaderProps): React.ReactElement {
   const dateInputRef = useRef<HTMLInputElement | null>(null);
   const [showPriorityTooltip, setShowPriorityTooltip] = useState(false);
@@ -137,6 +148,15 @@ function PackageDetailHeader({
                 title="Edit due date"
               >
                 ✏️
+              </button>
+            )}
+            {editableDueDate && !editingDueDate && !dueDateEdited && onMarkDueDateReviewed && (
+              <button
+                className={css.editIcon}
+                onClick={onMarkDueDateReviewed}
+                title="Mark due date reviewed"
+              >
+                ✔️
               </button>
             )}
           </span>
