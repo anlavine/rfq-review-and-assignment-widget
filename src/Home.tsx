@@ -160,16 +160,19 @@ function Home(): React.ReactElement {
         ? WORKSPACES.INGESTION_DATE
         : WORKSPACES.INGESTION_PRIORITY;
   /**
-   * The Pending package id Edit Tags should actually operate on for the
-   * current Assignment selection — the selection itself when it's a
-   * Pending package, or its linked Pending package when it's an RFQ
-   * package that has one. `null` when Edit Tags isn't available.
+   * The package Edit Tags should actually operate on for the current
+   * Assignment selection: the selection itself when it's a Pending
+   * package; its linked Pending package when it's an RFQ package that has
+   * one; or the RFQ package itself (via `editTagsRfqPackage`) when it has
+   * no linked Pending package. `null` when nothing is selected.
    */
-  const assignmentEditTagsPendingId: string | null =
-    selectedAssignmentType === "pending"
-      ? selectedAssignmentId
-      : selectedAssignmentType === "rfq"
+  const assignmentEditTagsTarget: { packageId: string; packageType: "pending" | "rfq" } | null =
+    selectedAssignmentType === "pending" && selectedAssignmentId
+      ? { packageId: selectedAssignmentId, packageType: "pending" }
+      : selectedAssignmentType === "rfq" && selectedAssignmentId
         ? selectedAssignmentLinkedPendingId
+          ? { packageId: selectedAssignmentLinkedPendingId, packageType: "pending" }
+          : { packageId: selectedAssignmentId, packageType: "rfq" }
         : null;
   const workspaceRef = useRef<Workspace>(currentWorkspace);
   useEffect(() => {
@@ -607,14 +610,16 @@ function Home(): React.ReactElement {
               <FilterDropdown filters={assignmentFilters} onFiltersChange={setAssignmentFilters} workspace={currentWorkspace} />
               <button
                 className={css.headerButton}
-                disabled={!assignmentEditTagsPendingId}
+                disabled={!assignmentEditTagsTarget}
                 onClick={() => setShowEditTags(true)}
                 title={
                   selectedAssignmentType === "pending"
                     ? "Edit tags on the selected package"
-                    : selectedAssignmentType === "rfq" && assignmentEditTagsPendingId
+                    : selectedAssignmentType === "rfq" && selectedAssignmentLinkedPendingId
                       ? "Edit tags on the linked Pending package"
-                      : "Edit Tags requires a Pending Package selection, or an RFQ Package with a linked Pending Package"
+                      : selectedAssignmentType === "rfq"
+                        ? "Edit tags on the RFQ Package"
+                        : "Edit Tags requires a package selection"
                 }
               >
                 Edit Tags
@@ -911,28 +916,32 @@ function Home(): React.ReactElement {
 
       {/*
         The Edit Tags modal is shared between Ingestion and Assignment views.
-        In Ingestion it operates on `selectedPackageId` and drives an
-        optimistic update on `listRef` (the PendingRfqPackageList). In
-        Assignment it operates on `selectedAssignmentId` (guarded to
-        pending selections by the toolbar button) and drives an optimistic
-        update on `assignmentListRef` instead. Either way, only one is
-        rendered at a time based on the current `appMode`.
+        In Ingestion it always operates on `selectedPackageId` (a Pending
+        package) and drives an optimistic update on `listRef` (the
+        PendingRfqPackageList). In Assignment, `assignmentEditTagsTarget`
+        resolves to the Pending package (selected directly, or via an RFQ
+        item's link) or, when an RFQ item has no linked Pending package, the
+        RFQ Package itself — either way it drives an optimistic update on
+        `assignmentListRef` instead. Only one is rendered at a time based on
+        the current `appMode`.
       */}
-      {showEditTags && appMode === "assignment" && assignmentEditTagsPendingId && (
+      {showEditTags && appMode === "assignment" && assignmentEditTagsTarget && (
         <EditTagsModal
-          packageId={assignmentEditTagsPendingId}
+          packageId={assignmentEditTagsTarget.packageId}
+          packageType={assignmentEditTagsTarget.packageType}
           onClose={() => setShowEditTags(false)}
           onSaved={(newTags) => {
             trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);
             setShowEditTags(false);
-            assignmentListRef.current?.updatePackageTags(assignmentEditTagsPendingId, newTags);
-            completedListRef.current?.updatePackageTags(assignmentEditTagsPendingId, newTags);
+            assignmentListRef.current?.updatePackageTags(assignmentEditTagsTarget.packageId, newTags);
+            completedListRef.current?.updatePackageTags(assignmentEditTagsTarget.packageId, newTags);
           }}
         />
       )}
       {showEditTags && appMode !== "assignment" && selectedPackageId && (
         <EditTagsModal
           packageId={selectedPackageId}
+          packageType="pending"
           onClose={() => setShowEditTags(false)}
           onSaved={(newTags) => {
             trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);

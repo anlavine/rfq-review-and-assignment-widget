@@ -5,6 +5,7 @@ import type { Osdk } from "@osdk/client";
 import css from "./AssignmentPackageList.module.css";
 import { fetchPriorityData } from "../hooks/usePriorityScores";
 import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
+import { useEmployeeNames } from "../hooks/useEmployeeNames";
 import { isInlineImage } from "../utils/attachments";
 import { categorizeWorkType } from "../utils/workType";
 import { comparePriorityTier, compareDueDateAsc } from "../utils/priorityColor";
@@ -90,19 +91,23 @@ interface AssignmentPackageListProps {
 const UNKNOWN_ASSIGNEE = "__unknown__";
 
 /**
- * Tags for an item, with any session-local Edit Tags override applied.
- * RfqPackage itself has no `tags` field, so RFQ items resolve to the tags
- * of their linked Pending package (or `[]` if there isn't one) — overrides
- * are keyed by that linked pending id too, since editing an RFQ item's tags
- * writes to the underlying Pending package.
+ * Tags for an item, with any session-local Edit Tags override applied. RFQ
+ * items with a linked Pending package resolve to that Pending package's
+ * tags (editing them there writes to the underlying Pending package) —
+ * overrides are keyed by the linked pending id in that case. An RFQ item
+ * with no linked Pending package carries its own `tags` field directly
+ * (edited via `editTagsRfqPackage`), keyed by its own id instead.
  */
 function getEffectiveTags(item: AssignmentItem, tagOverrides: Record<string, string[]>): string[] {
   if (item.type === "pending") {
     const id = String(item.pkg.$primaryKey);
     return tagOverrides[id] ?? item.pkg.tags ?? [];
   }
-  if (!item.linkedPendingId) return [];
-  return tagOverrides[item.linkedPendingId] ?? item.linkedTags ?? [];
+  if (item.linkedPendingId) {
+    return tagOverrides[item.linkedPendingId] ?? item.linkedTags ?? [];
+  }
+  const id = String(item.pkg.$primaryKey);
+  return tagOverrides[id] ?? item.pkg.tags ?? [];
 }
 
 /**
@@ -434,16 +439,25 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
   }, [mode, refreshToken]);
 
-  // Resolve employee id -> display name
+  // Resolve employee id -> display name, for eligible estimators (fast, cached).
   const estimatorNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const e of estimators) map.set(e.id, e.name);
     return map;
   }, [estimators]);
 
+  // Fallback resolution for assignees who aren't (or are no longer)
+  // eligible for new assignments — still resolves a real name via a direct
+  // Employee lookup instead of leaving the card to fall back to a raw id.
+  const unresolvedAssigneeIds = useMemo(
+    () => items.map((item) => item.assigneeId).filter((id) => id && !estimatorNameById.has(id)),
+    [items, estimatorNameById],
+  );
+  const fallbackNameById = useEmployeeNames(unresolvedAssigneeIds);
+
   const resolveAssigneeName = (id: string | null | undefined): string | null => {
     if (!id) return null;
-    return estimatorNameById.get(id) ?? null;
+    return estimatorNameById.get(id) ?? fallbackNameById.get(id) ?? null;
   };
 
   const visibleItems = useMemo(() => {
@@ -506,8 +520,9 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         const id = item.assigneeId;
         if (!id) return false;
         if (otherIds.has(id)) return true;
-        // "Unknown" bucket = has an id, but no display name resolved
-        if (wantsUnknown && !estimatorNameById.has(id)) return true;
+        // "Unknown" bucket = has an id, but no display name resolved at all
+        // (not just "not eligible" — a fallback-resolved name still counts).
+        if (wantsUnknown && !estimatorNameById.has(id) && !fallbackNameById.has(id)) return true;
         return false;
       });
     }
@@ -516,7 +531,9 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     // Subject/Sender resolve differently for RFQ items, which have no
     // subject/from field of their own: subject falls back to the RFQ
     // Package's name, sender falls back to the linked pending package's
-    // `from`. Tags never match on RFQ items — they don't carry a tags field.
+    // `from`. Tags match via `getEffectiveTags`, which resolves an RFQ
+    // item's tags from its linked Pending package, or its own `tags` field
+    // when it has no link.
     const hasAnyFilter =
       filters.dueDateStart !== "" ||
       filters.dueDateEnd !== "" ||
@@ -592,20 +609,22 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     });
 
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, assigneeFilter, mode, estimatorNameById, sortMode, filters, tagOverrides]);
+  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, assigneeFilter, mode, estimatorNameById, fallbackNameById, sortMode, filters, tagOverrides]);
 
   // Options for the assignee filter — built from the eligible estimator list
-  // plus any assignee IDs currently on cards that don't resolve to a name.
+  // plus any assignee IDs currently on cards that don't resolve to a name
+  // at all (an id resolved only via the `fallbackNameById` lookup still has
+  // a real name to show, so it isn't "Unknown" — it's just not eligible for
+  // new assignments, which this filter doesn't need to distinguish).
   const assigneeFilterOptions = useMemo<MultiSelectOption[]>(() => {
     const opts: MultiSelectOption[] = estimators.map((e) => ({ value: e.id, label: e.name }));
-    // If any card has an assigneeId that isn't in the eligible list, expose a
-    // catch-all "Unknown" option so the user can still filter to it.
-    const hasUnknown = items.some((item) => item.assigneeId && !estimatorNameById.has(item.assigneeId));
+    const hasUnknown = items.some((item) =>
+      item.assigneeId && !estimatorNameById.has(item.assigneeId) && !fallbackNameById.has(item.assigneeId));
     if (hasUnknown) {
       opts.push({ value: UNKNOWN_ASSIGNEE, label: "Unknown assignee" });
     }
     return opts;
-  }, [estimators, items, estimatorNameById]);
+  }, [estimators, items, estimatorNameById, fallbackNameById]);
 
   const content = useMemo(() => {
     if (loading) return <div className={css.emptyCard}>Fetching packages…</div>;
@@ -655,7 +674,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     return elements;
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, tagOverrides, sortMode]);
+  }, [visibleItems, selectedId, loading, error, onSelect, mode, estimatorNameById, fallbackNameById, tagOverrides, sortMode]);
 
   const title = mode === "all" ? "All Packages" : mode === "assigned" ? "Assigned Packages" : "Unassigned Packages";
 

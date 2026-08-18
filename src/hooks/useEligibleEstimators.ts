@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Employee } from "@rfq-review-hub-widget-application/sdk";
-import type { Osdk } from "@osdk/client";
 import client from "../client";
+import { resolveEmployeeName } from "../utils/employeeName";
 import {
   ELIGIBLE_ESTIMATOR_EMAILS,
   ELIGIBLE_ESTIMATOR_EMAIL_SET,
@@ -20,13 +20,6 @@ export interface EligibleEstimator {
 let cachedEstimators: EligibleEstimator[] | null = null;
 let inFlight: Promise<EligibleEstimator[]> | null = null;
 
-function resolveName(emp: Osdk.Instance<Employee>): string {
-  if (emp.displayName && emp.displayName.trim() !== "") return emp.displayName;
-  const combined = [emp.firstName, emp.lastName].filter(Boolean).join(" ").trim();
-  if (combined !== "") return combined;
-  return emp.companyEmail ?? String(emp.$primaryKey);
-}
-
 async function fetchEligibleEstimators(): Promise<EligibleEstimator[]> {
   const page = await client(Employee)
     .where({
@@ -44,7 +37,7 @@ async function fetchEligibleEstimators(): Promise<EligibleEstimator[]> {
 
   const result: EligibleEstimator[] = filtered.map((e) => ({
     id: String(e.$primaryKey),
-    name: resolveName(e),
+    name: resolveEmployeeName(e),
     email: e.companyEmail ?? null,
     jobTitle: e.jobTitle ?? null,
   }));

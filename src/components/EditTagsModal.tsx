@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PendingRfqPackage, RfqPackage, editTags, editRfqPackage, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, RfqPackage, editTags, editTagsRfqPackage, editRfqPackage, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
 import type { Osdk } from "@osdk/client";
 import client from "../client";
 import css from "./EditTagsModal.module.css";
@@ -15,12 +15,20 @@ const AVAILABLE_TAGS = [
 
 interface EditTagsModalProps {
   packageId: string;
+  /**
+   * Which object `packageId` refers to — "pending" edits a Pending package
+   * via `editTags`; "rfq" edits an RFQ Package directly via
+   * `editTagsRfqPackage` (used when an RFQ Package has no linked Pending
+   * package to fall back to).
+   */
+  packageType: "pending" | "rfq";
   onClose: () => void;
   onSaved: (newTags: string[]) => void;
 }
 
 function EditTagsModal({
   packageId,
+  packageType,
   onClose,
   onSaved,
 }: EditTagsModalProps): React.ReactElement {
@@ -34,9 +42,11 @@ function EditTagsModal({
     let cancelled = false;
     (async () => {
       try {
-        const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+        const tags = packageType === "pending"
+          ? (await client(PendingRfqPackage).fetchOne(packageId)).tags
+          : (await client(RfqPackage).fetchOne(packageId)).tags;
         if (!cancelled) {
-          setSelectedTags(new Set(pkg.tags ?? []));
+          setSelectedTags(new Set(tags ?? []));
           setLoading(false);
         }
       } catch {
@@ -49,7 +59,7 @@ function EditTagsModal({
     return () => {
       cancelled = true;
     };
-  }, [packageId]);
+  }, [packageId, packageType]);
 
   const handleToggle = (tag: string) => {
     setSelectedTags((prev) => {
@@ -64,13 +74,14 @@ function EditTagsModal({
   };
 
   /**
-   * When "No Quote" is removed, bring the underlying work back to Active —
-   * reactivate the linked RFQ Package if one exists and isn't already
-   * Active, otherwise unskip the Pending package if it had been Skipped.
-   * Best-effort: a failure here shouldn't make the tag save itself look
-   * like it failed, so errors are logged rather than surfaced.
+   * When "No Quote" is removed from a Pending package, bring the underlying
+   * work back to Active — reactivate the linked RFQ Package if one exists
+   * and isn't already Active, otherwise unskip the Pending package if it
+   * had been Skipped. Best-effort: a failure here shouldn't make the tag
+   * save itself look like it failed, so errors are logged rather than
+   * surfaced.
    */
-  const reactivateIfNoQuoteRemoved = async (pkg: Osdk.Instance<PendingRfqPackage>, newTags: string[]) => {
+  const reactivatePendingIfNoQuoteRemoved = async (pkg: Osdk.Instance<PendingRfqPackage>, newTags: string[]) => {
     const hadNoQuote = (pkg.tags ?? []).includes("No Quote");
     if (!hadNoQuote || newTags.includes("No Quote")) return;
 
@@ -105,21 +116,59 @@ function EditTagsModal({
     }
   };
 
+  /**
+   * Same idea as `reactivatePendingIfNoQuoteRemoved`, but for an RFQ
+   * Package edited directly (no linked Pending package to fall back to) —
+   * reactivates the RFQ Package itself if it isn't already Active.
+   */
+  const reactivateRfqIfNoQuoteRemoved = async (pkg: Osdk.Instance<RfqPackage>, newTags: string[]) => {
+    const hadNoQuote = (pkg.tags ?? []).includes("No Quote");
+    if (!hadNoQuote || newTags.includes("No Quote")) return;
+    if (pkg.status === "Active") return;
+
+    try {
+      await client(editRfqPackage).applyAction(
+        {
+          rfqPackage: pkg,
+          status: "Active",
+          customerTerms: pkg.customerTerms ?? "",
+          workType: pkg.workType ?? "",
+          dueDate: pkg.dueDate ?? null,
+        },
+        { $returnEdits: true },
+      );
+    } catch (e) {
+      console.error("Failed to reactivate RFQ Package:", e);
+    }
+  };
+
   const handleSave = async () => {
     if (saving) return;
     setSaving(true);
     setError(null);
     try {
-      const pkg = await client(PendingRfqPackage).fetchOne(packageId);
       const newTags = Array.from(selectedTags);
-      await client(editTags).applyAction(
-        {
-          pending_rfq_package: pkg,
-          tags: newTags,
-        },
-        { $returnEdits: true },
-      );
-      await reactivateIfNoQuoteRemoved(pkg, newTags);
+      if (packageType === "pending") {
+        const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+        await client(editTags).applyAction(
+          {
+            pending_rfq_package: pkg,
+            tags: newTags,
+          },
+          { $returnEdits: true },
+        );
+        await reactivatePendingIfNoQuoteRemoved(pkg, newTags);
+      } else {
+        const pkg = await client(RfqPackage).fetchOne(packageId);
+        await client(editTagsRfqPackage).applyAction(
+          {
+            rfqPackage: pkg,
+            tags: newTags,
+          },
+          { $returnEdits: true },
+        );
+        await reactivateRfqIfNoQuoteRemoved(pkg, newTags);
+      }
       onSaved(newTags);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to save tags");

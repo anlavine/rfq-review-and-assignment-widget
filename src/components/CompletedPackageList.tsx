@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from "react";
+import { useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from "react";
 import { PendingRfqPackage, RfqPackage } from "@rfq-review-hub-widget-application/sdk";
 import client from "../client";
 import type { Osdk } from "@osdk/client";
@@ -6,6 +6,8 @@ import shared from "./AssignmentPackageList.module.css";
 import css from "./CompletedPackageList.module.css";
 import type { AssignmentItem } from "./AssignmentPackageList";
 import AssignmentPackageCard from "./AssignmentPackageCard";
+import { useEligibleEstimators } from "../hooks/useEligibleEstimators";
+import { useEmployeeNames } from "../hooks/useEmployeeNames";
 
 const PAGE_SIZE = 25;
 /** Concurrency limit when resolving a Completed RFQ's linked Pending package */
@@ -13,12 +15,12 @@ const LINK_BATCH_SIZE = 20;
 /** Debounce delay before a search keystroke triggers a new server query */
 const SEARCH_DEBOUNCE_MS = 400;
 /**
- * Cap on the supplementary "match by RFQ Package name" lead (see below) —
- * it's a bounded, non-paginated batch merged in once per search, not a
- * fully paginated source of its own. A subject search matching more
- * completed packages by name than this cap could miss some very old ones.
+ * Cap on the supplementary leads below (match by RFQ Package name, and
+ * directly-tagged unlinked RFQ Packages) — each is a bounded, non-paginated
+ * batch merged in once per search/load, not a fully paginated source of its
+ * own. More matches than this cap could miss some very old ones.
  */
-const PACKAGE_NAME_MATCH_CAP = 100;
+const SUPPLEMENTARY_LEAD_CAP = 100;
 
 interface SearchTerms {
   subject: string;
@@ -105,7 +107,7 @@ async function fetchCompletedRfqByPackageName(search: SearchTerms): Promise<Osdk
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ] as any,
     })
-    .fetchPage({ $pageSize: PACKAGE_NAME_MATCH_CAP, $orderBy: { dateCompleted: "desc" } });
+    .fetchPage({ $pageSize: SUPPLEMENTARY_LEAD_CAP, $orderBy: { dateCompleted: "desc" } });
   return page.data;
 }
 
@@ -159,9 +161,11 @@ async function fetchNoQuotePage(token: string | undefined, search: SearchTerms):
 /**
  * Supplementary lead for the "No Quote" bucket, mirroring
  * fetchCompletedRfqByPackageName above: also matches RfqPackage's own
- * `packageName` against the subject search box. RfqPackage carries no tags
- * of its own, so each name match is verified against its linked Pending
- * package's tags before being included — and, same as the primary lead,
+ * `packageName` against the subject search box. RfqPackage has its own
+ * `tags` field, but it's only authoritative when there's no linked Pending
+ * package (see fetchNoQuoteRfqDirect below) — a linked RFQ Package's tags
+ * are edited via its Pending package, so each name match here is verified
+ * against the linked package's tags instead, same as the primary lead. Also
  * excluded if its RFQ Package is already "Completed" (shown in the other
  * section instead). A bounded, non-paginated batch merged in once per
  * search rather than a fully paginated source.
@@ -170,7 +174,7 @@ async function fetchNoQuoteByPackageName(search: SearchTerms): Promise<Assignmen
   if (!search.subject) return [];
   const page = await client(RfqPackage)
     .where({ packageName: { $containsAnyTerm: search.subject } })
-    .fetchPage({ $pageSize: PACKAGE_NAME_MATCH_CAP, $orderBy: { dateReceived: "desc" } });
+    .fetchPage({ $pageSize: SUPPLEMENTARY_LEAD_CAP, $orderBy: { dateReceived: "desc" } });
 
   const resolved = await Promise.all(page.data.map(async (rfq): Promise<AssignmentItem | null> => {
     if (rfq.status === "Completed") return null;
@@ -188,6 +192,41 @@ async function fetchNoQuoteByPackageName(search: SearchTerms): Promise<Assignmen
   return resolved.filter((r): r is AssignmentItem => r !== null);
 }
 
+/**
+ * Third lead for the "No Quote" bucket: RfqPackage objects tagged "No
+ * Quote" directly on their own `tags` field with no linked Pending package
+ * at all. These are invisible to the two leads above, since both start from
+ * PendingRfqPackage (or verify against a linked one) — an unlinked RFQ
+ * Package can only be discovered by querying RfqPackage directly. Excluded
+ * if already "Completed" (shown in the other section instead), same as
+ * every other lead here. A bounded, non-paginated batch merged in once per
+ * search/load — "No Quote"-tagged unlinked RFQ Packages should be rare
+ * enough that a full "Load More" stream of their own isn't warranted.
+ *
+ * Sender/customer search terms are skipped entirely here rather than
+ * ignored: RfqPackage has no `from` field and no directly-queryable
+ * customer name, so there's no server-side way to honor those filters, and
+ * showing unfiltered results would silently violate the search.
+ */
+async function fetchNoQuoteRfqDirect(search: SearchTerms): Promise<AssignmentItem[]> {
+  if (search.sender || search.customer) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const clauses: any[] = [{ tags: { $contains: "No Quote" } }, { status: { $ne: "Completed" } }];
+  if (search.subject) clauses.push({ packageName: { $containsAnyTerm: search.subject } });
+
+  const page = await client(RfqPackage)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .where({ $and: clauses } as any)
+    .fetchPage({ $pageSize: SUPPLEMENTARY_LEAD_CAP, $orderBy: { dateReceived: "desc" } });
+
+  const items = await Promise.all(page.data.map(buildRfqItem));
+  // Only unlinked matches close the gap here — a linked one's tags are
+  // edited via its Pending package (authoritative there), so it's already
+  // covered by the primary lead or fetchNoQuoteByPackageName above.
+  return items.filter((item) => item.type === "rfq" && item.linkedPendingId === null);
+}
+
 /** Stable dedup key for an AssignmentItem — "pending" and "rfq" ids live in separate spaces, so the type is part of the key. */
 function itemKey(item: AssignmentItem): string {
   return `${item.type}:${String(item.pkg.$primaryKey)}`;
@@ -198,10 +237,19 @@ function itemReceivedTimestamp(item: AssignmentItem): string {
   return item.type === "pending" ? (item.pkg.receivedDatetime ?? "") : (item.pkg.dateReceived ?? "");
 }
 
-/** Merges the package-name lead into the primary "No Quote" lead, newest-received first, deduplicated. */
-function mergeNoQuoteItems(primary: AssignmentItem[], byName: AssignmentItem[]): AssignmentItem[] {
+/** Merges the supplementary leads into the primary "No Quote" lead, newest-received first, deduplicated. */
+function mergeNoQuoteItems(primary: AssignmentItem[], ...supplements: AssignmentItem[][]): AssignmentItem[] {
   const seen = new Set(primary.map(itemKey));
-  const merged = [...primary, ...byName.filter((i) => !seen.has(itemKey(i)))];
+  const merged = [...primary];
+  for (const supplement of supplements) {
+    for (const item of supplement) {
+      const key = itemKey(item);
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push(item);
+      }
+    }
+  }
   return merged.sort((a, b) => itemReceivedTimestamp(b).localeCompare(itemReceivedTimestamp(a)));
 }
 
@@ -275,6 +323,19 @@ function buildPendingItem(pkg: Osdk.Instance<PendingRfqPackage>): AssignmentItem
   };
 }
 
+/**
+ * Tags to display for a row: a Pending package's own tags, an RFQ item's
+ * linked Pending package's tags (authoritative when linked, edited via
+ * `editTags`), or — when there's no linked Pending package — the RFQ
+ * Package's own `tags` field directly (edited via `editTagsRfqPackage`).
+ * Mirrors `getEffectiveTags` in AssignmentPackageList.tsx.
+ */
+function displayTags(item: AssignmentItem): string[] {
+  if (item.type === "pending") return item.pkg.tags ?? [];
+  if (item.linkedPendingId) return item.linkedTags;
+  return item.pkg.tags ?? [];
+}
+
 interface CompletedPackageListProps {
   selectedId: string | null;
   onSelect: (id: string, type: "pending" | "rfq", linkedPendingId?: string | null) => void;
@@ -287,9 +348,10 @@ export interface CompletedPackageListHandle {
   /**
    * Optimistically drops a row from the "No Quote" section if its tags no
    * longer include "No Quote" (e.g. after an Edit Tags save) — `packageId`
-   * is always the Pending package's id, matching either the row itself
-   * (unlinked) or its `linkedPendingId` (linked). No-op if the package
-   * isn't currently loaded.
+   * is the Pending package's id for a Pending row or a linked RFQ row
+   * (matched via `linkedPendingId`), or the RFQ Package's own id for an
+   * unlinked RFQ row edited directly. No-op if the package isn't currently
+   * loaded.
    */
   updatePackageTags: (packageId: string, newTags: string[]) => void;
 }
@@ -306,21 +368,47 @@ const EMPTY_SECTION: SectionState = { items: [], nextToken: undefined, hasMore: 
 
 /**
  * "Completed" tab for the Assignment view — Completed RFQ Packages, and a
- * unified "No Quote" section covering "No Quote"-tagged Pending packages
- * regardless of whether an RFQ Package has been created for them yet (a
- * package tagged No Quote after its RFQ Package already exists would
- * otherwise be invisible everywhere: excluded from the main Assignment
- * tabs for the tag, and from "Completed RFQ Packages" since its status
- * isn't Completed). Unlike the other Assignment tabs, this one doesn't
- * load everything up front: both sections are paginated ("Load More"), and
- * subject/sender/customer search is applied server-side so filtering
- * stays fast even with a large backlog of completed work.
+ * unified "No Quote" section covering "No Quote"-tagged work regardless of
+ * whether an RFQ Package has been created for it, whether it's since been
+ * linked to one, or — now that RfqPackage carries its own `tags` field —
+ * whether it was tagged directly on a standalone RFQ Package with no
+ * linked Pending package at all (edited via `editTagsRfqPackage`; see
+ * fetchNoQuoteRfqDirect). Otherwise this work would be invisible
+ * everywhere: excluded from the main Assignment tabs for the tag, and from
+ * "Completed RFQ Packages" since its status isn't Completed. Unlike the
+ * other Assignment tabs, this one doesn't load everything up front: both
+ * sections are paginated ("Load More"), and subject/sender/customer search
+ * is applied server-side so filtering stays fast even with a large backlog
+ * of completed work.
  */
 const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPackageListProps>(
   function CompletedPackageList({ selectedId, onSelect, assigneeOverrides, dueDateOverrides, refreshToken }, ref) {
     const [rfqSection, setRfqSection] = useState<SectionState>(EMPTY_SECTION);
     const [noQuoteSection, setNoQuoteSection] = useState<SectionState>(EMPTY_SECTION);
     const [error, setError] = useState<string | null>(null);
+
+    // Assignee name resolution — same two-tier approach as AssignmentPackageList:
+    // the eligible-estimator list first (fast, cached), falling back to a
+    // direct Employee lookup for anyone assigned but no longer (or never)
+    // eligible for new assignments, so a real name still renders instead of
+    // a raw id.
+    const { estimators } = useEligibleEstimators();
+    const estimatorNameById = useMemo(() => {
+      const map = new Map<string, string>();
+      for (const e of estimators) map.set(e.id, e.name);
+      return map;
+    }, [estimators]);
+    const unresolvedAssigneeIds = useMemo(
+      () => [...rfqSection.items, ...noQuoteSection.items]
+        .map((item) => item.assigneeId)
+        .filter((id) => id && !estimatorNameById.has(id)),
+      [rfqSection.items, noQuoteSection.items, estimatorNameById],
+    );
+    const fallbackNameById = useEmployeeNames(unresolvedAssigneeIds);
+    const resolveAssigneeName = (id: string | null | undefined): string | null => {
+      if (!id) return null;
+      return estimatorNameById.get(id) ?? fallbackNameById.get(id) ?? null;
+    };
 
     const [subjectInput, setSubjectInput] = useState("");
     const [senderInput, setSenderInput] = useState("");
@@ -332,15 +420,20 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
     useImperativeHandle(ref, () => ({
       updatePackageTags(packageId: string, newTags: string[]) {
         if (newTags.includes("No Quote")) return;
-        // Items in this section can be either the Pending package itself
-        // (keyed by its own id) or its linked RFQ Package (keyed by
-        // `linkedPendingId`) — check whichever applies.
+        // Items in this section can be a Pending package itself (keyed by
+        // its own id), an RFQ Package linked to a Pending package (keyed by
+        // `linkedPendingId`), or an unlinked RFQ Package edited directly
+        // via editTagsRfqPackage (keyed by its own id) — check whichever
+        // applies.
         setNoQuoteSection((prev) => ({
           ...prev,
           items: prev.items.filter((item) => {
+            const ownId = String(item.pkg.$primaryKey);
             const matches = item.type === "pending"
-              ? String(item.pkg.$primaryKey) === packageId
-              : item.linkedPendingId === packageId;
+              ? ownId === packageId
+              : item.linkedPendingId
+                ? item.linkedPendingId === packageId
+                : ownId === packageId;
             return !matches;
           }),
         }));
@@ -367,11 +460,12 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
 
       (async () => {
         try {
-          const [rfqPage, noQuotePage, rfqByName, noQuoteByName] = await Promise.all([
+          const [rfqPage, noQuotePage, rfqByName, noQuoteByName, noQuoteRfqDirect] = await Promise.all([
             fetchCompletedRfqPage(undefined, search),
             fetchNoQuotePage(undefined, search),
             fetchCompletedRfqByPackageName(search),
             fetchNoQuoteByPackageName(search),
+            fetchNoQuoteRfqDirect(search),
           ]);
           if (cancelled || loadId !== loadIdRef.current) return;
 
@@ -391,7 +485,7 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
             loadingMore: false,
           });
           setNoQuoteSection({
-            items: mergeNoQuoteItems(noQuotePage.items, noQuoteByName),
+            items: mergeNoQuoteItems(noQuotePage.items, noQuoteByName, noQuoteRfqDirect),
             nextToken: noQuotePage.nextToken,
             hasMore: !!noQuotePage.nextToken,
             loading: false,
@@ -494,7 +588,7 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
                   onSelect={onSelect}
                   mode="all"
                   tags={tagsFor(item)}
-                  assigneeName={null}
+                  assigneeName={resolveAssigneeName(item.assigneeId)}
                   customerName={item.customerName}
                 />
               );
@@ -552,8 +646,8 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
           <span className={shared.columnHeaderCell} />
         </div>
 
-        {renderSection("Completed RFQ Packages", rfqSection, handleLoadMoreRfq, (item) => (item.type === "rfq" ? item.linkedTags : []))}
-        {renderSection("No Quote", noQuoteSection, handleLoadMoreNoQuote, (item) => (item.type === "pending" ? item.pkg.tags ?? [] : item.linkedTags))}
+        {renderSection("Completed RFQ Packages", rfqSection, handleLoadMoreRfq, displayTags)}
+        {renderSection("No Quote", noQuoteSection, handleLoadMoreNoQuote, displayTags)}
       </div>
     );
   },
