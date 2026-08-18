@@ -24,6 +24,15 @@ function buildVehicleLine(oem?: string, platform?: string, modelYear?: string): 
   return parts.length > 0 ? parts.join(" · ") : "—";
 }
 
+/** Color-codes the "Location" (quotedFor) column by matching well-known site names anywhere in the string. */
+function getLocationColorClass(location: string): string {
+  const lower = location.toLowerCase();
+  if (lower.includes("mexico")) return css.locationMexico;
+  if (lower.includes("windsor")) return css.locationWindsor;
+  if (lower.includes("tennessee")) return css.locationTennessee;
+  return "";
+}
+
 const PRIORITY_CLASSES = {
   high: css.cardBorderHigh,
   medium: css.cardBorderMedium,
@@ -200,6 +209,11 @@ export default function AssignmentPackageCard({
   const effectiveStatus = isPending ? item.pkg.completionStatus : item.pkg.status;
   const dueUrgency = getDueDateUrgency(item.dueDate ?? undefined, effectiveStatus ?? undefined);
 
+  // Both only resolve for an actual RFQ Package — a Pending package (even
+  // one already linked to an RFQ Package) has neither field of its own.
+  const rfqPackageId = item.type === "rfq" ? String(item.pkg.$primaryKey) : "";
+  const location = item.type === "rfq" ? item.pkg.quotedFor ?? "" : "";
+
   const receivedText = isPending
     ? formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)
     : formatDate(item.pkg.dateReceived);
@@ -231,6 +245,7 @@ export default function AssignmentPackageCard({
       onKeyDown={(e) => { if (e.key === "Enter") onSelect(id, item.type, item.type === "rfq" ? item.linkedPendingId : null); }}
     >
       <div className={css.colSubject} title={title}>{title}</div>
+      <div className={css.colRfqId} title={rfqPackageId || undefined}>{rfqPackageId}</div>
       <div className={css.colCustomer} title={customerName ?? undefined}>{customerName ?? "—"}</div>
       <div className={css.colVehicle}>{buildVehicleLine(item.pkg.oem, item.pkg.platform, item.pkg.modelYear)}</div>
       <div className={css.colReceived}>{receivedText}</div>
@@ -242,6 +257,7 @@ export default function AssignmentPackageCard({
           </span>
         )}
       </div>
+      <div className={`${css.colLocation} ${getLocationColorClass(location)}`} title={location || undefined}>{location}</div>
       <div className={css.colAssignee} title={assigneeName ?? undefined}>
         {mode !== "unassigned" ? assigneeName ?? item.assigneeId ?? "" : ""}
       </div>

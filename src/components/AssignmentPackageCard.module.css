@@ -1,4 +1,4 @@
-/* Single-line card: subject | customer | vehicle | received | due | assignee | icons | tags */
+/* Single-line card: subject | rfq id | customer | vehicle | received | due | location | assignee | icons | tags */
 /* Icons/tags columns are fixed-width (not auto) so their content — which
    varies row to row (download icon only shows sometimes, tag count varies)
    — never changes how much space the other columns get. Auto-sized tracks
@@ -6,7 +6,7 @@
    shift the fr columns' pixel widths inconsistently between rows. */
 .card {
   display: grid;
-  grid-template-columns: 3fr 1.4fr 1.8fr 1.1fr 1.1fr 1.1fr 40px 40px;
+  grid-template-columns: 3fr 1.2fr 1.4fr 1.8fr 1.1fr 1.1fr 1fr 1.1fr 40px 40px;
   align-items: center;
   column-gap: 10px;
   border: 2px solid var(--border-default);
@@ -52,10 +52,12 @@
   min-width: 0;
 }
 
+.colRfqId,
 .colCustomer,
 .colVehicle,
 .colReceived,
 .colDue,
+.colLocation,
 .colAssignee {
   font-size: 12px;
   color: var(--text-secondary);
@@ -68,6 +70,18 @@
 .dueOverdue {
   color: var(--due-overdue-fg);
   font-weight: 700;
+}
+
+.locationMexico {
+  color: var(--location-mexico-fg);
+}
+
+.locationWindsor {
+  color: var(--location-windsor-fg);
+}
+
+.locationTennessee {
+  color: var(--location-tennessee-fg);
 }
 
 .autoIcon {

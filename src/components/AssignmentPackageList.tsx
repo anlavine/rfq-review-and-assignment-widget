@@ -727,10 +727,12 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
 
       <div className={css.columnHeaderRow}>
         <span className={css.columnHeaderCell}>Subject</span>
+        <span className={css.columnHeaderCell}>Package ID</span>
         <span className={css.columnHeaderCell}>Customer</span>
         <span className={css.columnHeaderCell}>Program</span>
         <span className={css.columnHeaderCell}>Received</span>
         <span className={css.columnHeaderCell}>Due</span>
+        <span className={css.columnHeaderCell}>Location</span>
         <span className={css.columnHeaderCell}>Assignee</span>
         <span className={css.columnHeaderCell} />
         <span className={css.columnHeaderCell} />

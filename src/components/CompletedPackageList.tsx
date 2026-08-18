@@ -637,10 +637,12 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
 
         <div className={shared.columnHeaderRow}>
           <span className={shared.columnHeaderCell}>Subject</span>
+          <span className={shared.columnHeaderCell}>RFQ ID</span>
           <span className={shared.columnHeaderCell}>Customer</span>
           <span className={shared.columnHeaderCell}>Program</span>
           <span className={shared.columnHeaderCell}>Received</span>
           <span className={shared.columnHeaderCell}>Due</span>
+          <span className={shared.columnHeaderCell}>Location</span>
           <span className={shared.columnHeaderCell}>Assignee</span>
           <span className={shared.columnHeaderCell} />
           <span className={shared.columnHeaderCell} />

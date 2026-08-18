@@ -115,6 +115,11 @@
   --att-blue-fg: #1a56db;
   --att-blue-border: #93bbfd;
 
+  /* ── Assignment "Location" (quotedFor) text colors ── */
+  --location-mexico-fg: #0d6e3a;
+  --location-windsor-fg: #1a56db;
+  --location-tennessee-fg: #8a5a00;
+
   /* ── Warning box ── */
   --warning-bg: #fcf8e3;
   --warning-fg: #8a6d3b;
@@ -284,6 +289,11 @@
   --att-blue-bg: #1a2a42;
   --att-blue-fg: #60a5fa;
   --att-blue-border: #1e40af;
+
+  /* ── Assignment "Location" (quotedFor) text colors ── */
+  --location-mexico-fg: #6ee7a0;
+  --location-windsor-fg: #60a5fa;
+  --location-tennessee-fg: #fbbf24;
 
   /* ── Warning box ── */
   --warning-bg: #3a2e1a;
