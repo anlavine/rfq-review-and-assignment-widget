@@ -345,6 +345,33 @@ function buildPendingItem(pkg: Osdk.Instance<PendingRfqPackage>): AssignmentItem
 }
 
 /**
+ * Resolves the AssignmentItem for a package that was just tagged "No
+ * Quote" (or edited some other way that might newly qualify it for this
+ * section), for optimistically adding it without a full refetch. Mirrors
+ * fetchNoQuotePage's per-row resolution: a linked RFQ Package that's
+ * already "Completed" is excluded (it belongs in the other section
+ * instead), and a Pending package's own tags are only authoritative when
+ * it has no RFQ link.
+ */
+async function buildNoQuoteItemFor(packageId: string, packageType: "pending" | "rfq"): Promise<AssignmentItem | null> {
+  if (packageType === "rfq") {
+    const rfq = await client(RfqPackage).fetchOne(packageId);
+    if (rfq.status === "Completed") return null;
+    return await buildRfqItem(rfq);
+  }
+  const pending = await client(PendingRfqPackage).fetchOne(packageId);
+  const rfqId = pending.rfqPackageId?.trim();
+  if (!rfqId) return buildPendingItem(pending);
+  try {
+    const rfq = await client(RfqPackage).fetchOne(rfqId);
+    if (rfq.status === "Completed") return null;
+    return await buildRfqItem(rfq);
+  } catch {
+    return buildPendingItem(pending);
+  }
+}
+
+/**
  * Tags to display for a row: a Pending package's own tags, an RFQ item's
  * linked Pending package's tags (authoritative when linked, edited via
  * `editTags`), or — when there's no linked Pending package — the RFQ
@@ -367,14 +394,27 @@ interface CompletedPackageListProps {
 
 export interface CompletedPackageListHandle {
   /**
-   * Optimistically drops a row from the "No Quote" section if its tags no
-   * longer include "No Quote" (e.g. after an Edit Tags save) — `packageId`
-   * is the Pending package's id for a Pending row or a linked RFQ row
-   * (matched via `linkedPendingId`), or the RFQ Package's own id for an
-   * unlinked RFQ row edited directly. No-op if the package isn't currently
-   * loaded.
+   * Optimistically adds or drops a row in the "No Quote" section after an
+   * Edit Tags save, without a full refetch. `packageId`/`packageType` are
+   * whatever `EditTagsModal` actually edited (a Pending package, or an
+   * unlinked RFQ Package edited directly via `editTagsRfqPackage`) — for a
+   * linked RFQ row this is the linked Pending package's id/"pending", since
+   * that's what tags were actually written to. Dropping matches either the
+   * row itself (unlinked) or its `linkedPendingId` (linked); adding
+   * re-resolves the row fresh (customer name, linked RFQ, etc.) since only
+   * an id and the new tags are available here — a no-op if the package
+   * doesn't actually belong in this section (e.g. its linked RFQ Package is
+   * already Completed) or is already present.
    */
-  updatePackageTags: (packageId: string, newTags: string[]) => void;
+  updatePackageTags: (packageId: string, packageType: "pending" | "rfq", newTags: string[]) => void;
+  /**
+   * Optimistically adds a row to "Completed RFQ Packages" after an RFQ
+   * Package is marked Completed (e.g. via "Mark as Done"), without a full
+   * refetch. Also drops it from "No Quote" if it was there, since a
+   * package is never listed in both sections. No-op if the package isn't
+   * actually Completed (a defensive check, since this reads fresh data).
+   */
+  markRfqCompleted: (packageId: string) => void;
 }
 
 interface SectionState {
@@ -439,25 +479,76 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
     const loadIdRef = useRef(0);
 
     useImperativeHandle(ref, () => ({
-      updatePackageTags(packageId: string, newTags: string[]) {
-        if (newTags.includes("No Quote")) return;
-        // Items in this section can be a Pending package itself (keyed by
-        // its own id), an RFQ Package linked to a Pending package (keyed by
-        // `linkedPendingId`), or an unlinked RFQ Package edited directly
-        // via editTagsRfqPackage (keyed by its own id) — check whichever
-        // applies.
-        setNoQuoteSection((prev) => ({
-          ...prev,
-          items: prev.items.filter((item) => {
-            const ownId = String(item.pkg.$primaryKey);
-            const matches = item.type === "pending"
-              ? ownId === packageId
-              : item.linkedPendingId
-                ? item.linkedPendingId === packageId
-                : ownId === packageId;
-            return !matches;
-          }),
-        }));
+      updatePackageTags(packageId: string, packageType: "pending" | "rfq", newTags: string[]) {
+        const matchesPackage = (item: AssignmentItem): boolean => {
+          // Items in this section can be a Pending package itself (keyed by
+          // its own id), an RFQ Package linked to a Pending package (keyed
+          // by `linkedPendingId`), or an unlinked RFQ Package edited
+          // directly via editTagsRfqPackage (keyed by its own id).
+          const ownId = String(item.pkg.$primaryKey);
+          return item.type === "pending"
+            ? ownId === packageId
+            : item.linkedPendingId
+              ? item.linkedPendingId === packageId
+              : ownId === packageId;
+        };
+
+        if (!newTags.includes("No Quote")) {
+          setNoQuoteSection((prev) => ({
+            ...prev,
+            items: prev.items.filter((item) => !matchesPackage(item)),
+          }));
+          return;
+        }
+
+        // "No Quote" was added — resolve and insert the row fresh, since
+        // only an id and the new tags are available here. Fire-and-forget:
+        // this needs an async fetch, so it can't happen synchronously like
+        // the removal above.
+        (async () => {
+          try {
+            const item = await buildNoQuoteItemFor(packageId, packageType);
+            if (!item) return;
+            const [resolved] = await attachDuplicatePackages([item]);
+            setNoQuoteSection((prev) => {
+              if (prev.items.some(matchesPackage)) return prev;
+              return { ...prev, items: [resolved, ...prev.items] };
+            });
+          } catch (e) {
+            console.error("Failed to add package to No Quote section:", e);
+          }
+        })();
+      },
+      markRfqCompleted(packageId: string) {
+        (async () => {
+          try {
+            const rfq = await client(RfqPackage).fetchOne(packageId);
+            if (rfq.status !== "Completed") return;
+            const item = await buildRfqItem(rfq);
+            const [resolved] = await attachDuplicatePackages([item]);
+            const key = itemKey(resolved);
+            setRfqSection((prev) => {
+              if (prev.items.some((i) => itemKey(i) === key)) return prev;
+              return { ...prev, items: [resolved, ...prev.items] };
+            });
+            // A package is never listed in both sections — drop it from
+            // "No Quote" if it was there (matched by the RFQ's own id, or
+            // its linked Pending package's id).
+            const linkedPendingId = resolved.type === "rfq" ? resolved.linkedPendingId : null;
+            setNoQuoteSection((prev) => ({
+              ...prev,
+              items: prev.items.filter((item) => {
+                const ownId = String(item.pkg.$primaryKey);
+                const matches = item.type === "rfq"
+                  ? ownId === packageId
+                  : linkedPendingId !== null && ownId === linkedPendingId;
+                return !matches;
+              }),
+            }));
+          } catch (e) {
+            console.error("Failed to add completed RFQ Package:", e);
+          }
+        })();
       },
     }));
 
@@ -667,7 +758,7 @@ const CompletedPackageList = forwardRef<CompletedPackageListHandle, CompletedPac
 
         <div className={shared.columnHeaderRow}>
           <span className={shared.columnHeaderCell}>Subject</span>
-          <span className={shared.columnHeaderCell}>RFQ ID</span>
+          <span className={shared.columnHeaderCell}>Package ID</span>
           <span className={shared.columnHeaderCell}>Customer</span>
           <span className={shared.columnHeaderCell}>Program</span>
           <span className={shared.columnHeaderCell}>Received</span>

@@ -175,78 +175,33 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
       setItems([]);
 
       try {
-        // ── Fetch active pending + rfq packages in parallel ──
-        // For "assigned" mode we still filter by `assignedEstimator` / `assignedTo` on
-        // the client because the OSDK filter set doesn't include a "$notNull" operator
-        // for strings. We use the same server predicate ($isNull true/false) and
-        // then filter locally to be safe against empty-string values.
-        const wantsAssigned = mode === "assigned";
-
+        // ── Fetch every active pending + rfq package in parallel ──
+        // Unconditional — not scoped to `mode` at all. All/Unassigned/Assigned
+        // share the exact same underlying "Active" superset; which of the
+        // three a package belongs to is a pure client-side membership check
+        // (see `modeItems` below), so switching between them never needs a
+        // refetch.
         const [pendingPages, rfqPages] = await Promise.all([
-          // Active, unassigned PendingRfqPackages
           (async () => {
             const results: Osdk.Instance<PendingRfqPackage>[] = [];
             let token: string | undefined;
             do {
               const page = await client(PendingRfqPackage)
-                .where({
-                  $and: [
-                    { completionStatus: { $eq: "Active" } },
-
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ] as any,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any)
+                .where({ completionStatus: { $eq: "Active" } })
                 .fetchPage({ $pageSize: FETCH_PAGE_SIZE, ...(token ? { $nextPageToken: token } : {}) });
-              // Defensive client-side filter — some rows may store empty
-              // strings rather than null for the assignee field.
-              for (const p of page.data) {
-
-
-                const hasAssignee = !!p.assignedEstimator && p.assignedEstimator.trim() !== "";
-                // Assigned tab (and All) exclude anything already linked to an RFQ
-                // Package (those are essentially "Reviewed" and shouldn't appear as
-                // work items).
-                const hasRfqLink = !!p.rfqPackageId && p.rfqPackageId.trim() !== "";
-                if (mode === "all") {
-                  if (!(hasAssignee && hasRfqLink)) results.push(p);
-                } else if (wantsAssigned) {
-                  if (hasAssignee && !hasRfqLink) results.push(p);
-                } else {
-                  if (!hasAssignee) results.push(p);
-                }
-              }
+              results.push(...page.data);
               token = page.nextPageToken;
             } while (token && !cancelled);
             return results;
           })(),
-          // Active, unassigned RfqPackages
           (async () => {
             const results: Osdk.Instance<RfqPackage>[] = [];
             let token: string | undefined;
             do {
               const page = await client(RfqPackage)
-                .where({
-                  $and: [
-                    { status: { $eq: "Active" } },
-
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  ] as any,
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                } as any)
+                .where({ status: { $eq: "Active" } })
                 .fetchPage({ $pageSize: FETCH_PAGE_SIZE, ...(token ? { $nextPageToken: token } : {}) });
-              for (const p of page.data) {
-
-
-                const hasAssignee = !!p.assignedTo && p.assignedTo.trim() !== "";
-                if (mode === "all") {
-                  results.push(p);
-                } else if (wantsAssigned) {
-                  if (hasAssignee) results.push(p);
-                } else {
-                  if (!hasAssignee) results.push(p);
-                }
-              }
+              results.push(...page.data);
               token = page.nextPageToken;
             } while (token && !cancelled);
             return results;
@@ -445,8 +400,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     })();
 
     return () => { cancelled = true; };
-
-  }, [mode, refreshToken]);
+  }, [refreshToken]);
 
   // Resolve employee id -> display name, for eligible estimators (fast, cached).
   const estimatorNameById = useMemo(() => {
@@ -469,6 +423,28 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     return estimatorNameById.get(id) ?? fallbackNameById.get(id) ?? null;
   };
 
+  // Which of All/Unassigned/Assigned a package belongs to, applied entirely
+  // client-side against the single fetched "Active" superset — `items`
+  // itself is never re-fetched when `mode` changes, only re-filtered here.
+  const modeItems = useMemo(() => {
+    return items.filter((item) => {
+      if (item.type === "pending") {
+        const hasAssignee = !!item.assigneeId;
+        const hasRfqLink = !!item.pkg.rfqPackageId && item.pkg.rfqPackageId.trim() !== "";
+        // A Pending package already linked to an RFQ Package is essentially
+        // "Reviewed" and shouldn't appear as a work item in any tab.
+        if (hasAssignee && hasRfqLink) return false;
+        if (mode === "assigned") return hasAssignee;
+        if (mode === "unassigned") return !hasAssignee;
+        return true; // "all"
+      }
+      const hasAssignee = !!item.assigneeId;
+      if (mode === "assigned") return hasAssignee;
+      if (mode === "unassigned") return !hasAssignee;
+      return true; // "all"
+    });
+  }, [items, mode]);
+
   const visibleItems = useMemo(() => {
 
 
@@ -479,7 +455,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     // necessarily had its work type reviewed/corrected, so it isn't
     // excluded on that basis alone — it's still surfaced regardless of
     // whatever workType ingestion happened to parse.
-    let filtered = items.filter((item) => {
+    let filtered = modeItems.filter((item) => {
       const hasRfqLink = item.type === "rfq"
         ? true
         : !!item.pkg.rfqPackageId && item.pkg.rfqPackageId.trim() !== "";
@@ -618,7 +594,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
     });
 
     return filtered;
-  }, [items, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, assigneeFilter, mode, estimatorNameById, fallbackNameById, sortMode, filters, tagOverrides]);
+  }, [modeItems, hiddenIds, assigneeOverrides, dueDateOverrides, dueDateEditedOverrides, assigneeFilter, mode, estimatorNameById, fallbackNameById, sortMode, filters, tagOverrides]);
 
   // Options for the assignee filter — built from the eligible estimator list
   // plus any assignee IDs currently on cards that don't resolve to a name
@@ -627,13 +603,13 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
   // new assignments, which this filter doesn't need to distinguish).
   const assigneeFilterOptions = useMemo<MultiSelectOption[]>(() => {
     const opts: MultiSelectOption[] = estimators.map((e) => ({ value: e.id, label: e.name }));
-    const hasUnknown = items.some((item) =>
+    const hasUnknown = modeItems.some((item) =>
       item.assigneeId && !estimatorNameById.has(item.assigneeId) && !fallbackNameById.has(item.assigneeId));
     if (hasUnknown) {
       opts.push({ value: UNKNOWN_ASSIGNEE, label: "Unknown assignee" });
     }
     return opts;
-  }, [estimators, items, estimatorNameById, fallbackNameById]);
+  }, [estimators, modeItems, estimatorNameById, fallbackNameById]);
 
   const content = useMemo(() => {
     if (loading) return <div className={css.emptyCard}>Fetching packages…</div>;

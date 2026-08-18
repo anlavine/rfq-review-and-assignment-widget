@@ -162,6 +162,10 @@ function Home(): React.ReactElement {
             { rfqPackage: rfqPkg, status: "Completed" } as unknown as any,
             { $returnEdits: true },
           );
+          // Needs fresh (post-write) data to build the row, so this happens
+          // after the action confirms rather than optimistically alongside
+          // `doneInSession` above.
+          completedListRef.current?.markRfqCompleted(packageId);
         }
       } catch (e) {
         console.error("Failed to mark package as done:", e);
@@ -597,8 +601,15 @@ function Home(): React.ReactElement {
           </button>
         </div>
       </div> : null}
-      {appMode === "assignment" ? (
-        <div className={css.panels}>
+      {/*
+        Both view trees below (Assignment and Ingestion) always stay
+        mounted, toggled via `display: none` rather than a ternary that
+        would mount/unmount them — switching `appMode` back and forth would
+        otherwise re-fetch everything from scratch every time (lost
+        `allPackages`/`items` state, restarted Ingestion's background poll,
+        etc.). Only one is ever interactive/visible at a time.
+      */}
+      <div className={css.panels} style={appMode === "assignment" ? undefined : { display: "none" }}>
           <div className={`${css.listPanel} ${css.listPanelWide}`}>
             <div className={css.assignmentTabBar}>
               <button
@@ -650,7 +661,14 @@ function Home(): React.ReactElement {
                 Completed
               </button>
             </div>
-            {assignmentTab === "completed" ? (
+            {/*
+              Both stay mounted (toggled via `display: none`) rather than a
+              ternary, for the same reason as the Ingestion/Assignment split
+              above — switching to/from the Completed tab would otherwise
+              re-fetch and re-paginate everything from scratch every time,
+              losing the Completed tab's search text and loaded pages.
+            */}
+            <div style={assignmentTab === "completed" ? undefined : { display: "none" }}>
               <CompletedPackageList
                 ref={completedListRef}
                 selectedId={selectedAssignmentId}
@@ -663,10 +681,11 @@ function Home(): React.ReactElement {
                 dueDateOverrides={dueDateOverrides}
                 refreshToken={refreshToken}
               />
-            ) : (
+            </div>
+            <div style={assignmentTab === "completed" ? { display: "none" } : undefined}>
               <AssignmentPackageList
                 ref={assignmentListRef}
-                mode={assignmentTab}
+                mode={assignmentTab === "completed" ? "all" : assignmentTab}
                 selectedId={selectedAssignmentId}
                 onSelect={(id, type, linkedPendingId) => {
                   setSelectedAssignmentId(id);
@@ -680,7 +699,7 @@ function Home(): React.ReactElement {
                 refreshToken={refreshToken}
                 filters={assignmentFilters}
               />
-            )}
+            </div>
           </div>
           <div className={css.detailColumn}>
             <div className={css.headerBar}>
@@ -773,8 +792,7 @@ function Home(): React.ReactElement {
             </div>
           </div>
         </div>
-      ) : (
-        <div className={css.panels}>
+      <div className={css.panels} style={appMode === "assignment" ? { display: "none" } : undefined}>
           {/* List panel — slides out when in review mode */}
           <div className={`${css.listPanel} ${reviewMode ? css.listPanelHidden : ""}`}>
             <PendingRfqPackageList
@@ -1029,8 +1047,6 @@ function Home(): React.ReactElement {
           </div>
         </div>
 
-      )}
-
       {/*
         The Edit Tags modal is shared between Ingestion and Assignment views.
         In Ingestion it always operates on `selectedPackageId` (a Pending
@@ -1051,7 +1067,7 @@ function Home(): React.ReactElement {
             trackUsage(INTERACTION_KEYS.PACKAGE_EDIT_TAGS, workspaceRef.current);
             setShowEditTags(false);
             assignmentListRef.current?.updatePackageTags(assignmentEditTagsTarget.packageId, newTags);
-            completedListRef.current?.updatePackageTags(assignmentEditTagsTarget.packageId, newTags);
+            completedListRef.current?.updatePackageTags(assignmentEditTagsTarget.packageId, assignmentEditTagsTarget.packageType, newTags);
           }}
         />
       )}
@@ -1065,6 +1081,7 @@ function Home(): React.ReactElement {
             setShowEditTags(false);
             // Optimistic update: update tags in local state
             listRef.current?.updatePackageTags(selectedPackageId, newTags);
+            completedListRef.current?.updatePackageTags(selectedPackageId, "pending", newTags);
           }}
         />
       )}
