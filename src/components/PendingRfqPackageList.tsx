@@ -32,11 +32,15 @@ const NEW_DATA_GRACE_PERIOD_MS = 120_000;
 
 export type TabKey = "all" | "outstanding" | "skipped" | "reviewed";
 
-const TABS: { key: TabKey; label: string; status: string | null }[] = [
+// "status" is an array so a tab can match more than one completionStatus —
+// the Skipped tab covers both "Skipped" (via Skip) and "Under Review" (via
+// Skip and Review), since both are ways of taking a package out of
+// Outstanding without fully reviewing it yet.
+const TABS: { key: TabKey; label: string; status: string[] | null }[] = [
   { key: "all", label: "All", status: null },
-  { key: "outstanding", label: "Outstanding", status: "Active" },
-  { key: "skipped", label: "Skipped", status: "Skipped" },
-  { key: "reviewed", label: "Reviewed", status: "Reviewed" },
+  { key: "outstanding", label: "Outstanding", status: ["Active"] },
+  { key: "skipped", label: "Skipped", status: ["Skipped", "Under Review"] },
+  { key: "reviewed", label: "Reviewed", status: ["Reviewed"] },
 ];
 
 /** Package IDs to exclude from auto-selection (e.g. just-skipped packages) */
@@ -697,7 +701,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
       const effectiveDueDate = getEffectiveDueDate(pkg);
 
       // Tab / status filter
-      if (activeStatus && effectiveStatus !== activeStatus) return false;
+      if (activeStatus && !activeStatus.includes(effectiveStatus ?? "")) return false;
 
       // Due date range
       if (filters.dueDateStart && effectiveDueDate) {
@@ -862,7 +866,7 @@ const PendingRfqPackageList = forwardRef<PendingRfqPackageListHandle, PendingRfq
           (p) => String(p.$primaryKey) === selectedPackageId,
         );
         const selectedEffectiveStatus = selectedPkg ? getEffectiveStatus(selectedPkg) : undefined;
-        if (!selectedPkg || selectedEffectiveStatus !== newStatus) {
+        if (!selectedPkg || !newStatus.includes(selectedEffectiveStatus ?? "")) {
           onDeselectPackage();
         }
       }
@@ -1103,13 +1107,21 @@ function getStatusClass(status: string): string {
   switch (status) {
     case "Active":
       return css.statusActive;
+    // "Under Review" is a Skip variant (via Skip and Review) — badge
+    // resolves the same as plain "Skipped".
     case "Skipped":
+    case "Under Review":
       return css.statusSkipped;
     case "Reviewed":
       return css.statusReviewed;
     default:
       return css.statusDefault;
   }
+}
+
+/** Display label for a status badge — "Under Review" resolves to "Skipped", matching its badge color. */
+function getStatusLabel(status: string): string {
+  return status === "Under Review" ? "Skipped" : status;
 }
 
 function getTagClass(tag: string): string {
@@ -1286,7 +1298,7 @@ function PackageCard({ pkg, meta, overrides, isSelected, showStatus, disabled, h
             <>
               <span className={css.cardMetaSep}>·</span>
               <span className={`${css.statusBadge} ${getStatusClass(effectiveStatus)}`}>
-                {effectiveStatus}
+                {getStatusLabel(effectiveStatus)}
               </span>
             </>
           )}

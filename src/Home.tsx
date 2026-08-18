@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import css from "./Home.module.css";
 import PendingRfqPackageList from "./components/PendingRfqPackageList";
 import { EMPTY_FILTERS } from "./components/packageFilters";
@@ -10,7 +10,7 @@ import SplitPackageModal from "./components/SplitPackageModal";
 import LinkToRfqModal from "./components/LinkToRfqModal";
 import FilterDropdown from "./components/FilterDropdown";
 import PackageDetail from "./components/PackageDetail";
-import { PendingRfqPackage, skipPackageReview, unskipPackageReview } from "@rfq-review-hub-widget-application/sdk";
+import { PendingRfqPackage, RfqPackage, skipPackageReview, unskipPackageReview, markPackageForReview, reviewPackage, editRfqPackagePrivilegedFields } from "@rfq-review-hub-widget-application/sdk";
 import client from "./client";
 import { compareToolNumber } from "./utils/sortTools";
 import EditTagsModal from "./components/EditTagsModal";
@@ -86,6 +86,13 @@ function Home(): React.ReactElement {
    */
   const [assignedInSession, setAssignedInSession] = useState<Set<string>>(new Set());
   /**
+   * Session-local set of package/RFQ Package IDs marked done via "Mark as
+   * Done". A done item no longer matches any Assignment tab's Active-only
+   * query, so it's hidden from all three (all/unassigned/assigned) without
+   * a full refetch.
+   */
+  const [doneInSession, setDoneInSession] = useState<Set<string>>(new Set());
+  /**
    * Session-local overrides for `assigneeId` on the Assigned tab.
    * When a package is reassigned it should stay in the list but reflect
    * the new assignee. Keyed by package primary key.
@@ -119,6 +126,53 @@ function Home(): React.ReactElement {
       return next;
     });
     setErrorToastMessage(message);
+  }, []);
+
+  /**
+   * "Mark as Done" — fire-and-forget: a Pending package moves to
+   * "Reviewed" (via reviewPackage), an RFQ Package moves to "Completed"
+   * (via editRfqPackagePrivilegedFields). Either way it no longer matches
+   * any Assignment tab's Active-only query, so it's hidden immediately
+   * rather than waiting on the action call. On failure the optimistic hide
+   * is undone and the failure is surfaced via the error toast, since the
+   * selection may already be gone by the time it resolves.
+   */
+  const handleMarkAsDone = useCallback((packageId: string, packageType: "pending" | "rfq") => {
+    setDoneInSession((prev) => new Set(prev).add(packageId));
+    setSelectedAssignmentId(null);
+    setSelectedAssignmentType(null);
+    setSelectedAssignmentLinkedPendingId(null);
+    trackUsage(INTERACTION_KEYS.PACKAGE_MARK_AS_DONE, workspaceRef.current);
+
+    (async () => {
+      try {
+        if (packageType === "pending") {
+          const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+          await client(reviewPackage).applyAction(
+            { pending_rfq_package: pkg, rfq_package_id: null },
+            { $returnEdits: true },
+          );
+        } else {
+          const rfqPkg = await client(RfqPackage).fetchOne(packageId);
+          await client(editRfqPackagePrivilegedFields).applyAction(
+            // assignedTo/priority are required by the action signature but
+            // irrelevant here — the underlying Foundry function accepts
+            // them as no-ops when unset (same pattern as AssignToModal.tsx).
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            { rfqPackage: rfqPkg, status: "Completed" } as unknown as any,
+            { $returnEdits: true },
+          );
+        }
+      } catch (e) {
+        console.error("Failed to mark package as done:", e);
+        setDoneInSession((prev) => {
+          const next = new Set(prev);
+          next.delete(packageId);
+          return next;
+        });
+        setErrorToastMessage(e instanceof Error ? e.message : "Failed to mark package as done");
+      }
+    })();
   }, []);
   const { theme, toggleTheme } = useTheme();
 
@@ -174,6 +228,16 @@ function Home(): React.ReactElement {
           ? { packageId: selectedAssignmentLinkedPendingId, packageType: "pending" }
           : { packageId: selectedAssignmentId, packageType: "rfq" }
         : null;
+  /**
+   * Ids to hide from the Assignment list — items marked done (all three
+   * tabs) plus, on the Unassigned tab only, items assigned this session.
+   */
+  const assignmentHiddenIds = useMemo(() => {
+    if (assignmentTab === "unassigned") {
+      return new Set([...assignedInSession, ...doneInSession]);
+    }
+    return doneInSession;
+  }, [assignmentTab, assignedInSession, doneInSession]);
   const workspaceRef = useRef<Workspace>(currentWorkspace);
   useEffect(() => {
     workspaceRef.current = currentWorkspace;
@@ -242,6 +306,36 @@ function Home(): React.ReactElement {
       setActionLoading(false);
     }
   }, [selectedPackageId, actionLoading]);
+
+  /**
+   * "Skip and Review" — fire-and-forget: the package leaves Outstanding the
+   * instant this is clicked (optimistic status update + deselect), rather
+   * than waiting on the action call. The actual markPackageForReview call
+   * runs in the background; on failure the optimistic status is reverted
+   * back to "Active" (the only status this button is ever shown for) and
+   * the failure is surfaced via the error toast, since the package may
+   * already be out of view by the time it resolves.
+   */
+  const handleSkipAndReview = useCallback((packageId: string) => {
+    listRef.current?.updatePackageStatus(packageId, "Under Review");
+    setExcludeFromAutoSelect((prev) => [...prev, packageId]);
+    setSelectedPackageId(null);
+    trackUsage(INTERACTION_KEYS.PACKAGE_SKIP_AND_REVIEW, workspaceRef.current);
+
+    (async () => {
+      try {
+        const pkg = await client(PendingRfqPackage).fetchOne(packageId);
+        await client(markPackageForReview).applyAction(
+          { pending_rfq_package: pkg },
+          { $returnEdits: true },
+        );
+      } catch (e) {
+        console.error("Failed to mark package for review:", e);
+        listRef.current?.updatePackageStatus(packageId, "Active");
+        setErrorToastMessage(e instanceof Error ? e.message : "Failed to mark package for review");
+      }
+    })();
+  }, []);
 
   const handleUnskip = useCallback(async () => {
     if (!selectedPackageId || actionLoading) return;
@@ -579,7 +673,7 @@ function Home(): React.ReactElement {
                   setSelectedAssignmentType(type);
                   setSelectedAssignmentLinkedPendingId(linkedPendingId ?? null);
                 }}
-                hiddenIds={assignmentTab === "unassigned" ? assignedInSession : undefined}
+                hiddenIds={assignmentHiddenIds}
                 assigneeOverrides={assignmentTab !== "unassigned" ? assigneeOverrides : undefined}
                 dueDateOverrides={dueDateOverrides}
                 dueDateEditedOverrides={dueDateEditedOverrides}
@@ -630,6 +724,20 @@ function Home(): React.ReactElement {
                 onClick={() => setShowAssignTo(true)}
               >
                 {assignmentTab === "assigned" ? "Reassign" : "Assign To"}
+              </button>
+              <button
+                className={css.headerButton}
+                disabled={!selectedAssignmentId || !selectedAssignmentType}
+                onClick={() => selectedAssignmentId && selectedAssignmentType && handleMarkAsDone(selectedAssignmentId, selectedAssignmentType)}
+                title={
+                  selectedAssignmentType === "pending"
+                    ? "Move this Pending package to Reviewed"
+                    : selectedAssignmentType === "rfq"
+                      ? "Mark this RFQ Package as Completed"
+                      : "Mark as Done requires a package selection"
+                }
+              >
+                Mark as Done
               </button>
               <EstimatorWorkloadScorecard ref={estimatorWorkloadRef} refreshToken={refreshToken} />
             </div>
@@ -783,7 +891,7 @@ function Home(): React.ReactElement {
                   </>
                 ) : (
                   <>
-                    {(activeTab === "skipped" || (activeTab === "all" && selectedPackageStatus === "Skipped")) ? (
+                    {(activeTab === "skipped" || (activeTab === "all" && (selectedPackageStatus === "Skipped" || selectedPackageStatus === "Under Review"))) ? (
                       <button
                         className={css.headerButton}
                         disabled={!selectedPackageId || actionLoading}
@@ -800,13 +908,22 @@ function Home(): React.ReactElement {
                         {actionLoading ? "Marking…" : "Mark Outstanding"}
                       </button>
                     ) : (
-                      <button
-                        className={css.headerButton}
-                        disabled={!selectedPackageId || actionLoading}
-                        onClick={handleSkip}
-                      >
-                        {actionLoading ? "Skipping…" : "Skip"}
-                      </button>
+                      <>
+                        <button
+                          className={css.headerButton}
+                          disabled={!selectedPackageId || actionLoading}
+                          onClick={handleSkip}
+                        >
+                          {actionLoading ? "Skipping…" : "Skip"}
+                        </button>
+                        <button
+                          className={css.headerButton}
+                          disabled={!selectedPackageId || actionLoading}
+                          onClick={() => selectedPackageId && handleSkipAndReview(selectedPackageId)}
+                        >
+                          Skip and Review
+                        </button>
+                      </>
                     )}
                     {(activeTab === "outstanding" || activeTab === "all") && (
                       <button

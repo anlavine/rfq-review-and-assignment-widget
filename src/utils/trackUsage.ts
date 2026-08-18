@@ -15,6 +15,7 @@ export const INTERACTION_KEYS = {
   FILTER_ASSIGNED_TO: "filter.assignedTo",
   // Package actions
   PACKAGE_SKIP: "package.skip",
+  PACKAGE_SKIP_AND_REVIEW: "package.skipAndReview",
   PACKAGE_UNSKIP: "package.unskip",
   PACKAGE_EDIT_TAGS: "package.editTags",
   PACKAGE_BULK_SKIP: "package.bulkSkip",
@@ -25,6 +26,7 @@ export const INTERACTION_KEYS = {
   PACKAGE_MARK_DUE_DATE_REVIEWED: "package.markDueDateReviewed",
   PACKAGE_EDIT_CUSTOMER: "package.editCustomer",
   PACKAGE_MARK_OUTSTANDING: "package.markOutstanding",
+  PACKAGE_MARK_AS_DONE: "package.markAsDone",
   PACKAGE_CREATE: "package.create",
   // Tool actions
   TOOL_REMOVE: "tool.remove",

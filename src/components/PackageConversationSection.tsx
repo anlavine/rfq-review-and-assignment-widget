@@ -46,14 +46,16 @@ function PackageConversationSection({
                 className={`${css.conversationStatus} ${
                   sibling.completionStatus === "Active"
                     ? css.statusActive
-                    : sibling.completionStatus === "Skipped"
+                    // "Under Review" is a Skip variant (via Skip and Review) —
+                    // badge resolves the same as plain "Skipped".
+                    : sibling.completionStatus === "Skipped" || sibling.completionStatus === "Under Review"
                       ? css.statusSkipped
                       : sibling.completionStatus === "Reviewed"
                         ? css.statusReviewed
                         : ""
                 }`}
               >
-                {sibling.completionStatus ?? "—"}
+                {sibling.completionStatus === "Under Review" ? "Skipped" : sibling.completionStatus ?? "—"}
               </span>
               <span className={css.conversationToolChip}>
                 <svg className={css.conversationToolIcon} viewBox="0 0 16 16" fill="currentColor">
