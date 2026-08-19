@@ -766,6 +766,7 @@ function Home(): React.ReactElement {
             <div className={css.detailPanel}>
               {selectedAssignmentId && selectedAssignmentType === "pending" ? (
                 <AssignmentPendingPackageDetail
+                  key={selectedAssignmentId}
                   packageId={selectedAssignmentId}
                   refreshToken={refreshToken}
                   onDueDateChanged={() => setRefreshToken((t) => t + 1)}
@@ -777,6 +778,7 @@ function Home(): React.ReactElement {
                 />
               ) : selectedAssignmentId && selectedAssignmentType === "rfq" ? (
                 <AssignmentRfqPackageDetail
+                  key={selectedAssignmentId}
                   packageId={selectedAssignmentId}
                   refreshToken={refreshToken}
                   onDueDateSaved={handleAssignmentDueDateSaved}
@@ -996,6 +998,7 @@ function Home(): React.ReactElement {
               <div className={css.detailPanel}>
                 {selectedPackageId ? (
                   <PackageDetail
+                    key={selectedPackageId}
                     packageId={selectedPackageId}
                     refreshToken={refreshToken}
                     onDueDateChanged={() => setRefreshToken((t) => t + 1)}
