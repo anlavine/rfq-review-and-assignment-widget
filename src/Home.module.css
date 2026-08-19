@@ -9,16 +9,42 @@
 /* ── Mode toggle (Ingestion / Assignment) ── */
 /* Sticky so it stays visible when expanded content (e.g. the estimator
    workload scorecard) pushes the page taller than the viewport. */
+/*
+ * Three-part row — spacer, centered toggle, right-aligned actions — rather
+ * than centering the toggle alone, so the toggle stays visually centered
+ * regardless of how wide `.globalActions` is (equal `flex: 1` on the
+ * spacer and the actions group), with `gap` giving an explicit minimum
+ * separation between the toggle and the actions instead of leaving it to
+ * however much room happens to be left over.
+ */
 .modeToggleBar {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 0 6px;
+  gap: 24px;
+  padding: 0 16px 6px;
   flex-shrink: 0;
   position: sticky;
   top: 0;
   z-index: 5;
   background: var(--bg-page);
+}
+
+.modeToggleSpacer {
+  flex: 1;
+}
+
+/*
+ * Feedback + theme toggle are the same regardless of which view is active,
+ * so they render once here instead of being duplicated in both the
+ * Ingestion and Assignment header bars — freeing up room there so the
+ * remaining, view-specific buttons stay on one row instead of wrapping.
+ */
+.globalActions {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .modeToggle {

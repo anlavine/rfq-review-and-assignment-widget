@@ -64,6 +64,9 @@
   --due-soon-fg: #8a5a00;
   --due-soon-border: #ffe083;
 
+  /* ── Recently created RFQ Package row highlight ── */
+  --recent-rfq-bg: #fffde7;
+
   /* ── Tags ── */
   --tag-default-bg: #e1e8ed;
   --tag-default-fg: #1c2127;
@@ -238,6 +241,9 @@
   --due-soon-bg: #3a2e1a;
   --due-soon-fg: #fbbf24;
   --due-soon-border: #78350f;
+
+  /* ── Recently created RFQ Package row highlight ── */
+  --recent-rfq-bg: #3a3410;
 
   /* ── Tags ── */
   --tag-default-bg: #2e333b;

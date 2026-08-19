@@ -586,6 +586,7 @@ function Home(): React.ReactElement {
       <div className={css.home}>
       {showAssignmentTab ?
       <div className={css.modeToggleBar}>
+        <div className={css.modeToggleSpacer} />
         <div className={css.modeToggle}>
           <button
             className={`${css.modeToggleOption} ${appMode === "ingestion" ? css.modeToggleActive : ""}`}
@@ -598,6 +599,25 @@ function Home(): React.ReactElement {
             onClick={() => setAppMode("assignment")}
           >
             Assignment
+          </button>
+        </div>
+        <div className={css.globalActions}>
+          <button
+            className={css.feedbackButton}
+            disabled={!(appMode === "assignment" ? selectedAssignmentId : selectedPackageId)}
+            onClick={() => setShowFeedback(true)}
+            title="Submit feedback"
+          >
+            <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
+            </svg>
+          </button>
+          <button
+            className={css.themeToggle}
+            onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME, workspaceRef.current); }}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀️" : "🌙"}
           </button>
         </div>
       </div> : null}
@@ -703,23 +723,6 @@ function Home(): React.ReactElement {
           </div>
           <div className={css.detailColumn}>
             <div className={css.headerBar}>
-              <button
-                className={css.feedbackButton}
-                disabled={!selectedAssignmentId}
-                onClick={() => setShowFeedback(true)}
-                title="Submit feedback"
-              >
-                <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
-                </svg>
-              </button>
-              <button
-                className={css.themeToggle}
-                onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME, workspaceRef.current); }}
-                title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-              >
-                {theme === "dark" ? "☀️" : "🌙"}
-              </button>
               <FilterDropdown filters={assignmentFilters} onFiltersChange={setAssignmentFilters} workspace={currentWorkspace} />
               <button
                 className={css.headerButton}
@@ -859,23 +862,6 @@ function Home(): React.ReactElement {
                     Select packages to skip
                   </div>
                 )}
-                <button
-                  className={css.feedbackButton}
-                  disabled={!selectedPackageId}
-                  onClick={() => setShowFeedback(true)}
-                  title="Submit feedback"
-                >
-                  <svg className={css.feedbackIcon} viewBox="0 0 16 16" fill="currentColor">
-                    <path d="M3.5 2A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5v2.5l3.5-2.5H12.5A1.5 1.5 0 0 0 14 9.5v-6A1.5 1.5 0 0 0 12.5 2h-9ZM5 5.5a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM8 4.75a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5Zm2.5.75a.75.75 0 1 1 1.5 0 .75.75 0 0 1-1.5 0ZM5.5 7.5h5a.5.5 0 0 1 0 1h-5a.5.5 0 0 1 0-1Z" />
-                  </svg>
-                </button>
-                <button
-                  className={css.themeToggle}
-                  onClick={() => { toggleTheme(); trackUsage(INTERACTION_KEYS.UI_TOGGLE_THEME, workspaceRef.current); }}
-                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                >
-                  {theme === "dark" ? "☀️" : "🌙"}
-                </button>
                 <FilterDropdown filters={filters} onFiltersChange={setFilters} workspace={currentWorkspace} />
                 {mergeStep ? (
                   <button

@@ -24,6 +24,13 @@
   border-color: var(--border-active);
 }
 
+/* RFQ Packages created today or on the most recent prior business day.
+   Declared before .cardSelected so selection still wins the background
+   when a row is both selected and recently created. */
+.cardRecentRfq {
+  background: var(--recent-rfq-bg);
+}
+
 .cardSelected {
   border-color: var(--border-active);
   background: var(--bg-card-selected);

@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import css from "./AssignmentPackageCard.module.css";
 import { getPriorityColorClass } from "../utils/priorityColor";
 import { getDueDateUrgency } from "../utils/dueDateUrgency";
+import { isWithinLastBusinessDay } from "../utils/businessDay";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { excludeZipArchives } from "../utils/attachments";
 import { downloadAttachmentsAsZip } from "../utils/attachmentDownload";
@@ -252,6 +253,7 @@ export default function AssignmentPackageCard({
   const rfqPackageId = item.type === "rfq" ? String(item.pkg.$primaryKey) : "";
   const location = item.type === "rfq" ? item.pkg.quotedFor ?? "" : "";
   const duplicatePackageIds = item.type === "rfq" ? item.duplicatePackageIds : [];
+  const isRecentRfq = item.type === "rfq" && isWithinLastBusinessDay(item.pkg.dateCreated);
 
   const receivedText = isPending
     ? formatReceivedDatetime(item.pkg.receivedDatetime, item.pkg.receivedDate)
@@ -277,7 +279,7 @@ export default function AssignmentPackageCard({
 
   return (
     <div
-      className={`${css.card} ${priorityBorderClass} ${isSelected ? css.cardSelected : ""}`}
+      className={`${css.card} ${priorityBorderClass} ${isRecentRfq ? css.cardRecentRfq : ""} ${isSelected ? css.cardSelected : ""}`}
       role="button"
       tabIndex={0}
       onClick={() => onSelect(id, item.type, item.type === "rfq" ? item.linkedPendingId : null)}
