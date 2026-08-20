@@ -41,6 +41,8 @@ export type AssignmentItem =
     linkedPendingId: string | null;
     /** tags on the linked PendingRfqPackage — RfqPackage itself has no tags field. */
     linkedTags: string[];
+    /** `subject` of the linked PendingRfqPackage, or null if there isn't one — shown in place of the RFQ Package's own `packageName` when present. */
+    linkedSubject: string | null;
     /** ids of other RFQ Packages sharing at least one tool "related tool group" — i.e. duplicate/shared-tooling packages. */
     duplicatePackageIds: string[];
   };
@@ -101,6 +103,18 @@ const UNKNOWN_ASSIGNEE = "__unknown__";
  * with no linked Pending package carries its own `tags` field directly
  * (edited via `editTagsRfqPackage`), keyed by its own id instead.
  */
+/**
+ * Display subject for an item. A Pending package shows its own `subject`.
+ * An RFQ item shows its linked Pending package's `subject` instead of its
+ * own `packageName` — the actual email subject lives on the Pending side,
+ * `packageName` is just a label — falling back to `packageName` when the
+ * RFQ item has no linked Pending package.
+ */
+export function getEffectiveSubject(item: AssignmentItem): string {
+  if (item.type === "pending") return item.pkg.subject ?? item.pkg.packageName ?? "[Unnamed Package]";
+  return item.linkedSubject ?? item.pkg.packageName ?? "[Unnamed Package]";
+}
+
 function getEffectiveTags(item: AssignmentItem, tagOverrides: Record<string, string[]>): string[] {
   if (item.type === "pending") {
     const id = String(item.pkg.$primaryKey);
@@ -234,6 +248,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           linkedFrom: string | null;
           /** tags of the linked PendingRfqPackage — RfqPackage has no tags field of its own. */
           linkedTags: string[];
+          /** `subject` of the linked PendingRfqPackage, or null if there isn't one. */
+          linkedSubject: string | null;
         }
 
         /** Resolves the attachment rows for an email (excluding inline images). */
@@ -299,12 +315,14 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               let attachments: Osdk.Instance<PendingRfqAttachments>[] = [];
               let linkedFrom: string | null = null;
               let linkedTags: string[] = [];
+              let linkedSubject: string | null = null;
               try {
                 const linked = await rfqPkg.$link.pendingRfqPackage.fetchOne();
                 pendingPackageId = String(linked.$primaryKey);
                 attachments = await fetchAttachments(linked.emailId, linked.attachmentFileNames);
                 linkedFrom = linked.from ?? null;
                 linkedTags = linked.tags ?? [];
+                linkedSubject = linked.subject ?? null;
               } catch { /* no linked pending package */ }
 
               // Resolve tool count via rfqTool link
@@ -330,7 +348,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
               const assigneeId = rfqPkg.assignedTo && rfqPkg.assignedTo.trim() !== ""
                 ? rfqPkg.assignedTo.trim()
                 : null;
-              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId, linkedFrom, linkedTags };
+              return { pkg: rfqPkg, toolCount, assigneeId, customerName, attachments, pendingPackageId, linkedFrom, linkedTags, linkedSubject };
             }),
           );
           rfqPartials.push(...results);
@@ -380,6 +398,7 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
           dueDate: r.pkg.dueDate ?? null,
           linkedPendingId: r.pendingPackageId,
           linkedTags: r.linkedTags,
+          linkedSubject: r.linkedSubject,
           duplicatePackageIds: duplicatesByPackageId.get(String(r.pkg.$primaryKey))?.packageIds ?? [],
         }));
 
@@ -542,8 +561,8 @@ const AssignmentPackageList = forwardRef<AssignmentPackageListHandle, Assignment
         }
 
         if (filters.subjectSearch) {
-          const subject = item.type === "pending" ? item.pkg.subject : item.pkg.packageName;
-          if (!subject?.toLowerCase().includes(filters.subjectSearch.toLowerCase())) return false;
+          const subject = getEffectiveSubject(item);
+          if (!subject.toLowerCase().includes(filters.subjectSearch.toLowerCase())) return false;
         }
 
         if (filters.senderSearch) {

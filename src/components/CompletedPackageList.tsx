@@ -306,6 +306,7 @@ async function buildRfqItem(rfqPkg: Osdk.Instance<RfqPackage>): Promise<Assignme
     dueDate: rfqPkg.dueDate ?? null,
     linkedPendingId: linked ? String(linked.$primaryKey) : null,
     linkedTags: linked?.tags ?? [],
+    linkedSubject: linked?.subject ?? null,
     // Resolved separately, in a batch, after a page of items is built —
     // see attachDuplicatePackages.
     duplicatePackageIds: [],

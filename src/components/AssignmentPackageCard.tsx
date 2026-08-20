@@ -7,7 +7,7 @@ import { isWithinLastBusinessDay } from "../utils/businessDay";
 import { formatReceivedDatetime } from "../utils/formatReceivedDatetime";
 import { excludeZipArchives } from "../utils/attachments";
 import { downloadAttachmentsAsZip } from "../utils/attachmentDownload";
-import type { AssignmentItem, AssignmentMode } from "./AssignmentPackageList";
+import { getEffectiveSubject, type AssignmentItem, type AssignmentMode } from "./AssignmentPackageList";
 
 function formatDate(date: string | null | undefined): string {
   if (!date) return "—";
@@ -221,9 +221,7 @@ export default function AssignmentPackageCard({
   const priorityBorderClass = getPriorityColorClass(item.priorityScore, PRIORITY_CLASSES);
   const isPending = item.type === "pending";
 
-  const title = isPending
-    ? item.pkg.subject ?? item.pkg.packageName ?? "[Unnamed Package]"
-    : item.pkg.packageName ?? "[Unnamed Package]";
+  const title = getEffectiveSubject(item);
 
   const handleDownloadAll = async () => {
     if (isDownloading) return;
